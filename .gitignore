@@ -1,0 +1,21 @@
+# Market data and derived cache (large; lives on disk / EC2, not in git)
+cache/
+*.parquet
+*.tar
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local tooling / editor
+.claude/
+.vscode/
+.idea/
+*.log
+
+# Secrets
+.env
+.streamlit/secrets.toml
+*.pem

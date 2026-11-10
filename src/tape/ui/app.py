@@ -14,7 +14,7 @@ import streamlit as st
 from tape.service.results import Table
 from tape.ui import charts, forms
 from tape.ui.client import ApiError, Client
-from tape.ui.theme import CSS, SERIES
+from tape.ui.theme import CSS
 
 if TYPE_CHECKING:
     from tape.engine.reports import Metrics
@@ -59,8 +59,7 @@ def notice(message: str) -> None:
 
 
 def badge(label: str) -> str:
-    color = SERIES[LABELS.index(label)]
-    return f'<span class="tape-line" style="background:{color}">{label}</span>'
+    return f'<span class="tape-line {label.lower()}">{label}</span>'
 
 
 @st.cache_resource
@@ -104,7 +103,8 @@ def comparison(results: dict[str, tuple[str, Metrics]], names: dict[str, str]) -
             rule = ' class="group"' if i == len(group) - 1 else ""
             body.append(f"<tr{rule}><td>{html.escape(title)}</td>{cells}</tr>")
     return (
-        f'<table class="tape"><thead><tr><th></th>{head}</tr></thead><tbody>{"".join(body)}</tbody></table>'
+        f'<div class="tape-card"><table class="tape"><thead><tr><th></th>{head}</tr></thead>'
+        f"<tbody>{''.join(body)}</tbody></table></div>"
     )
 
 
@@ -136,7 +136,8 @@ def board(
             f'{figures}{bench}<span class="meta">run {key[:10]}</span></div>'
         )
     return (
-        f'<div class="tape-board"><div class="line"><span class="ticker">{html.escape(spec["ticker"])}</span>'
+        '<div class="tape-card tape-board"><div class="line">'
+        f'<span class="ticker">{html.escape(spec["ticker"])}</span>'
         f'<span class="span">{start} &ndash; {end}</span>'
         f'<span class="meta">data {version[:10]}</span></div>{"".join(rows)}</div>'
     )
@@ -164,7 +165,10 @@ def monthly(eq: pd.DataFrame) -> str:
         f"<tr><td>{year}</td>{''.join(cell(float(v)) for v in row)}{cell(float(y.iloc[i]))}</tr>"
         for i, (year, row) in enumerate(pivot.iterrows())
     )
-    return f'<table class="tape months"><thead><tr><th>%</th>{head}</tr></thead><tbody>{body}</tbody></table>'
+    return (
+        f'<div class="tape-card"><table class="tape months"><thead><tr><th>%</th>{head}</tr></thead>'
+        f"<tbody>{body}</tbody></table></div>"
+    )
 
 
 TRADE_COLUMNS: Final = {
@@ -250,7 +254,8 @@ def backtest_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any]
     compare = st.toggle("Compare two strategies", value=False)
     runs: dict[str, tuple[str, dict[str, Any] | None]] = {}
     for label in LABELS if compare else LABELS[:1]:
-        st.subheader(f"Strategy {label}" if compare else "Strategy")
+        if compare:
+            st.subheader(f"Strategy {label}")
         names = list(strats)
         name = st.selectbox(
             "Strategy",
@@ -347,12 +352,13 @@ def strategy_tab(label: str, key: str, spec: dict[str, Any]) -> None:
     indicators = [
         c for c in bars.columns if c not in {"time", "open", "high", "low", "close", "volume", "equity"}
     ]
-    st.plotly_chart(
-        charts.price(shown, shown_fills, indicators, intraday),
-        width="stretch",
-        key=f"price:{label}",
-        config=charts.CONFIG,
-    )
+    with st.container(border=True):
+        st.plotly_chart(
+            charts.price(shown, shown_fills, indicators, intraday),
+            width="stretch",
+            key=f"price:{label}",
+            config=charts.CONFIG,
+        )
     blotter, order_tab, month_tab = st.tabs(
         [f"Trades ({len(trades):,})", f"Orders ({len(orders):,})", "Monthly returns"]
     )
@@ -385,7 +391,8 @@ def show_runs(
     left, right = st.columns([3, 2], gap="large")
     with left:
         curves = {f"{label} {names[label]}": table(key, Table.EQUITY) for label, (key, _) in results.items()}
-        st.plotly_chart(charts.equity(curves), width="stretch", key="equity", config=charts.CONFIG)
+        with st.container(border=True):
+            st.plotly_chart(charts.equity(curves), width="stretch", key="equity", config=charts.CONFIG)
     with right:
         st.html(comparison(results, names))
     if len(results) == 1:
@@ -454,7 +461,8 @@ def show_sweep(key: str, spec: dict[str, Any], cat: dict[str, Any], strats: dict
     count = len(spec["tickers"])
     held_fixed = " · ".join(f"{forms.label(c)} {forms.label(frame[c].iloc[0])}" for c in fixed)
     st.html(
-        f'<div class="tape-board"><div class="line"><span class="ticker">{html.escape(title)} sweep</span>'
+        '<div class="tape-card tape-board"><div class="line">'
+        f'<span class="ticker">{html.escape(title)} sweep</span>'
         f'<span class="span">{spec["timeframe"]} · {count} ticker{"s" if count != 1 else ""} · '
         f"{len(frame):,} runs</span>"
         f'<span class="meta">sweep {key[:10]}</span></div>'

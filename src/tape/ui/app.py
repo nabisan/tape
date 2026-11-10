@@ -205,7 +205,9 @@ def space(strategy: str, ticker: str) -> dict[str, Any]:
 
 def execution_form() -> dict[str, Any]:
     with st.expander("Execution", expanded=False):
-        cash = st.number_input("Initial cash ($)", min_value=1_000.0, value=100_000.0, step=10_000.0)
+        cash = st.number_input(
+            "Initial cash ($)", min_value=1_000.0, value=100_000.0, step=10_000.0, format="%.0f"
+        )
         commission = st.number_input("Commission ($/share)", 0.0, 1.0, 0.005, 0.001, format="%.4f")
         slippage = st.number_input("Slippage (bps)", 0.0, 1_000.0, 1.0, 0.5)
         prob_limit = st.slider("Limit fill probability on touch", 0.0, 1.0, 1.0, 0.05)
@@ -298,13 +300,9 @@ def sweep_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | 
         for param, domain in resolved["space"]["choices"][tf].items()
     }
     schema = resolved["config_schema"]
-    fixed = {
-        n: forms.scalar(
-            st, n, forms.resolve(schema["properties"][n], schema.get("$defs", {})), f"sweep:{name}:{n}"
-        )
-        for n in schema["properties"]
-        if n != "timeframe" and n not in grid
-    }
+    fixed = forms.fields(
+        schema["properties"], schema.get("$defs", {}), f"sweep:{name}", skip={"timeframe", *grid}
+    )
     execution = execution_form()
     ready = span is not None and all(grid.values())
     if not st.button("Run sweep", type="primary", width="stretch", disabled=not ready) or span is None:

@@ -32,9 +32,14 @@ def _window_options(
     return options
 
 
+def visible(prop: dict[str, Any], chosen: dict[str, Any]) -> bool:
+    return all(chosen.get(field) == value for field, value in prop.get("when", {}).items())
+
+
 def scalar(col: Any, name: str, prop: dict[str, Any], key: str) -> Any:
     title = prop.get("title") or label(name)
     default = prop.get("default")
+    step = prop.get("step")
     if "enum" in prop:
         options = prop["enum"]
         index = options.index(default) if default in options else 0
@@ -47,7 +52,7 @@ def scalar(col: Any, name: str, prop: dict[str, Any], key: str) -> Any:
             min_value=prop.get("minimum"),
             max_value=prop.get("maximum"),
             value=int(default if default is not None else 0),
-            step=1,
+            step=int(step or 1),
             key=key,
         )
     low = prop.get("exclusiveMinimum", prop.get("minimum"))
@@ -57,7 +62,8 @@ def scalar(col: Any, name: str, prop: dict[str, Any], key: str) -> Any:
         min_value=None if low is None else float(low),
         max_value=None if high is None else float(high),
         value=float(default if default is not None else 0.0),
-        format="%.2f",
+        step=float(step) if step else None,
+        format="%.0f" if step and float(step) >= 1 else "%.2f",
         key=key,
     )
 
@@ -89,8 +95,26 @@ def strategy(schema: dict[str, Any], space: dict[str, Any], key: str) -> dict[st
         out[name] = cols[i % 2].selectbox(
             props[name].get("title") or label(name), options, index=index, key=f"{key}:{tf}:{name}"
         )
-    rest = [n for n in props if n != "timeframe" and n not in choices]
+    out.update(fields(props, defs, f"{key}", skip={"timeframe", *choices}, chosen=out))
+    return out
+
+
+def fields(
+    props: dict[str, Any],
+    defs: dict[str, Any],
+    key: str,
+    skip: set[str],
+    chosen: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    context = dict(chosen or {})
+    names = [n for n in props if n not in skip]
     cols = st.columns(2)
-    for i, name in enumerate(rest):
-        out[name] = scalar(cols[i % 2], name, resolve(props[name], defs), f"{key}:{name}")
+    shown = 0
+    for name in names:
+        prop = resolve(props[name], defs)
+        if not visible(prop, context):
+            continue
+        out[name] = context[name] = scalar(cols[shown % 2], name, prop, f"{key}:{name}")
+        shown += 1
     return out

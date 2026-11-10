@@ -3,9 +3,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from tape.core.types import Notional, Quantity, Timeframe
 from tape.engine.orders import Order, OrderSide, OrderType, TimeInForce
@@ -44,8 +44,10 @@ class StrategyConfig(BaseModel):
     timeframe: Timeframe = Timeframe.D1
     direction: Direction = Direction.LONG_SHORT
     sizing: Sizing = Sizing.NOTIONAL
-    notional: Notional = 100_000.0
-    shares: Quantity = 100
+    notional: Annotated[
+        Notional, Field(json_schema_extra={"when": {"sizing": "notional"}, "step": 10_000})
+    ] = 100_000.0
+    shares: Annotated[Quantity, Field(json_schema_extra={"when": {"sizing": "shares"}, "step": 10})] = 100
 
 
 @dataclass(frozen=True, slots=True)

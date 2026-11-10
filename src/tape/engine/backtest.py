@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from tape.catalog.bars import last_minutes
-from tape.core.types import NS_PER_MINUTE
+from tape.core.types import NS_PER_MINUTE, Minutes, Notional
 from tape.engine.matching import FillModel, MatchingEngine
 from tape.engine.orders import Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce
 from tape.engine.portfolio import Portfolio, Trade
@@ -30,11 +30,11 @@ type Stored = Callable[[FeatureSpec], F64 | None]
 class ExecutionSpec(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    initial_cash: float = Field(default=100_000.0, gt=0)
+    initial_cash: Notional = 100_000.0
     fill: FillModel = FillModel()
     intraday: bool = False
-    entry_delay_minutes: int = Field(default=0, ge=0)
-    squareoff_minutes_before_close: int = Field(default=5, ge=1)
+    entry_delay_minutes: Minutes = 0
+    squareoff_minutes_before_close: Annotated[Minutes, Field(ge=1)] = 5
 
 
 class Context:

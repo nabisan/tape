@@ -5,10 +5,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-from tape.core.types import Timeframe
+from tape.core.types import Notional, Timeframe
 from tape.engine.orders import Order, OrderSide, OrderType, TimeInForce
+from tape.engine.parameters import ParameterSpace
 
 if TYPE_CHECKING:
     from tape.core.types import F64
@@ -37,7 +38,7 @@ class StrategyConfig(BaseModel):
 
     timeframe: Timeframe = Timeframe.D1
     direction: Direction = Direction.LONG_SHORT
-    notional: float = Field(default=100_000.0, gt=0)
+    notional: Notional = 100_000.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,8 +77,10 @@ class Indicator:
 
 class Strategy[C: StrategyConfig]:
     name: ClassVar[str]
+    title: ClassVar[str]
     version: ClassVar[int] = 1
     config_type: ClassVar[type[StrategyConfig]]
+    parameters: ClassVar[ParameterSpace] = ParameterSpace()
 
     def __init__(self, config: C) -> None:
         self.config = config

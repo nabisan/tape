@@ -52,12 +52,21 @@ section[data-testid="stSidebar"] h2 {{ font-size: 1.05rem; font-weight: 700; mar
 section[data-testid="stSidebar"] h3 {{ font-size: .9rem; font-weight: 600; margin: 1rem 0 .25rem; }}
 .tape-line {{ display: inline-block; min-width: 1.6em; padding: 0 .45em; color: #fff;
   font-weight: 700; text-align: center; border-radius: 2px; line-height: 1.55; }}
-.tape-board {{ display: flex; flex-wrap: wrap; gap: .4rem 1.6rem; align-items: baseline;
-  border-bottom: 2px solid {INK}; padding: 0 0 .5rem; margin: 0 0 .9rem; }}
-.tape-board .ticker {{ font-size: 1.45rem; font-weight: 700; color: {INK}; }}
+.block-container {{ padding-top: 2.2rem; }}
+.tape-board {{ border-bottom: 2px solid {INK}; padding: 0 0 .7rem; margin: 0 0 1rem; }}
+.tape-board .line {{ display: flex; gap: 1.4rem; align-items: baseline; margin-bottom: .55rem; }}
+.tape-board .ticker {{ font-size: 1.6rem; font-weight: 700; color: {INK}; }}
 .tape-board .span {{ color: {INK}; font-weight: 500; }}
-.tape-board .meta {{ color: {MUTED}; }}
-.tape-board .leg {{ display: inline-flex; gap: .45rem; align-items: baseline; color: {INK}; }}
+.tape-board .meta {{ color: {MUTED}; margin-left: auto; }}
+.tape-leg {{ display: flex; flex-wrap: wrap; gap: .3rem 2.2rem; align-items: baseline; padding: .25rem 0; }}
+.tape-leg .name {{ color: {INK}; font-weight: 600; min-width: 14ch; margin-left: -1.6rem; }}
+.tape-leg .fig {{ display: inline-flex; flex-direction: column; }}
+.tape-leg .k {{ color: {MUTED}; font-size: .78rem; }}
+.tape-leg .v {{ color: {INK}; font-size: 1.25rem; font-weight: 600; }}
+.tape-leg .v.muted {{ color: {MUTED}; font-weight: 500; }}
+table.months td.up {{ background: #e9f5ef; }}
+table.months td.down {{ background: {SIGNAL_TINT}; }}
+table.months td, table.months th {{ padding: .25rem .45rem; }}
 table.tape {{ border-collapse: collapse; width: 100%; font-size: .95rem; }}
 table.tape th, table.tape td {{ padding: .3rem .6rem; border-bottom: 1px solid {HAIRLINE};
   white-space: nowrap; }}

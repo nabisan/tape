@@ -48,7 +48,7 @@ ignore = ["PLR2004", "PLR0913"]
 ban-relative-imports = "all"
 
 [tool.ruff.lint.flake8-type-checking]
-runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "tape.engine.strategy.StrategyConfig"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tape"]

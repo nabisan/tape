@@ -1,17 +1,29 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
+from typing import TYPE_CHECKING, Annotated, ClassVar, Final, Literal, NewType
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from tape.core.hashing import Digest, digest
+from tape.core.hashing import digest
+from tape.core.types import Window
 from tape.features import ta
 
 if TYPE_CHECKING:
     from tape.catalog.bars import Bars
     from tape.core.types import F64
+
+
+FeatureId = NewType("FeatureId", str)
+
+
+class FeatureKind(StrEnum):
+    SMA = "sma"
+    EMA = "ema"
+    CHANNEL_HIGH = "channel_high"
+    CHANNEL_LOW = "channel_low"
+    ATR = "atr"
 
 
 class Source(StrEnum):
@@ -49,8 +61,8 @@ class _Kind(BaseModel):
     version: ClassVar[int] = 1
 
     @property
-    def id(self) -> Digest:
-        return digest({"spec": self.model_dump(mode="json"), "version": self.version})
+    def id(self) -> FeatureId:
+        return FeatureId(digest({"spec": self.model_dump(mode="json"), "version": self.version}))
 
     def warmup(self) -> int:
         raise NotImplementedError
@@ -60,8 +72,8 @@ class _Kind(BaseModel):
 
 
 class Sma(_Kind):
-    kind: Literal["sma"] = "sma"
-    window: int = Field(ge=2, le=5_000)
+    kind: Literal[FeatureKind.SMA] = FeatureKind.SMA
+    window: Window
     source: Source = Source.CLOSE
 
     @property
@@ -76,8 +88,8 @@ class Sma(_Kind):
 
 
 class Ema(_Kind):
-    kind: Literal["ema"] = "ema"
-    window: int = Field(ge=2, le=5_000)
+    kind: Literal[FeatureKind.EMA] = FeatureKind.EMA
+    window: Window
     source: Source = Source.CLOSE
 
     @property
@@ -92,8 +104,8 @@ class Ema(_Kind):
 
 
 class ChannelHigh(_Kind):
-    kind: Literal["channel_high"] = "channel_high"
-    window: int = Field(ge=1, le=5_000)
+    kind: Literal[FeatureKind.CHANNEL_HIGH] = FeatureKind.CHANNEL_HIGH
+    window: Window
 
     @property
     def name(self) -> str:
@@ -107,8 +119,8 @@ class ChannelHigh(_Kind):
 
 
 class ChannelLow(_Kind):
-    kind: Literal["channel_low"] = "channel_low"
-    window: int = Field(ge=1, le=5_000)
+    kind: Literal[FeatureKind.CHANNEL_LOW] = FeatureKind.CHANNEL_LOW
+    window: Window
 
     @property
     def name(self) -> str:
@@ -122,8 +134,8 @@ class ChannelLow(_Kind):
 
 
 class Atr(_Kind):
-    kind: Literal["atr"] = "atr"
-    window: int = Field(ge=1, le=5_000)
+    kind: Literal[FeatureKind.ATR] = FeatureKind.ATR
+    window: Window
 
     @property
     def name(self) -> str:
@@ -137,3 +149,15 @@ class Atr(_Kind):
 
 
 type FeatureSpec = Annotated[Sma | Ema | ChannelHigh | ChannelLow | Atr, Field(discriminator="kind")]
+
+SPEC_TYPES: Final[dict[FeatureKind, type[Sma | Ema | ChannelHigh | ChannelLow | Atr]]] = {
+    FeatureKind.SMA: Sma,
+    FeatureKind.EMA: Ema,
+    FeatureKind.CHANNEL_HIGH: ChannelHigh,
+    FeatureKind.CHANNEL_LOW: ChannelLow,
+    FeatureKind.ATR: Atr,
+}
+
+
+def spec_for(kind: FeatureKind, window: int) -> FeatureSpec:
+    return SPEC_TYPES[kind](window=window)

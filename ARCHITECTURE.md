@@ -54,7 +54,7 @@ Two type systems, one per boundary.
 
 **Specs and configuration** are frozen Pydantic v2 models: `FeatureSpec`, `StrategySpec`, `ExecutionSpec`, `RunSpec`, `JobSpec`. They validate on construction, serialize to canonical JSON (sorted keys, fixed float repr) for hashing, and export JSON Schema, which the UI renders as forms. FastAPI consumes them directly.
 
-**Hot-path data** is fixed-dtype numpy: `int64` ns timestamps, `float64` prices, `uint64` volume, `int32` session index. Kernels are Numba-compiled and receive arrays only.
+**Hot-path data** is fixed-dtype numpy: `int64` ns timestamps, `float64` prices, `uint64` volume, `int32` session index. Feature kernels are TA-Lib calls on these arrays; the engine loop works on plain lists of them.
 
 Domain types:
 
@@ -110,74 +110,46 @@ The reference ticker (SPY) must have bars in every calendar session of the span 
 
 CLI: `tape catalog build [--ticker T ...] [--workers N]`, `tape catalog show [--data-version D]`.
 
-## 7. Feature store
+## 7. Feature catalog
 
-A feature is a typed spec, not a column name:
+A feature is a typed spec, `FeatureSpec`, discriminated by `FeatureKind` (`SMA`, `EMA`, `CHANNEL_HIGH`, `CHANNEL_LOW`, `ATR`), with a `Window` and, where relevant, a `Source`. `FeatureId = digest(spec, kind version)`. Kernels are TA-Lib, behind one adapter (`tape.features.ta`) that refuses non-finite input.
 
-```python
-Sma(source=Field.CLOSE, window=50, timeframe=Timeframe.H1)
-ChannelHigh(window=20, timeframe=Timeframe.M15)
-```
+**Catalog.** `features/catalog.parquet` in the store holds one row per materialized feature per ticker and timeframe: feature id, kind, spec, kind version, timeframe, ticker, rows, session range, origin (`built` or `adopted`), and the file and column holding the values. The engine, API and UI query the catalog; nothing infers features from file or column names.
 
-`FeatureId = hash(kind, kind_version, canonical params, data_version)`.
+**Adoption.** `tape features adopt <dir>` registers a precomputed Hive dataset (`bars/` and `features/` per timeframe and ticker) in place, without copying. A ticker and timeframe is registered only if its bars equal the catalog's exactly and the source was built with the same TA-Lib; every 20th file is recomputed and compared, and any difference fails the adoption. The precompute's column naming is read only inside the adoption module.
 
-**Registry.** Each `FeatureKind` registers its spec model, version, kernel and warm-up length. Unknown kinds fail at spec validation.
-
-**TA-Lib.** Indicators TA-Lib provides (SMA, EMA, MAX, MIN, ATR, ...) come from TA-Lib, through one adapter module that is the only importer of `talib`. The adapter pins conventions TA-Lib gets wrong for us: NaN, not 0 or 1, on undefined values, and inputs validated free of interior NaN, since a single interior NaN poisons every later TA-Lib output.
-
-**Sufficient statistics.** Per ticker and timeframe, prefix sums of `close`, `close²`, `volume`, `close·volume` are stored once. Any rolling mean, variance, z-score or VWAP of any window is a difference of two prefix entries: O(1) per bar, no materialization needed.
-
-**Materialized features.** Kinds that are not prefix-decomposable (rolling max/min, EMA, anything path-dependent) are computed by TA-Lib where it has the indicator, otherwise by Numba kernels, and stored under their `FeatureId`. A declared grid of common specs is precomputed by the workers; any other spec is materialized on first request and kept.
-
-**Causality.** One generic test runs over every registered kind: perturbing bars from `t+1` onward must leave values at `t` unchanged. A kind that fails is not registered.
-
-**Warm-up.** Values before a feature's warm-up length are NaN and the engine treats NaN as "no decision".
+**Causality.** One generic test runs over every kind: perturbing bars from `t+1` onward leaves values at `t` unchanged. Channels use the previous `N` bars, excluding the current one.
 
 ## 8. Strategy contract
 
-```python
-class StrategyKind(Protocol[P]):
-    name: ClassVar[str]
-    version: ClassVar[int]
-    params: type[P]  # frozen Pydantic model
+A strategy is a class with typed identity and a typed parameter space:
 
-    def requires(self, p: P) -> list[FeatureSpec]: ...
-    def target(self, f: FeatureView, p: P) -> NDArray[float64]: ...
-```
+| Member | Meaning |
+|---|---|
+| `name`, `title`, `version` | registry key, display name, logic version (part of the run key) |
+| `config_type` | frozen Pydantic config: `timeframe`, `direction`, `notional`, plus the strategy's own parameters as domain types (`Window`, enums) |
+| `parameters: ParameterSpace` | which config fields are feature windows (`WindowParameter(kinds=...)`) and their ordering constraints (`Ordered(lower, upper, strict)`) |
+| `on_start`, `on_bar`, `on_fill`, `on_stop` | event callbacks, Nautilus style |
 
-- `target` returns the desired position in `[-1, 1]` at the close of each decision bar. It never sees fills, cash or the ledger.
-- Strategies read features only through `FeatureView`, resolved from `requires`. They do not compute indicators.
-- Exit rules that are not signals (stop, target, time) are declared on `ExecutionSpec` and run by the engine.
-- Registration is one decorator; the UI form is generated from `params`.
+`ParameterSpace.requires(config)` gives the exact `FeatureSpec`s a run needs. `ParameterSpace.resolve(catalog, ticker)` gives, per timeframe, the windows actually materialized for that ticker that satisfy every constraint. The API serves the resolved space and the config schema; the UI renders any strategy from them, so adding a strategy needs no UI code.
 
-Initial strategies:
+Strategies reach features only through `indicator(spec)`, place orders through `submit` (market, limit, stop), and use `target` and `flatten` helpers. They never see the ledger.
 
-| Strategy | Params | Target |
-|---|---|---|
-| SMA cross | `fast`, `slow` (`fast < slow`), timeframe | `+1` while `SMA_fast > SMA_slow`, `−1` while below |
-| N-bar channel breakout | `entry_window N`, `exit_window M ≤ N`, timeframe | `+1` when close > highest high of the previous `N` bars; `−1` when close < lowest low of the previous `N`; a long exits to flat when close < lowest low of the previous `M`, a short when close > highest high of the previous `M`. `M = N` is stop-and-reverse. |
-
-Channels use the previous `N` bars, excluding the current one, so the comparison is causal.
+Initial strategies: SMA cross (`fast < slow`, optionally only on a fresh cross) and N-bar channel breakout (entry window `N`, exit window `M <= N`, resting stops or close triggers).
 
 ## 9. Engine
 
-Inputs: execution-resolution bars (M1), decision-resolution bars and target array, `ExecutionSpec`. Output: `Ledger`.
+An event-driven loop modelled on NautilusTrader's bar execution, in Python:
 
-**Decision vs execution resolution.** Strategies decide on their timeframe; fills, stops and square-off execute on the M1 bars underneath. A decision made at the close of a decision bar fills at the open of the first M1 bar at or after that close.
+- **Decision vs execution resolution.** Strategies decide on their timeframe; orders fill on the 1-minute bars underneath. A decision at the close of a bar fills from the next minute.
+- **Bar matching.** Each minute becomes the price path open, then high and low (adaptive: the extreme nearer the open first), then close. A gap at the open fills at the open. Market orders fill at the open with slippage; limits fill at the limit (or the better open on a gap, with a touch probability); stops trigger at the stop (or the open on a gap) with slippage.
+- **Costs.** Commission per share with a minimum, slippage in bps against the trade (`FillModel`).
+- **Intraday mode.** Entries only from open plus a delay until square-off; open positions are closed a configurable number of minutes before each session's close, so half-days square off before 13:00.
+- **Portfolio.** Netting position, average price, realized P&L, trades from flat to flat with flips handled; MAE and MFE from 1-minute extremes.
+- **Fast-forward.** While only resting orders are working, NumPy finds the next minute that can touch any order or the next bar or session boundary, and the loop jumps there. Results are identical to the slow path (tested).
+- **Metrics** come from the session-level equity curve and the trade list: return, CAGR, volatility, Sharpe, Sortino, max drawdown and duration, Calmar, exposure, trade statistics, commission, buy and hold.
 
-**Execution rules (engine_version 1):**
-
-- Fill price: open of the fill bar, adjusted by slippage of `slippage_bps` against the trade.
-- Costs: `commission_per_share × shares` on every fill.
-- Sizing: fixed shares, or fixed notional `floor(notional / fill price)`; a size of zero shares means no trade.
-- Direction filter applied to targets before execution.
-- Intraday mode: entries only inside `[entry_from, squareoff)`; any open position is closed at the open of the first M1 bar at or after `squareoff`, or at the close of the session's last regular-hours bar if none exists.
-- Stops and targets, when set, are checked against M1 high/low; a gap through the level fills at the bar open.
-- Volume participation: fills above `max_participation × bar volume` are flagged on the trade, not resized (v1).
-
-**Ledger.** Fills → positions → M1 mark-to-market (previous close to open on the held position, open to close on the new position) → per-trade records → per-session P&L. The kernel is a single Numba loop over M1 bars.
-
-**Metrics** are computed from the ledger only: net P&L, return, CAGR, Sharpe and Sortino on session returns (flat sessions included), max drawdown and duration, exposure, turnover, trade count, win rate, average win/loss, payoff ratio, profit factor, MAE/MFE distribution, total costs, cost as a share of gross P&L, and buy-and-hold and SPY over the same sessions.
+`FeaturePolicy` on a run: `precomputed` (default) refuses a run whose required features are not in the catalog, listing them; `compute` computes them for research.
 
 ## 10. Service
 
@@ -185,9 +157,7 @@ Inputs: execution-resolution bars (M1), decision-resolution bars and target arra
 
 **API** (FastAPI, localhost only): submit run, job status, fetch artifacts, list tickers and data range, list strategies with their param schemas.
 
-**Job table.** SQLite in WAL mode: key, spec, status, timestamps, error. An existing key with status `done` returns immediately.
-
-**Workers.** A process pool (cores − 1) pulls queued jobs, loads store arrays by memory map, runs the engine, writes artifacts atomically (temp + rename). The pool also materializes the precomputed feature grid when idle. Redis or Ray replace SQLite and the local pool only when sweeps require more than one machine.
+**Workers.** A process pool (cores - 1) runs the engine and writes artifacts atomically (temp + rename). In-flight runs with the same key are shared. Redis or Ray replace the local pool only when sweeps need more than one machine.
 
 **Result store.** `results/{job_key}/`: `spec.json`, `versions.json`, `metrics.json`, `trades.parquet`, `sessions.parquet`, `equity.parquet`. Immutable once written.
 
@@ -247,9 +217,10 @@ Each step is reviewed before the next begins.
 
 1. Repository reset, tooling (uv, mypy, ruff, pytest, CI), logging, settings, `tape env`, deploy sync. (done)
 2. Core types and canonical hashing; calendar and catalog build with validation report. (done; next: run on the real source)
-3. Feature registry, prefix statistics, Numba kernels, causality tests.
-4. Engine, ledger, metrics, reconciliation and determinism tests.
-5. SMA cross and channel breakout with golden runs.
-6. Service: API, job table, workers, result store.
-7. UI.
-8. Deployment: systemd, nginx, team login.
+3. Feature kinds, TA-Lib adapter, feature catalog, adoption, causality tests. (done)
+4. Engine, ledger, metrics, reconciliation and determinism tests. (done)
+5. SMA cross and channel breakout, parameter spaces resolved from the catalog. (done)
+6. Service: API, workers, result store, feature policy. (done)
+7. UI: single run or A/B comparison, rendered from strategy parameter spaces. (done)
+8. Deployment: systemd, nginx, optional team login. (done)
+9. Feature build from a typed grid, then parameter sweeps.

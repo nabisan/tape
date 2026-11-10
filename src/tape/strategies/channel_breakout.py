@@ -3,11 +3,13 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, Self
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
+from tape.core.types import Window
 from tape.engine.orders import OrderSide, OrderType
+from tape.engine.parameters import Ordered, ParameterSpace, WindowParameter
 from tape.engine.strategy import Indicator, Strategy, StrategyConfig
-from tape.features.kinds import ChannelHigh, ChannelLow
+from tape.features.kinds import ChannelHigh, ChannelLow, FeatureKind
 
 if TYPE_CHECKING:
     from tape.engine.orders import Fill
@@ -20,8 +22,8 @@ class Trigger(StrEnum):
 
 
 class ChannelBreakoutConfig(StrategyConfig):
-    entry_window: int = Field(default=20, ge=2, le=1_000)
-    exit_window: int = Field(default=10, ge=1, le=1_000)
+    entry_window: Window = 20
+    exit_window: Window = 10
     trigger: Trigger = Trigger.STOP
 
     @model_validator(mode="after")
@@ -32,8 +34,16 @@ class ChannelBreakoutConfig(StrategyConfig):
 
 
 class ChannelBreakout(Strategy[ChannelBreakoutConfig]):
+    title: ClassVar[str] = "Channel breakout"
     name: ClassVar[str] = "channel_breakout"
     config_type: ClassVar[type[StrategyConfig]] = ChannelBreakoutConfig
+    parameters: ClassVar[ParameterSpace] = ParameterSpace(
+        windows={
+            "entry_window": WindowParameter(kinds=(FeatureKind.CHANNEL_HIGH, FeatureKind.CHANNEL_LOW)),
+            "exit_window": WindowParameter(kinds=(FeatureKind.CHANNEL_HIGH, FeatureKind.CHANNEL_LOW)),
+        },
+        ordered=(Ordered(lower="exit_window", upper="entry_window", strict=False),),
+    )
 
     entry_high: Indicator
     entry_low: Indicator

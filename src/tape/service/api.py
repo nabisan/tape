@@ -12,9 +12,12 @@ from pydantic import BaseModel, ValidationError
 from tape import log
 from tape.catalog.store import Status, Store
 from tape.core.hashing import Digest
+from tape.core.types import Ticker
 from tape.engine.backtest import ENGINE_VERSION, ExecutionSpec
+from tape.engine.parameters import ResolvedSpace
 from tape.engine.reports import Metrics
-from tape.runner import RunSpec, execute
+from tape.features.catalog import FeatureCatalog
+from tape.runner import FeaturePolicy, MissingFeaturesError, RunSpec, execute, missing_features
 from tape.service.results import ResultStore, Table
 from tape.strategies.registry import STRATEGIES
 
@@ -55,7 +58,16 @@ class Catalog(BaseModel):
 
 
 class StrategyInfo(BaseModel):
+    title: str
     version: int
+    config_schema: dict[str, Any]
+
+
+class StrategySpace(BaseModel):
+    name: str
+    version: int
+    ticker: str
+    space: ResolvedSpace
     config_schema: dict[str, Any]
 
 
@@ -121,9 +133,27 @@ def create_app(settings: Settings, workers: int) -> FastAPI:
     @app.get("/strategies")
     def strategies() -> dict[str, StrategyInfo]:
         return {
-            name: StrategyInfo(version=cls.version, config_schema=cls.config_type.model_json_schema())
+            name: StrategyInfo(
+                title=cls.title, version=cls.version, config_schema=cls.config_type.model_json_schema()
+            )
             for name, cls in STRATEGIES.items()
         }
+
+    @app.get("/strategies/{name}/space")
+    def space(name: str, ticker: str) -> StrategySpace:
+        if name not in STRATEGIES:
+            raise HTTPException(404, f"unknown strategy {name}")
+        if ticker not in manifest.available:
+            raise HTTPException(404, f"{ticker} not in catalog {manifest.data_version}")
+        cls = STRATEGIES[name]
+        resolved = cls.parameters.resolve(FeatureCatalog(store), Ticker(ticker))
+        return StrategySpace(
+            name=name,
+            version=cls.version,
+            ticker=ticker,
+            space=resolved,
+            config_schema=cls.config_type.model_json_schema(),
+        )
 
     @app.get("/execution/schema")
     def execution_schema() -> dict[str, Any]:
@@ -141,6 +171,12 @@ def create_app(settings: Settings, workers: int) -> FastAPI:
             raise HTTPException(422, e.errors(include_url=False, include_context=False)) from e
         if results.exists(key):
             return RunSummary(key=key, cached=True, metrics=results.metrics(key))
+        if spec.features is FeaturePolicy.PRECOMPUTED and (
+            missing := missing_features(FeatureCatalog(store), spec)
+        ):
+            raise HTTPException(
+                422, f"not precomputed for {spec.ticker}: {', '.join(f.name for f in missing)}"
+            )
         if key not in inflight:
             loop = asyncio.get_running_loop()
             inflight[key] = asyncio.ensure_future(
@@ -151,7 +187,7 @@ def create_app(settings: Settings, workers: int) -> FastAPI:
             )
         try:
             await inflight[key]
-        except ValueError as e:
+        except (ValueError, MissingFeaturesError) as e:
             raise HTTPException(422, str(e)) from e
         finally:
             inflight.pop(key, None)

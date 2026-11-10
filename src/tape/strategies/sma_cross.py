@@ -2,18 +2,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar, Self
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
+from tape.core.types import Window
+from tape.engine.parameters import Ordered, ParameterSpace, WindowParameter
 from tape.engine.strategy import Indicator, Strategy, StrategyConfig
-from tape.features.kinds import Sma
+from tape.features.kinds import FeatureKind, Sma
 
 if TYPE_CHECKING:
     from tape.engine.strategy import Bar
 
 
 class SmaCrossConfig(StrategyConfig):
-    fast: int = Field(default=20, ge=2, le=1_000)
-    slow: int = Field(default=50, ge=3, le=2_000)
+    fast: Window = 20
+    slow: Window = 50
     require_cross: bool = True
 
     @model_validator(mode="after")
@@ -24,8 +26,16 @@ class SmaCrossConfig(StrategyConfig):
 
 
 class SmaCross(Strategy[SmaCrossConfig]):
+    title: ClassVar[str] = "SMA cross"
     name: ClassVar[str] = "sma_cross"
     config_type: ClassVar[type[StrategyConfig]] = SmaCrossConfig
+    parameters: ClassVar[ParameterSpace] = ParameterSpace(
+        windows={
+            "fast": WindowParameter(kinds=(FeatureKind.SMA,)),
+            "slow": WindowParameter(kinds=(FeatureKind.SMA,)),
+        },
+        ordered=(Ordered(lower="fast", upper="slow"),),
+    )
 
     fast: Indicator
     slow: Indicator

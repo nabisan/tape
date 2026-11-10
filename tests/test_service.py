@@ -21,6 +21,7 @@ RUN = {
     "end": "2024-06-28",
     "strategy": "channel_breakout",
     "params": {"timeframe": "1h", "entry_window": 10, "exit_window": 5},
+    "features": "compute",
 }
 
 
@@ -66,3 +67,17 @@ def test_errors(client: TestClient) -> None:
     assert client.post("/runs", json=bad).status_code == 422
     assert client.get("/runs/0123/trades").status_code == 404
     assert client.get("/runs/x/notatable").status_code == 422
+
+
+def test_precomputed_policy_rejects_missing_features(client: TestClient) -> None:
+    r = client.post(
+        "/runs", json={**RUN, "features": "precomputed", "params": {"timeframe": "1d", "entry_window": 30}}
+    )
+    assert r.status_code == 422
+    assert "not precomputed" in r.json()["detail"]
+
+
+def test_space_without_catalog_is_empty(client: TestClient) -> None:
+    body = client.get("/strategies/sma_cross/space", params={"ticker": "AAPL"}).json()
+    assert body["space"]["timeframes"] == []
+    assert client.get("/strategies/nope/space", params={"ticker": "AAPL"}).status_code == 404

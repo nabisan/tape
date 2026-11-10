@@ -36,6 +36,13 @@ class Client:
         result: dict[str, Any] = self._get("/strategies").json()
         return result
 
+    def space(self, strategy: str, ticker: str) -> dict[str, Any]:
+        r = self._http.get(f"/strategies/{strategy}/space", params={"ticker": ticker})
+        if r.status_code != 200:
+            raise ApiError(f"{r.status_code}: {r.text}")
+        result: dict[str, Any] = r.json()
+        return result
+
     def run(self, spec: dict[str, Any]) -> tuple[str, Metrics]:
         r = self._http.post("/runs", json=spec)
         if r.status_code != 200:

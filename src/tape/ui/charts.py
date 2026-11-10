@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -9,6 +9,9 @@ from tape.ui.theme import BUY, FONT_FAMILY, GRID, HAIRLINE, INDICATORS, INK, MUT
 
 if TYPE_CHECKING:
     import pandas as pd
+
+
+CONFIG: Final = {"displayModeBar": False, "scrollZoom": False}
 
 
 def _style(fig: go.Figure, height: int) -> go.Figure:
@@ -20,7 +23,7 @@ def _style(fig: go.Figure, height: int) -> go.Figure:
         margin={"t": 24, "b": 8, "l": 8, "r": 8},
         hovermode="x unified",
         hoverlabel={"font": {"family": f"{FONT_FAMILY}, monospace", "size": 12}, "bgcolor": SURFACE},
-        legend={"orientation": "h", "y": 1.06, "x": 0},
+        legend={"orientation": "h", "y": 1.02, "x": 0, "yanchor": "bottom", "font": {"size": 12}},
     )
     fig.update_xaxes(gridcolor=GRID, linecolor=HAIRLINE, zeroline=False, tickfont={"color": MUTED})
     fig.update_yaxes(gridcolor=GRID, linecolor=HAIRLINE, zeroline=False, tickfont={"color": MUTED})
@@ -44,8 +47,8 @@ def equity(curves: dict[str, pd.DataFrame]) -> go.Figure:
             2,
             1,
         )
-    fig.update_yaxes(title_text="Equity ($)", row=1, col=1)
-    fig.update_yaxes(title_text="Drawdown (%)", row=2, col=1)
+    fig.update_yaxes(title_text="Equity", tickprefix="$", tickformat=",.0f", row=1, col=1)
+    fig.update_yaxes(title_text="Drawdown", ticksuffix="%", tickformat=".0f", row=2, col=1)
     return _style(fig, 520)
 
 

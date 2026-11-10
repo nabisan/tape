@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
+from tape.core.types import Bps, PerShare, Probability
 from tape.engine.orders import Fill, Order, OrderSide, OrderStatus, OrderType
 
 if TYPE_CHECKING:
@@ -17,10 +18,10 @@ type OHLC = tuple[float, float, float, float]
 class FillModel(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    commission_per_share: float = Field(default=0.005, ge=0)
+    commission_per_share: PerShare = 0.005
     min_commission: float = Field(default=0.0, ge=0)
-    slippage_bps: float = Field(default=1.0, ge=0)
-    prob_fill_on_limit: float = Field(default=1.0, ge=0, le=1)
+    slippage_bps: Bps = 1.0
+    prob_fill_on_limit: Probability = 1.0
     adaptive_high_low: bool = True
     seed: int = 0
 

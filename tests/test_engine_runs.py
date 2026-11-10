@@ -69,6 +69,7 @@ def spec(strategy: tuple[str, dict[str, object]], **execution: object) -> RunSpe
             "strategy": name,
             "params": params,
             "execution": execution,
+            "features": "compute",
         }
     )
 

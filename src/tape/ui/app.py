@@ -103,71 +103,147 @@ def comparison(results: dict[str, tuple[str, Metrics]], names: dict[str, str]) -
     )
 
 
+FIGURES: Final[list[tuple[str, str, str]]] = [
+    ("net_pnl", "Net P&L", "${:,.0f}"),
+    ("cagr_pct", "CAGR", "{:.2f}%"),
+    ("sharpe", "Sharpe", "{:.2f}"),
+    ("max_drawdown_pct", "Max drawdown", "{:.2f}%"),
+    ("trades", "Trades", "{:,.0f}"),
+]
+
+
+def figure(title: str, value: str, muted: bool = False) -> str:
+    tone = "v muted" if muted else "v"
+    return f'<span class="fig"><span class="k">{title}</span><span class="{tone}">{value}</span></span>'
+
+
 def board(
     spec: dict[str, Any], results: dict[str, tuple[str, Metrics]], names: dict[str, str], version: str
 ) -> str:
     start = date.fromisoformat(spec["start"]).strftime("%d.%m.%Y")
     end = date.fromisoformat(spec["end"]).strftime("%d.%m.%Y")
-    legs = "".join(
-        f'<span class="leg">{badge(label)} {html.escape(names[label])} '
-        f'<span class="meta">{key[:10]}</span></span>'
-        for label, (key, _) in results.items()
-    )
+    rows = []
+    for label, (key, m) in results.items():
+        figures = "".join(figure(title, _fmt(float(getattr(m, f)), fmt)) for f, title, fmt in FIGURES)
+        bench = figure("Buy and hold", _fmt(m.buy_hold_return_pct, "{:.1f}%"), muted=True)
+        rows.append(
+            f'<div class="tape-leg">{badge(label)}<span class="name">{html.escape(names[label])}</span>'
+            f'{figures}{bench}<span class="meta">run {key[:10]}</span></div>'
+        )
     return (
-        f'<div class="tape-board"><span class="ticker">{html.escape(spec["ticker"])}</span>'
-        f'<span class="span">{start} &ndash; {end}</span>{legs}'
-        f'<span class="meta">data {version[:10]}</span></div>'
+        f'<div class="tape-board"><div class="line"><span class="ticker">{html.escape(spec["ticker"])}</span>'
+        f'<span class="span">{start} &ndash; {end}</span>'
+        f'<span class="meta">data {version[:10]}</span></div>{"".join(rows)}</div>'
     )
 
 
-def monthly(eq: pd.DataFrame) -> pd.DataFrame:
+def monthly(eq: pd.DataFrame) -> str:
     s = eq.set_index("date")["equity"]
-    m = s.resample("ME").last().pct_change().fillna(s.resample("ME").last().iloc[0] / s.iloc[0] - 1) * 100
+    month_end = s.resample("ME").last()
+    m = month_end.pct_change().fillna(month_end.iloc[0] / s.iloc[0] - 1) * 100
+    year_end = s.resample("YE").last()
+    y = year_end.pct_change().fillna(year_end.iloc[0] / s.iloc[0] - 1) * 100
     months = pd.DatetimeIndex(m.index)
-    grid = pd.DataFrame({"year": months.year, "month": months.strftime("%b"), "ret": m.to_numpy()})
-    order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    pivot = grid.pivot_table(index="year", columns="month", values="ret").reindex(columns=order)
-    pivot["Year"] = (
-        s.resample("YE").last().pct_change().fillna(s.resample("YE").last().iloc[0] / s.iloc[0] - 1) * 100
-    ).to_numpy()
-    return pivot.round(2)
+    grid = pd.DataFrame({"year": months.year, "month": months.month, "ret": m.to_numpy()})
+    pivot = grid.pivot_table(index="year", columns="month", values="ret").reindex(columns=range(1, 13))
+    names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    def cell(v: float) -> str:
+        if math.isnan(v):
+            return "<td></td>"
+        tone = "up" if v > 0 else "down" if v < 0 else ""
+        return f'<td class="{tone}">{_fmt(v, "{:.1f}", signed=True)}</td>'
+
+    head = "".join(f"<th>{n}</th>" for n in names) + "<th>Year</th>"
+    body = "".join(
+        f"<tr><td>{year}</td>{''.join(cell(float(v)) for v in row)}{cell(float(y.iloc[i]))}</tr>"
+        for i, (year, row) in enumerate(pivot.iterrows())
+    )
+    return f'<table class="tape months"><thead><tr><th>%</th>{head}</tr></thead><tbody>{body}</tbody></table>'
+
+
+TRADE_COLUMNS: Final = {
+    "trade_id": st.column_config.NumberColumn("#", format="%d", width="small"),
+    "side": st.column_config.TextColumn("Side", width="small"),
+    "quantity": st.column_config.NumberColumn("Qty", format="%,d"),
+    "entry_time": st.column_config.DatetimeColumn("Entry", format="YYYY-MM-DD HH:mm"),
+    "entry_price": st.column_config.NumberColumn("Entry px", format="%.2f"),
+    "exit_time": st.column_config.DatetimeColumn("Exit", format="YYYY-MM-DD HH:mm"),
+    "exit_price": st.column_config.NumberColumn("Exit px", format="%.2f"),
+    "exit_tag": st.column_config.TextColumn("Exit on"),
+    "duration": st.column_config.TextColumn("Held"),
+    "gross_pnl": st.column_config.NumberColumn("Gross $", format="%,.2f"),
+    "commission": st.column_config.NumberColumn("Comm $", format="%,.2f"),
+    "net_pnl": st.column_config.NumberColumn("Net $", format="%,.2f"),
+    "return_pct": st.column_config.NumberColumn("Return %", format="%.2f"),
+    "mae_pct": st.column_config.NumberColumn("MAE %", format="%.2f"),
+    "mfe_pct": st.column_config.NumberColumn("MFE %", format="%.2f"),
+    "open": st.column_config.CheckboxColumn("Open"),
+}
+ORDER_COLUMNS: Final = {
+    "order_id": st.column_config.NumberColumn("#", format="%d", width="small"),
+    "submitted": st.column_config.DatetimeColumn("Submitted", format="YYYY-MM-DD HH:mm"),
+    "closed": st.column_config.DatetimeColumn("Closed", format="YYYY-MM-DD HH:mm"),
+    "price": st.column_config.NumberColumn("Price", format="%.2f"),
+    "fill_price": st.column_config.NumberColumn("Fill px", format="%.2f"),
+    "quantity": st.column_config.NumberColumn("Qty", format="%,d"),
+}
+
+
+def held(d: pd.Timedelta) -> str:
+    minutes = int(d.total_seconds() // 60)
+    days, rest = divmod(minutes, 1440)
+    hours, mins = divmod(rest, 60)
+    return f"{days}d {hours:02d}h" if days else f"{hours}h {mins:02d}m"
+
+
+@st.cache_data(ttl=300)
+def space(strategy: str, ticker: str) -> dict[str, Any]:
+    return client().space(strategy, ticker)
 
 
 def sidebar(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | None:
     with st.sidebar:
         st.header("tape")
-        st.caption("Bar-level backtests, regular hours, XNYS sessions")
-        tickers = {t["ticker"]: t for t in cat["tickers"]}
-        ticker = st.selectbox(
-            "Ticker", list(tickers), index=list(tickers).index("AAPL") if "AAPL" in tickers else 0
-        )
-        first = date.fromisoformat(tickers[ticker]["first_session"])
-        last = date.fromisoformat(tickers[ticker]["last_session"])
+        st.caption("Bar-level backtests · XNYS regular hours")
+        tickers = [t["ticker"] for t in cat["tickers"]]
+        info = {t["ticker"]: t for t in cat["tickers"]}
+        ticker = st.selectbox("Ticker", tickers, index=tickers.index("AAPL") if "AAPL" in tickers else 0)
+        first = date.fromisoformat(info[ticker]["first_session"])
+        last = date.fromisoformat(info[ticker]["last_session"])
         span = st.date_input("Dates", (first, last), min_value=first, max_value=last, format="DD/MM/YYYY")
-        with st.expander("Execution", expanded=False):
-            cash = st.number_input("Initial cash ($)", min_value=1_000.0, value=100_000.0, step=10_000.0)
-            commission = st.number_input(
-                "Commission ($/share)", min_value=0.0, value=0.005, step=0.001, format="%.4f"
-            )
-            slippage = st.number_input("Slippage (bps)", min_value=0.0, value=1.0, step=0.5)
-            prob_limit = st.slider("Limit fill probability on touch", 0.0, 1.0, 1.0, 0.05)
-            intraday = st.toggle("Intraday (flat at every close)")
-            delay = st.number_input(
-                "Entry delay after open (min)", min_value=0, value=0, step=5, disabled=not intraday
-            )
-            squareoff = st.number_input(
-                "Square-off before close (min)", min_value=1, value=5, step=1, disabled=not intraday
-            )
         compare = st.toggle("Compare two strategies", value=False)
-        runs = {}
+        runs: dict[str, tuple[str, dict[str, Any] | None]] = {}
         for label in LABELS if compare else LABELS[:1]:
             st.subheader(f"Strategy {label}" if compare else "Strategy")
             names = list(strats)
             name = st.selectbox(
-                "Strategy", names, index=LABELS.index(label) % len(names), key=f"strategy:{label}"
+                "Strategy",
+                names,
+                index=LABELS.index(label) % len(names),
+                format_func=forms.label,
+                key=f"strategy:{label}",
             )
-            runs[label] = (name, forms.params(strats[name]["config_schema"], key=f"{label}:{name}"))
-        submit = st.button("Run comparison" if compare else "Run backtest", type="primary", width="stretch")
+            resolved = space(name, ticker)
+            runs[label] = (
+                name,
+                forms.strategy(resolved["config_schema"], resolved["space"], f"{label}:{name}"),
+            )
+        with st.expander("Execution", expanded=False):
+            cash = st.number_input("Initial cash ($)", min_value=1_000.0, value=100_000.0, step=10_000.0)
+            commission = st.number_input("Commission ($/share)", 0.0, 1.0, 0.005, 0.001, format="%.4f")
+            slippage = st.number_input("Slippage (bps)", 0.0, 1_000.0, 1.0, 0.5)
+            prob_limit = st.slider("Limit fill probability on touch", 0.0, 1.0, 1.0, 0.05)
+            intraday = st.toggle("Intraday (flat at every close)")
+            delay = st.number_input("Entry delay after open (min)", 0, 390, 0, 5, disabled=not intraday)
+            squareoff = st.number_input("Square-off before close (min)", 1, 390, 5, 1, disabled=not intraday)
+        ready = all(params is not None for _, params in runs.values())
+        submit = st.button(
+            "Run comparison" if compare else "Run backtest",
+            type="primary",
+            width="stretch",
+            disabled=not ready,
+        )
     if not submit or not isinstance(span, tuple) or len(span) != 2:
         return None
     execution = {
@@ -202,7 +278,7 @@ def strategy_tab(label: str, key: str, spec: dict[str, Any]) -> None:
     eq = table(key, Table.EQUITY)
     intraday = spec["params"].get("timeframe", "1d") != "1d"
     days = pd.Index(bars["time"].dt.normalize().unique())
-    lo = days[max(0, len(days) - (90 if intraday else len(days)))]
+    lo = days[max(0, len(days) - (60 if intraday else len(days)))]
     view = st.slider(
         "Chart window",
         min_value=days[0].date(),
@@ -210,6 +286,7 @@ def strategy_tab(label: str, key: str, spec: dict[str, Any]) -> None:
         value=(lo.date(), days[-1].date()),
         format="DD/MM/YYYY",
         key=f"window:{label}",
+        label_visibility="collapsed",
     )
     a, b = pd.Timestamp(view[0]), pd.Timestamp(view[1]) + pd.Timedelta(days=1)
     shown = bars[(bars["time"] >= a) & (bars["time"] < b)]
@@ -218,18 +295,27 @@ def strategy_tab(label: str, key: str, spec: dict[str, Any]) -> None:
         c for c in bars.columns if c not in {"time", "open", "high", "low", "close", "volume", "equity"}
     ]
     st.plotly_chart(
-        charts.price(shown, shown_fills, indicators, intraday), width="stretch", key=f"price:{label}"
+        charts.price(shown, shown_fills, indicators, intraday),
+        width="stretch",
+        key=f"price:{label}",
+        config=charts.CONFIG,
     )
-    blotter, order_tab, month_tab = st.tabs(["Trades", "Orders", "Monthly returns"])
+    blotter, order_tab, month_tab = st.tabs(
+        [f"Trades ({len(trades):,})", f"Orders ({len(orders):,})", "Monthly returns"]
+    )
     with blotter:
-        st.dataframe(trades, width="stretch", height=420, hide_index=True)
+        view_trades = trades.assign(duration=trades["duration"].map(held)) if len(trades) else trades
+        st.dataframe(view_trades, width="stretch", height=440, hide_index=True, column_config=TRADE_COLUMNS)
         st.download_button(
-            "Trades CSV", trades.to_csv(index=False), f"trades_{label}_{key[:8]}.csv", key=f"dl:{label}"
+            "Download trades (CSV)",
+            trades.to_csv(index=False),
+            f"trades_{label}_{key[:8]}.csv",
+            key=f"dl:{label}",
         )
     with order_tab:
-        st.dataframe(orders, width="stretch", height=420, hide_index=True)
+        st.dataframe(orders, width="stretch", height=440, hide_index=True, column_config=ORDER_COLUMNS)
     with month_tab:
-        st.dataframe(monthly(eq), width="stretch")
+        st.html(monthly(eq))
 
 
 def main() -> None:
@@ -255,15 +341,17 @@ def main() -> None:
         st.info("Choose a ticker, a date range and a strategy in the sidebar, then run the backtest.")
         return
     specs = st.session_state["specs"]
-    names = {label: f"{s['strategy']} · {s['params'].get('timeframe', '1d')}" for label, s in specs.items()}
-    first = next(iter(specs.values()))
-    st.html(board(first, results, names, cat["data_version"]))
-    left, right = st.columns([2, 3], gap="large")
+    names = {
+        label: f"{forms.label(s['strategy'])} · {s['params'].get('timeframe', '1d')}"
+        for label, s in specs.items()
+    }
+    st.html(board(next(iter(specs.values())), results, names, cat["data_version"]))
+    left, right = st.columns([3, 2], gap="large")
     with left:
-        st.html(comparison(results, names))
-    with right:
         curves = {f"{label} {names[label]}": table(key, Table.EQUITY) for label, (key, _) in results.items()}
-        st.plotly_chart(charts.equity(curves), width="stretch", key="equity")
+        st.plotly_chart(charts.equity(curves), width="stretch", key="equity", config=charts.CONFIG)
+    with right:
+        st.html(comparison(results, names))
     if len(results) == 1:
         label, (key, _) = next(iter(results.items()))
         strategy_tab(label, key, specs[label])

@@ -1,0 +1,17 @@
+[Unit]
+Description=tape backtest API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=@USER@
+WorkingDirectory=@APP@
+Environment=TAPE_HOME=@HOME@/tape
+ExecStart=@APP@/.venv/bin/tape serve api --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

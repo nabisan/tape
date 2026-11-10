@@ -1,0 +1,17 @@
+[Unit]
+Description=tape web UI
+After=network-online.target tape-api.service
+Wants=network-online.target tape-api.service
+
+[Service]
+User=@USER@
+WorkingDirectory=@APP@
+Environment=TAPE_HOME=@HOME@/tape
+ExecStart=@APP@/.venv/bin/tape serve ui --host 127.0.0.1 --port 8501 --api http://127.0.0.1:8000
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

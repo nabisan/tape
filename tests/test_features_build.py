@@ -7,8 +7,9 @@ import pytest
 
 from tape.catalog.store import Store
 from tape.core.types import Ticker, Timeframe
-from tape.features.build import FeatureGrid, build
+from tape.features.build import build
 from tape.features.catalog import FeatureCatalog, Origin
+from tape.features.grid import FeatureGrid
 from tape.features.kinds import ChannelHigh, ChannelLow, Sma
 from tape.runner import RunSpec, execute
 from tests.test_engine_runs import make_store

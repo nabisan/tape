@@ -102,3 +102,31 @@ def test_portfolio_scale_in_averages_entry() -> None:
     p.apply(fill(OrderSide.SELL, 50, 13.0, commission=0))
     assert p.open.realized == pytest.approx(100.0)
     assert p.open.quantity == 150
+
+
+def test_notional_is_sized_at_the_fill_price() -> None:
+    o = Order(1, OrderSide.BUY, OrderType.MARKET, 0, TimeInForce.GTC, 0, 0, notional=10_000.0)
+    [f] = list(MatchingEngine(FillModel(slippage_bps=10)).process([o], 1, (99.0, 101, 98, 100)))
+    assert f.quantity == 101
+    assert f.price == pytest.approx(99.0 * 1.001)
+    assert o.quantity == 101
+
+
+def test_flip_closes_and_opens_at_the_same_fill() -> None:
+    o = Order(1, OrderSide.SELL, OrderType.MARKET, 150, TimeInForce.GTC, 0, 0, notional=10_000.0)
+    [f] = list(MatchingEngine(FREE).process([o], 1, (50.0, 51, 49, 50)))
+    assert f.quantity == 150 + 200
+
+
+def test_notional_below_one_share_is_rejected() -> None:
+    o = Order(1, OrderSide.BUY, OrderType.MARKET, 0, TimeInForce.GTC, 0, 0, notional=50.0)
+    assert list(MatchingEngine(FREE).process([o], 1, (99.0, 101, 98, 100))) == []
+    assert (o.status, o.reason) == (OrderStatus.REJECTED, "notional below one share")
+
+
+def test_stop_with_notional_sizes_at_the_stop_level() -> None:
+    o = Order(
+        1, OrderSide.BUY, OrderType.STOP_MARKET, 0, TimeInForce.GTC, 0, 0, price=100.8, notional=10_080.0
+    )
+    [f] = list(MatchingEngine(FREE).process([o], 1, (100.0, 101, 99, 100.5)))
+    assert (f.quantity, f.price) == (100, 100.8)

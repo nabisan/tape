@@ -13,7 +13,9 @@ from tape.core.hashing import Digest, Json, digest
 from tape.core.types import Ticker, Timeframe
 from tape.engine import reports
 from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec
+from tape.features.build import materialize
 from tape.features.catalog import FeatureCatalog
+from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.strategies.registry import STRATEGIES, create
 
 if TYPE_CHECKING:
@@ -24,6 +26,7 @@ if TYPE_CHECKING:
 
 
 class FeaturePolicy(StrEnum):
+    MATERIALIZE = "materialize"
     PRECOMPUTED = "precomputed"
     COMPUTE = "compute"
 
@@ -38,6 +41,19 @@ def missing_features(catalog: FeatureCatalog, spec: RunSpec) -> list[FeatureSpec
     return [f for f in required if catalog.lookup(spec.ticker, strategy.config.timeframe, f) is None]
 
 
+def unbuildable(
+    spec: RunSpec, missing: list[FeatureSpec], grid: FeatureGrid = DEFAULT_GRID
+) -> list[FeatureSpec]:
+    match spec.features:
+        case FeaturePolicy.COMPUTE:
+            return []
+        case FeaturePolicy.PRECOMPUTED:
+            return missing
+        case FeaturePolicy.MATERIALIZE:
+            allowed = grid.ids(create(spec.strategy, spec.params).config.timeframe)
+            return [f for f in missing if f.id not in allowed]
+
+
 class RunSpec(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -47,7 +63,7 @@ class RunSpec(BaseModel):
     strategy: str
     params: dict[str, Json] = {}
     execution: ExecutionSpec = ExecutionSpec()
-    features: FeaturePolicy = FeaturePolicy.PRECOMPUTED
+    features: FeaturePolicy = FeaturePolicy.MATERIALIZE
 
     def key(self, data_version: Digest) -> Digest:
         cls = STRATEGIES[self.strategy]
@@ -83,7 +99,7 @@ def session_range(sessions: Sessions, start: date, end: date) -> tuple[int, int]
     return lo, hi
 
 
-def execute(store: Store, spec: RunSpec) -> Result:
+def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Result:
     strategy = create(spec.strategy, spec.params)
     timeframe = strategy.config.timeframe
     sessions = store.sessions()
@@ -91,9 +107,12 @@ def execute(store: Store, spec: RunSpec) -> Result:
     decision = store.bars(spec.ticker, timeframe)
     first, last = session_range(sessions, spec.start, spec.end)
     catalog = FeatureCatalog(store)
-    if spec.features is FeaturePolicy.PRECOMPUTED and (missing := missing_features(catalog, spec)):
-        names = ", ".join(f.name for f in missing)
+    missing = missing_features(catalog, spec)
+    if refused := unbuildable(spec, missing, grid):
+        names = ", ".join(f.name for f in refused)
         raise MissingFeaturesError(f"{spec.ticker} {timeframe}: not precomputed: {names}")
+    if missing and spec.features is FeaturePolicy.MATERIALIZE:
+        catalog.register(materialize(store, spec.ticker, timeframe, missing))
 
     def stored(f: FeatureSpec) -> F64 | None:
         entry = catalog.lookup(spec.ticker, timeframe, f)

@@ -3,11 +3,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
-from tape.core.types import Notional, Timeframe
+from tape.core.types import Notional, Quantity, Timeframe
 from tape.engine.orders import Order, OrderSide, OrderType, TimeInForce
 from tape.engine.parameters import ParameterSpace
 
@@ -33,12 +33,19 @@ class Direction(StrEnum):
                 return sign <= 0
 
 
+class Sizing(StrEnum):
+    NOTIONAL = "notional"
+    SHARES = "shares"
+
+
 class StrategyConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     timeframe: Timeframe = Timeframe.D1
     direction: Direction = Direction.LONG_SHORT
+    sizing: Sizing = Sizing.NOTIONAL
     notional: Notional = 100_000.0
+    shares: Quantity = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,8 +124,12 @@ class Strategy[C: StrategyConfig]:
     def working_orders(self) -> list[Order]:
         return [o for o in (*self.ctx.working, *self.ctx.incoming) if o.working]
 
-    def size(self, price: float) -> int:
-        return math.floor(self.config.notional / price)
+    def opening(self) -> tuple[int, float | None]:
+        match self.config.sizing:
+            case Sizing.NOTIONAL:
+                return 0, self.config.notional
+            case Sizing.SHARES:
+                return self.config.shares, None
 
     def submit(
         self,
@@ -129,23 +140,29 @@ class Strategy[C: StrategyConfig]:
         price: float | None = None,
         tif: TimeInForce = TimeInForce.GTC,
         tag: str = "",
+        notional: float | None = None,
     ) -> Order | None:
-        if quantity <= 0:
+        if quantity <= 0 and notional is None:
             return None
-        return self.ctx.submit(side, quantity, kind=kind, price=price, tif=tif, tag=tag)
+        return self.ctx.submit(side, quantity, kind=kind, price=price, tif=tif, tag=tag, notional=notional)
+
+    def enter(self, side: OrderSide, *, close: int = 0, **order: Any) -> Order | None:
+        shares, notional = self.opening()
+        return self.submit(side, close + shares, notional=notional, **order)
 
     def cancel_all(self) -> None:
         self.ctx.cancel_all()
 
-    def target(self, sign: int, price: float, tag: str = "signal") -> None:
+    def target(self, sign: int, tag: str = "signal") -> None:
         if not self.config.direction.allows(sign):
             sign = 0
-        want = sign * self.size(price)
         current = self.position
         if sign == (current > 0) - (current < 0):
             return
-        if want != current:
-            self.submit(OrderSide.of(want - current), abs(want - current), tag=tag)
+        if sign == 0:
+            self.submit(OrderSide.of(-current), abs(current), tag=tag)
+        else:
+            self.enter(OrderSide.of(sign), close=abs(current), tag=tag)
 
     def flatten(self, tag: str = "flatten") -> None:
         if self.position:

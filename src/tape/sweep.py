@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from tape.core.hashing import Digest, Json, digest
 from tape.core.types import Ticker, Timeframe
 from tape.engine.backtest import ExecutionSpec
+from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.runner import FeaturePolicy, RunSpec
 from tape.strategies.registry import STRATEGIES
 
@@ -44,7 +45,7 @@ class SweepSpec(BaseModel):
     grid: dict[str, tuple[Json, ...]] = {}
     params: dict[str, Json] = {}
     execution: ExecutionSpec = ExecutionSpec()
-    features: FeaturePolicy = FeaturePolicy.PRECOMPUTED
+    features: FeaturePolicy = FeaturePolicy.MATERIALIZE
 
     @property
     def key(self) -> Digest:
@@ -70,7 +71,7 @@ def _window(value: Json) -> int:
     return value
 
 
-def expand(spec: SweepSpec, catalog: FeatureCatalog) -> Plan:
+def expand(spec: SweepSpec, catalog: FeatureCatalog, grid: FeatureGrid = DEFAULT_GRID) -> Plan:
     if spec.strategy not in STRATEGIES:
         raise KeyError(f"unknown strategy {spec.strategy!r}")
     cls = STRATEGIES[spec.strategy]
@@ -79,8 +80,8 @@ def expand(spec: SweepSpec, catalog: FeatureCatalog) -> Plan:
     skipped: list[Skipped] = []
     for ticker in spec.tickers:
         domains: dict[str, tuple[Json, ...]] = dict(spec.grid)
-        if spec.features is FeaturePolicy.PRECOMPUTED:
-            resolved = space.resolve(catalog, ticker)
+        if spec.features is not FeaturePolicy.COMPUTE:
+            resolved = space.resolve(catalog, ticker, grid)
             if spec.timeframe not in resolved.choices:
                 skipped.append(Skipped(ticker=ticker, reason=f"no precomputed features on {spec.timeframe}"))
                 continue

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
     from tape.catalog.store import Store
     from tape.core.hashing import Digest
+    from tape.features.grid import FeatureGrid
     from tape.runner import RunSpec
     from tape.service.results import ResultStore
 
@@ -61,10 +62,13 @@ class SweepManager:
         self,
         store: Store,
         results: ResultStore,
+        *,
         pool: Callable[[], Executor],
         execute: Callable[[str], Digest],
         concurrency: int,
+        grid: FeatureGrid,
     ) -> None:
+        self._grid = grid
         self._store = store
         self._results = results
         self._pool = pool
@@ -78,7 +82,7 @@ class SweepManager:
         current = self._sweeps.get(key)
         if current is not None and current.state == "running":
             return current.status()
-        plan = expand(spec, FeatureCatalog(self._store))
+        plan = expand(spec, FeatureCatalog(self._store), self._grid)
         progress = _Progress(key=key, total=len(plan.runs), skipped=list(plan.skipped))
         self._sweeps[key] = progress
         if self._results.sweep_summary(key).is_file():

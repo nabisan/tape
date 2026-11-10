@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tape.config import Settings
+from tape.features.grid import FeatureGrid
 from tape.service.api import create_app
 from tests.test_engine_runs import make_store
 
@@ -30,7 +31,7 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     root: Path = tmp_path_factory.mktemp("svc")
     make_store(root)
     settings = Settings(source_dir=root / "source", store_dir=root / "store", results_dir=root / "results")
-    with TestClient(create_app(settings, workers=1)) as c:
+    with TestClient(create_app(settings, workers=1, grid=FeatureGrid(timeframes=(), specs=()))) as c:
         yield c
 
 

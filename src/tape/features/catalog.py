@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import os
 from dataclasses import dataclass
 from enum import StrEnum
@@ -143,12 +144,15 @@ class FeatureCatalog:
 
     def register(self, entries: Iterable[Entry]) -> int:
         new = pd.DataFrame([e.row() for e in entries], columns=SCHEMA.names)
-        merged = pd.concat([self._frame, new], ignore_index=True).drop_duplicates(KEY, keep="last")
-        merged = merged.sort_values(["ticker", "timeframe", "kind", "feature_id"], ignore_index=True)
-        table = pa.Table.from_pandas(merged, schema=SCHEMA, preserve_index=False)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_name(f".{self.path.name}.{os.getpid()}.tmp")
-        pq.write_table(table, tmp, compression="zstd")
-        tmp.replace(self.path)
+        with self.path.with_suffix(".lock").open("w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            current = pq.read_table(self.path).to_pandas() if self.path.is_file() else self._frame.iloc[0:0]
+            merged = pd.concat([current, new], ignore_index=True).drop_duplicates(KEY, keep="last")
+            merged = merged.sort_values(["ticker", "timeframe", "kind", "feature_id"], ignore_index=True)
+            table = pa.Table.from_pandas(merged, schema=SCHEMA, preserve_index=False)
+            tmp = self.path.with_name(f".{self.path.name}.{os.getpid()}.tmp")
+            pq.write_table(table, tmp, compression="zstd")
+            tmp.replace(self.path)
         self._frame = merged
         return len(new)

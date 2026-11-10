@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from tape.engine.strategy import Strategy, StrategyConfig
     from tape.features.kinds import FeatureSpec
 
-ENGINE_VERSION = 1
+ENGINE_VERSION = 2
 
 type Stored = Callable[[FeatureSpec], F64 | None]
 
@@ -85,11 +85,23 @@ class Context:
         price: float | None = None,
         tif: TimeInForce = TimeInForce.GTC,
         tag: str = "",
+        notional: float | None = None,
     ) -> Order:
-        order = Order(len(self.orders) + 1, side, kind, quantity, tif, self.now_ns, self.session, price, tag)
+        order = Order(
+            len(self.orders) + 1,
+            side,
+            kind,
+            quantity,
+            tif,
+            self.now_ns,
+            self.session,
+            price,
+            tag,
+            notional=notional,
+        )
         self.orders.append(order)
         held = self.portfolio.quantity
-        increases = held == 0 or (side.sign > 0) == (held > 0) or quantity > abs(held)
+        increases = held == 0 or (side.sign > 0) == (held > 0) or quantity > abs(held) or notional is not None
         if increases and not self.allow_entries:
             order.status = OrderStatus.REJECTED
             order.closed_ns = self.now_ns
@@ -264,7 +276,8 @@ class BacktestEngine:
                 tag="squareoff",
             )
             self.ctx.orders.append(order)
-            self._book(self.matcher.market(order, t, price))
+            if (fill := self.matcher.market(order, t, price)) is not None:
+                self._book(fill)
 
     def _decision_bar(self, k: int, j: int, t: int, s: int) -> None:
         now = t + NS_PER_MINUTE

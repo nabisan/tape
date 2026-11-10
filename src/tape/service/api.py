@@ -16,7 +16,8 @@ from tape.engine.backtest import ENGINE_VERSION, ExecutionSpec
 from tape.engine.parameters import ResolvedSpace
 from tape.engine.reports import Metrics
 from tape.features.catalog import FeatureCatalog
-from tape.runner import FeaturePolicy, MissingFeaturesError, RunSpec, missing_features
+from tape.features.grid import DEFAULT_GRID, FeatureGrid
+from tape.runner import MissingFeaturesError, RunSpec, missing_features, unbuildable
 from tape.service.results import ResultStore, Table
 from tape.service.sweeps import SweepManager, SweepStatus
 from tape.service.worker import execute_run, init_worker
@@ -71,7 +72,7 @@ class RunDetail(BaseModel):
     metrics: Metrics
 
 
-def _catalog_routes(store: Store) -> APIRouter:
+def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
     router = APIRouter()
     manifest = store.manifest
 
@@ -114,7 +115,7 @@ def _catalog_routes(store: Store) -> APIRouter:
             name=name,
             version=cls.version,
             ticker=ticker,
-            space=cls.parameters.resolve(FeatureCatalog(store), Ticker(ticker)),
+            space=cls.parameters.resolve(FeatureCatalog(store), Ticker(ticker), grid),
             config_schema=cls.config_type.model_json_schema(),
         )
 
@@ -125,7 +126,9 @@ def _catalog_routes(store: Store) -> APIRouter:
     return router
 
 
-def _run_routes(store: Store, results: ResultStore, pool: Callable[[], Executor]) -> APIRouter:
+def _run_routes(
+    store: Store, results: ResultStore, pool: Callable[[], Executor], grid: FeatureGrid
+) -> APIRouter:
     router = APIRouter()
     manifest = store.manifest
     inflight: dict[Digest, asyncio.Future[Digest]] = {}
@@ -143,12 +146,9 @@ def _run_routes(store: Store, results: ResultStore, pool: Callable[[], Executor]
             raise HTTPException(422, e.errors(include_url=False, include_context=False)) from e
         if results.exists(key):
             return RunSummary(key=key, cached=True, metrics=results.metrics(key))
-        if spec.features is FeaturePolicy.PRECOMPUTED and (
-            missing := missing_features(FeatureCatalog(store), spec)
-        ):
-            raise HTTPException(
-                422, f"not precomputed for {spec.ticker}: {', '.join(f.name for f in missing)}"
-            )
+        if refused := unbuildable(spec, missing_features(FeatureCatalog(store), spec), grid):
+            names = ", ".join(f.name for f in refused)
+            raise HTTPException(422, f"not precomputed for {spec.ticker}: {names}")
         if key not in inflight:
             loop = asyncio.get_running_loop()
             inflight[key] = asyncio.ensure_future(
@@ -204,7 +204,7 @@ def _sweep_routes(results: ResultStore, sweeps: SweepManager) -> APIRouter:
     return router
 
 
-def create_app(settings: Settings, workers: int) -> FastAPI:
+def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRID) -> FastAPI:
     out = log.Log("Api")
     store = Store.open(settings.store_dir)
     results = ResultStore(settings.results_dir)
@@ -217,6 +217,7 @@ def create_app(settings: Settings, workers: int) -> FastAPI:
             manifest.data_version,
             str(settings.results_dir),
             settings.log_level,
+            grid.model_dump_json(),
         )
         app.state.pool = ProcessPoolExecutor(max_workers=workers, initializer=init_worker, initargs=initargs)
         out.info(
@@ -231,9 +232,11 @@ def create_app(settings: Settings, workers: int) -> FastAPI:
         executor: Executor = app.state.pool
         return executor
 
-    sweeps = SweepManager(store, results, pool, execute_run, max(1, workers) * 2)
-    app.include_router(_catalog_routes(store))
-    app.include_router(_run_routes(store, results, pool))
+    sweeps = SweepManager(
+        store, results, pool=pool, execute=execute_run, concurrency=max(1, workers) * 2, grid=grid
+    )
+    app.include_router(_catalog_routes(store, grid))
+    app.include_router(_run_routes(store, results, pool, grid))
     app.include_router(_sweep_routes(results, sweeps))
     return app
 

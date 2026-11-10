@@ -12,8 +12,9 @@ from fastapi.testclient import TestClient
 from tape.catalog.store import Store
 from tape.config import Settings
 from tape.core.types import Ticker, Timeframe
-from tape.features.build import FeatureGrid, build
+from tape.features.build import build
 from tape.features.catalog import FeatureCatalog
+from tape.features.grid import FeatureGrid
 from tape.features.kinds import ChannelHigh, ChannelLow, Sma
 from tape.runner import FeaturePolicy
 from tape.service.api import create_app
@@ -51,7 +52,7 @@ def sma(**kw: object) -> SweepSpec:
 
 
 def test_expansion_uses_catalog_domains_and_constraints(root: Path) -> None:
-    plan = expand(sma(), FeatureCatalog(Store.open(root / "store")))
+    plan = expand(sma(), FeatureCatalog(Store.open(root / "store")), GRID)
     pairs = sorted({(r.params["fast"], r.params["slow"]) for r in plan.runs})
     assert pairs == [(5, 10), (5, 20), (10, 20)]
     assert len(plan.runs) == 6
@@ -59,12 +60,14 @@ def test_expansion_uses_catalog_domains_and_constraints(root: Path) -> None:
 
 
 def test_explicit_grid_is_intersected_with_the_catalog(root: Path) -> None:
-    plan = expand(sma(grid={"fast": [5, 7], "slow": [20, 200]}), FeatureCatalog(Store.open(root / "store")))
+    plan = expand(
+        sma(grid={"fast": [5, 7], "slow": [20, 200]}), FeatureCatalog(Store.open(root / "store")), GRID
+    )
     assert sorted({(r.params["fast"], r.params["slow"]) for r in plan.runs}) == [(5, 20)]
 
 
 def test_tickers_without_features_are_skipped(root: Path) -> None:
-    plan = expand(sma(timeframe="4h"), FeatureCatalog(Store.open(root / "store")))
+    plan = expand(sma(timeframe="4h"), FeatureCatalog(Store.open(root / "store")), GRID)
     assert plan.runs == ()
     assert {s.ticker for s in plan.skipped} == {AAPL, SPY}
 
@@ -73,14 +76,14 @@ def test_compute_policy_takes_the_grid_as_given(root: Path) -> None:
     spec = sma(
         timeframe="4h", tickers=["AAPL"], grid={"fast": [3], "slow": [8]}, features=FeaturePolicy.COMPUTE
     )
-    plan = expand(spec, FeatureCatalog(Store.open(root / "store")))
+    plan = expand(spec, FeatureCatalog(Store.open(root / "store")), GRID)
     assert [(r.params["fast"], r.params["slow"]) for r in plan.runs] == [(3, 8)]
 
 
 @pytest.fixture(scope="module")
 def client(root: Path) -> Iterator[TestClient]:
     settings = Settings(source_dir=root / "source", store_dir=root / "store", results_dir=root / "results")
-    with TestClient(create_app(settings, workers=1)) as c:
+    with TestClient(create_app(settings, workers=1, grid=GRID)) as c:
         yield c
 
 

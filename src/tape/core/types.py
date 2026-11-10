@@ -25,6 +25,7 @@ OrderId = NewType("OrderId", int)
 TradeId = NewType("TradeId", int)
 
 type Window = Annotated[int, Field(ge=2, le=5_000)]
+type Quantity = Annotated[int, Field(ge=1)]
 type Minutes = Annotated[int, Field(ge=0, le=390)]
 type Notional = Annotated[float, Field(gt=0)]
 type PerShare = Annotated[float, Field(ge=0, le=1)]

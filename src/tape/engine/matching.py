@@ -44,43 +44,54 @@ class MatchingEngine:
         high_first = not self.model.adaptive_high_low or abs(h - o) < abs(lo - o)
         return (o, h, lo, c) if high_first else (o, lo, h, c)
 
-    def market(self, order: Order, time_ns: int, price: float) -> Fill:
-        return self._fill(order, time_ns, self.model.slipped(price, order.side))
+    def market(self, order: Order, time_ns: int, price: float) -> Fill | None:
+        return self._fill(order, time_ns, price, self.model.slipped(price, order.side))
 
     def process(self, orders: list[Order], time_ns: int, bar: OHLC) -> Iterator[Fill]:
         for i, p in enumerate(self.path(bar)):
             for order in orders:
-                if order.working and (price := self._trade_price(order, p, gap=i == 0)) is not None:
-                    yield self._fill(order, time_ns, price)
+                if not order.working:
+                    continue
+                touched = self._touch(order, p, gap=i == 0)
+                if touched is not None and (fill := self._fill(order, time_ns, *touched)) is not None:
+                    yield fill
 
-    def _trade_price(self, order: Order, p: float, gap: bool) -> float | None:
+    def _touch(self, order: Order, p: float, gap: bool) -> tuple[float, float] | None:
         buy = order.side is OrderSide.BUY
         match order.type:
             case OrderType.MARKET:
-                return self.model.slipped(p, order.side)
+                return p, self.model.slipped(p, order.side)
             case OrderType.LIMIT:
                 assert order.price is not None
                 through = p < order.price if buy else p > order.price
                 touched = p == order.price and self._rng.random() < self.model.prob_fill_on_limit
                 if through or touched:
-                    return p if gap and through else order.price
+                    level = p if gap and through else order.price
+                    return level, level
                 return None
             case OrderType.STOP_MARKET:
                 assert order.price is not None
                 if p >= order.price if buy else p <= order.price:
-                    return self.model.slipped(p if gap else order.price, order.side)
+                    level = p if gap else order.price
+                    return level, self.model.slipped(level, order.side)
                 return None
 
-    def _fill(self, order: Order, time_ns: int, price: float) -> Fill:
-        order.status = OrderStatus.FILLED
+    def _fill(self, order: Order, time_ns: int, reference: float, price: float) -> Fill | None:
+        quantity = order.resolve(reference)
         order.closed_ns = time_ns
+        if quantity <= 0:
+            order.status = OrderStatus.REJECTED
+            order.reason = "notional below one share"
+            return None
+        order.status = OrderStatus.FILLED
+        order.quantity = quantity
         order.fill_price = price
         return Fill(
             order_id=order.id,
             time_ns=time_ns,
             side=order.side,
-            quantity=order.quantity,
+            quantity=quantity,
             price=price,
-            commission=self.model.commission(order.quantity),
+            commission=self.model.commission(quantity),
             tag=order.tag,
         )

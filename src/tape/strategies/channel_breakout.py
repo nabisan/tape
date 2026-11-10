@@ -34,6 +34,7 @@ class ChannelBreakoutConfig(StrategyConfig):
 
 
 class ChannelBreakout(Strategy[ChannelBreakoutConfig]):
+    version: ClassVar[int] = 2
     title: ClassVar[str] = "Channel breakout"
     name: ClassVar[str] = "channel_breakout"
     config_type: ClassVar[type[StrategyConfig]] = ChannelBreakoutConfig
@@ -70,9 +71,9 @@ class ChannelBreakout(Strategy[ChannelBreakoutConfig]):
         if (held > 0 and bar.close < self.exit_low.value) or (held < 0 and bar.close > self.exit_high.value):
             self.flatten("exit")
         elif held == 0 and bar.close > self.entry_high.value:
-            self.target(1, bar.close, "breakout")
+            self.target(1, "breakout")
         elif held == 0 and bar.close < self.entry_low.value:
-            self.target(-1, bar.close, "breakout")
+            self.target(-1, "breakout")
 
     def _rest_stops(self) -> None:
         self.cancel_all()
@@ -89,14 +90,10 @@ class ChannelBreakout(Strategy[ChannelBreakoutConfig]):
         else:
             if direction.allows(1):
                 level = self.entry_high.value
-                self.submit(
-                    OrderSide.BUY, self.size(level), kind=OrderType.STOP_MARKET, price=level, tag="breakout"
-                )
+                self.enter(OrderSide.BUY, kind=OrderType.STOP_MARKET, price=level, tag="breakout")
             if direction.allows(-1):
                 level = self.entry_low.value
-                self.submit(
-                    OrderSide.SELL, self.size(level), kind=OrderType.STOP_MARKET, price=level, tag="breakout"
-                )
+                self.enter(OrderSide.SELL, kind=OrderType.STOP_MARKET, price=level, tag="breakout")
 
     def on_fill(self, fill: Fill) -> None:
         if self.config.trigger is Trigger.STOP and self.position:

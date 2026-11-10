@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,7 @@ from tape.engine.backtest import BacktestEngine
 from tape.engine.matching import FillModel
 from tape.runner import Result, RunSpec, execute, session_range
 from tape.strategies.registry import create
+from tape.strategies.sma_cross import direction_of
 from tests.conftest import minutes
 
 if TYPE_CHECKING:
@@ -171,3 +173,40 @@ def test_fast_forward_is_exact(store: Store, strategy: tuple[str, dict[str, obje
     assert a.fills == b.fills
     np.testing.assert_array_equal(a.sessions.equity, b.sessions.equity)
     np.testing.assert_array_equal(a.bar_equity, b.bar_equity)
+
+
+def test_notional_sizing_buys_at_the_fill(store: Store) -> None:
+    free = FillModel(slippage_bps=0.0, commission_per_share=0.0)
+    r = execute(store, spec(SMA_D1, fill=free.model_dump()))
+    sides: list[str] = r.fills["side"].astype(str).tolist()
+    quantities: list[int] = r.fills["quantity"].astype(int).tolist()
+    prices: list[float] = r.fills["price"].astype(float).tolist()
+    held = 0
+    for side, quantity, price in zip(sides, quantities, prices, strict=True):
+        signed = quantity if side == "buy" else -quantity
+        reverses = held != 0 and (held > 0) != (signed > 0)
+        assert quantity - (abs(held) if reverses else 0) == math.floor(100_000.0 / price)
+        held += signed
+
+
+def test_share_sizing_trades_fixed_quantity(store: Store) -> None:
+    name, params = SMA_D1
+    r = execute(store, spec((name, {**params, "sizing": "shares", "shares": 250})))
+    assert set(r.fills["quantity"]) <= {250, 500}
+    assert r.fills["quantity"].iloc[0] == 250
+
+
+def test_sma_cross_never_decides_on_the_first_ready_bar(store: Store) -> None:
+    params = SMA_D1[1]
+    early = spec(SMA_D1).model_copy(update={"start": date(2024, 1, 2)})
+    r = execute(store, early)
+    ready = r.bars["time"][r.bars[f"sma_{params['slow']}"].notna()].iloc[0]
+    if len(r.orders):
+        assert r.orders["submitted"].min() > ready + pd.Timedelta(days=1)
+
+
+def test_sma_tie_within_rounding_has_no_direction() -> None:
+    assert direction_of(216.78700000000077, 216.787) == 0
+    assert direction_of(216.78699999999998, 216.787) == 0
+    assert direction_of(216.79, 216.787) == 1
+    assert direction_of(216.70, 216.787) == -1

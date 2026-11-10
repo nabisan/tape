@@ -3,17 +3,15 @@ from __future__ import annotations
 import os
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import BaseModel, ConfigDict
 
 from tape.catalog.store import Store
 from tape.core.hashing import digest
-from tape.core.types import Ticker, Timeframe
 from tape.features.catalog import Entry, FeatureCatalog, Origin
-from tape.features.kinds import Atr, ChannelHigh, ChannelLow, Ema, FeatureSpec, Sma, Source
+from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.log import Log
 
 if TYPE_CHECKING:
@@ -21,35 +19,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from tape.core.hashing import Digest
+    from tape.core.types import Ticker, Timeframe
+    from tape.features.kinds import FeatureSpec
 
 log = Log("Features")
-
-
-class FeatureGrid(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    timeframes: tuple[Timeframe, ...]
-    specs: tuple[FeatureSpec, ...]
-
-    @property
-    def id(self) -> Digest:
-        return digest(self)
-
-
-MOVING: Final = (5, 10, 20, 50, 100, 150, 200)
-CHANNELS: Final = (10, 20, 55)
-
-DEFAULT_GRID: Final = FeatureGrid(
-    timeframes=(Timeframe.M5, Timeframe.M15, Timeframe.H1, Timeframe.H4, Timeframe.D1),
-    specs=(
-        *(Sma(window=n) for n in MOVING),
-        *(Ema(window=n) for n in MOVING),
-        *(ChannelHigh(window=n) for n in CHANNELS),
-        *(ChannelLow(window=n) for n in CHANNELS),
-        Atr(window=14),
-        Sma(window=20, source=Source.VOLUME),
-    ),
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,27 +35,29 @@ class _Job:
 
 
 def _build(job: _Job) -> list[Entry]:
-    store = Store.open(job.store_dir, job.data_version)
-    bars = store.bars(job.ticker, job.timeframe)
+    return materialize(Store.open(job.store_dir, job.data_version), job.ticker, job.timeframe, job.specs)
+
+
+def materialize(
+    store: Store, ticker: Ticker, timeframe: Timeframe, specs: Sequence[FeatureSpec]
+) -> list[Entry]:
+    bars = store.bars(ticker, timeframe)
     day = store.sessions().day
     first, last = day[int(bars.session[0])].item(), day[int(bars.session[-1])].item()
     path = (
         store.root
         / "features"
         / "built"
-        / f"timeframe={job.timeframe.value}"
-        / f"ticker={job.ticker}"
-        / f"{digest([s.id for s in job.specs])[:16]}.parquet"
+        / f"timeframe={timeframe.value}"
+        / f"ticker={ticker}"
+        / f"{digest([s.id for s in specs])[:16]}.parquet"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
-    table = pa.table({spec.id: pa.array(spec.compute(bars)) for spec in job.specs})
+    table = pa.table({spec.id: pa.array(spec.compute(bars)) for spec in specs})
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     pq.write_table(table, tmp, compression="zstd")
     tmp.replace(path)
-    return [
-        Entry(spec, job.timeframe, job.ticker, len(bars), first, last, Origin.BUILT, str(path), spec.id)
-        for spec in job.specs
-    ]
+    return [Entry(s, timeframe, ticker, len(bars), first, last, Origin.BUILT, str(path), s.id) for s in specs]
 
 
 def build(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Self
+import math
+from typing import TYPE_CHECKING, ClassVar, Final, Self
 
 from pydantic import model_validator
 
@@ -25,7 +26,18 @@ class SmaCrossConfig(StrategyConfig):
         return self
 
 
+TIE: Final = 1e-9
+
+
+def direction_of(fast: float, slow: float) -> int:
+    gap = fast - slow
+    if abs(gap) <= TIE * abs(slow):
+        return 0
+    return 1 if gap > 0 else -1
+
+
 class SmaCross(Strategy[SmaCrossConfig]):
+    version: ClassVar[int] = 2
     title: ClassVar[str] = "SMA cross"
     name: ClassVar[str] = "sma_cross"
     config_type: ClassVar[type[StrategyConfig]] = SmaCrossConfig
@@ -47,9 +59,9 @@ class SmaCross(Strategy[SmaCrossConfig]):
     def on_bar(self, bar: Bar) -> None:
         if not self.slow.ready:
             return
-        side = (self.fast.value > self.slow.value) - (self.fast.value < self.slow.value)
+        now = direction_of(self.fast.value, self.slow.value)
         if self.config.require_cross:
-            before = (self.fast.ago(1) > self.slow.ago(1)) - (self.fast.ago(1) < self.slow.ago(1))
-            if side in {before, 0}:
+            fast, slow = self.fast.ago(1), self.slow.ago(1)
+            if math.isnan(fast) or math.isnan(slow) or now in {direction_of(fast, slow), 0}:
                 return
-        self.target(side, bar.close)
+        self.target(now)

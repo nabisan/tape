@@ -14,6 +14,7 @@ from tape.catalog.store import Store
 from tape.core.types import Ticker, Timeframe
 from tape.features.adopt import AdoptionError, adopt, part
 from tape.features.catalog import FeatureCatalog, Origin
+from tape.features.grid import FeatureGrid
 from tape.features.kinds import ChannelHigh, FeatureSpec, Sma, Source
 from tape.runner import FeaturePolicy, MissingFeaturesError, RunSpec, execute
 from tape.strategies.channel_breakout import ChannelBreakout
@@ -31,6 +32,7 @@ SPECS: list[FeatureSpec] = [
 ]
 TIMEFRAMES = [Timeframe.H1, Timeframe.D1]
 AAPL, SPY = Ticker("AAPL"), Ticker("SPY")
+EMPTY = FeatureGrid(timeframes=(), specs=())
 
 
 def source_column(spec: FeatureSpec) -> str:
@@ -154,10 +156,10 @@ def test_runs_on_adopted_features_match_computed(store: Store, tmp_path: Path) -
 def test_space_resolves_from_the_catalog(store: Store, tmp_path: Path) -> None:
     adopt(tmp_path / "base" / "store", precompute(store, tmp_path / "catalog"))
     catalog = FeatureCatalog(Store.open(tmp_path / "base" / "store"))
-    sma = SmaCross.parameters.resolve(catalog, AAPL)
+    sma = SmaCross.parameters.resolve(catalog, AAPL, EMPTY)
     assert sma.timeframes == [Timeframe.H1, Timeframe.D1]
     assert sma.choices[Timeframe.D1] == {"fast": [4, 12], "slow": [4, 12]}
-    channel = ChannelBreakout.parameters.resolve(catalog, AAPL)
+    channel = ChannelBreakout.parameters.resolve(catalog, AAPL, EMPTY)
     assert channel.timeframes == []
 
 
@@ -170,6 +172,7 @@ def test_precomputed_policy_refuses_missing(store: Store, tmp_path: Path) -> Non
             "end": "2024-06-28",
             "strategy": "sma_cross",
             "params": {"timeframe": "1h", "fast": 4, "slow": 50},
+            "features": "precomputed",
         }
     )
     with pytest.raises(MissingFeaturesError, match="not precomputed: sma_50"):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -51,10 +52,16 @@ class Order:
     closed_ns: int | None = None
     fill_price: float | None = None
     reason: str = ""
+    notional: float | None = None
 
     def __post_init__(self) -> None:
-        assert self.quantity > 0
+        assert self.quantity > 0 or (self.notional is not None and self.notional > 0)
+        assert self.quantity >= 0
         assert (self.price is None) == (self.type is OrderType.MARKET)
+
+    def resolve(self, price: float) -> int:
+        extra = math.floor(self.notional / price) if self.notional is not None else 0
+        return self.quantity + extra
 
     @property
     def working(self) -> bool:

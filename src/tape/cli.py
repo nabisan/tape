@@ -6,8 +6,12 @@ import importlib
 import os
 import platform
 import sys
+from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
+from datetime import date
 from importlib import metadata
 from pathlib import Path
+from typing import Final
 
 import numpy as np
 import numpy.typing as npt
@@ -17,10 +21,15 @@ from tape import log
 from tape.catalog.build import REFERENCE, CatalogError, build
 from tape.catalog.store import Status, Store
 from tape.config import Settings
-from tape.core.hashing import Digest
-from tape.core.types import ticker
+from tape.core.hashing import Digest, Json
+from tape.core.types import Timeframe, ticker
 from tape.features.adopt import AdoptionError, adopt
+from tape.features.build import build as build_features
+from tape.features.catalog import FeatureCatalog
 from tape.service.api import create_app
+from tape.service.results import ResultStore
+from tape.service.worker import execute_run, init_worker
+from tape.sweep import SUMMARY, SweepSpec, expand, summary
 from tape.ui.theme import STREAMLIT as THEME
 
 PACKAGES = ("tape", "numpy", "pandas", "pyarrow", "numba", "ta-lib", "pydantic", "exchange-calendars")
@@ -133,6 +142,73 @@ def features_adopt(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def features_build(settings: Settings, args: argparse.Namespace) -> int:
+    build_features(
+        settings.store_dir,
+        tickers=[ticker(t) for t in args.ticker] or None,
+        workers=args.workers,
+        force=args.force,
+    )
+    return 0
+
+
+def _values(text: str) -> tuple[Json, ...]:
+    return tuple(int(v) if v.lstrip("-").isdigit() else v for v in text.split(",") if v)
+
+
+def _assignments(items: list[str]) -> dict[str, tuple[Json, ...]]:
+    out: dict[str, tuple[Json, ...]] = {}
+    for item in items:
+        name, _, values = item.partition("=")
+        out[name] = _values(values)
+    return out
+
+
+def sweep(settings: Settings, args: argparse.Namespace) -> int:
+    out = log.Log("Sweep")
+    store = Store.open(settings.store_dir)
+    m = store.manifest
+    spec = SweepSpec(
+        tickers=tuple(ticker(t) for t in args.ticker) or tuple(m.available),
+        start=date.fromisoformat(args.start) if args.start else m.first_session,
+        end=date.fromisoformat(args.end) if args.end else m.last_session,
+        strategy=args.strategy,
+        timeframe=Timeframe(args.timeframe),
+        grid=_assignments(args.grid),
+        params={k: v[0] for k, v in _assignments(args.param).items()},
+    )
+    plan = expand(spec, FeatureCatalog(store))
+    for s in plan.skipped:
+        out.warn("skipped", ticker=s.ticker, reason=s.reason)
+    results = ResultStore(settings.results_dir)
+    keys = [r.key(m.data_version) for r in plan.runs]
+    pending = [r.model_dump_json() for r, k in zip(plan.runs, keys, strict=True) if not results.exists(k)]
+    out.info(
+        "sweep", key=spec.key[:12], runs=len(keys), cached=len(keys) - len(pending), workers=args.workers
+    )
+    initargs = (str(settings.store_dir), m.data_version, str(settings.results_dir), settings.log_level)
+    with ProcessPoolExecutor(max_workers=args.workers, initializer=init_worker, initargs=initargs) as pool:
+        for i, _ in enumerate(pool.map(execute_run, pending), 1):
+            if i % 50 == 0 or i == len(pending):
+                out.info("progress", done=i, of=len(pending))
+    frame = summary(plan, keys, results)
+    results.save_sweep(spec.key, spec, frame)
+    out.info("summary", path=results.sweep_summary(spec.key), rows=len(frame))
+    for _, row in frame.sort_values("sharpe", ascending=False).head(args.top).iterrows():
+        swept = {
+            k: row[k] for k in spec.grid or frame.columns if k in frame.columns and k not in {"key", *SUMMARY}
+        }
+        out.info(
+            "top",
+            **swept,
+            sharpe=round(row["sharpe"], 2),
+            cagr=round(row["cagr_pct"], 2),
+            maxdd=round(row["max_drawdown_pct"], 2),
+            trades=row["trades"],
+        )
+    return 0
+
+
 def serve_api(settings: Settings, args: argparse.Namespace) -> int:
     uvicorn.run(create_app(settings, args.workers), host=args.host, port=args.port, log_config=None)
     return 0
@@ -162,6 +238,20 @@ def serve_ui(args: argparse.Namespace) -> int:
     )
 
 
+type Handler = Callable[[Settings, argparse.Namespace], int]
+
+COMMANDS: Final[dict[tuple[str, str | None], Handler]] = {
+    ("env", None): lambda s, _: env(s),
+    ("catalog", "build"): catalog_build,
+    ("catalog", "show"): catalog_show,
+    ("features", "adopt"): features_adopt,
+    ("features", "build"): features_build,
+    ("sweep", None): sweep,
+    ("serve", "api"): serve_api,
+    ("serve", "ui"): lambda _, a: serve_ui(a),
+}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tape", description="bar-level US equity backtesting")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -182,6 +272,20 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("source", help="directory with bars/ and features/ in the Hive layout, plus manifest.json")
     a.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     a.add_argument("--audit-every", type=int, default=20)
+    fb = features.add_parser("build", help="materialize the feature grid for every catalog ticker")
+    fb.add_argument("--ticker", action="append", default=[], help="repeatable; default every ticker")
+    fb.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    fb.add_argument("--force", action="store_true", help="rebuild entries already in the catalog")
+    sw = commands.add_parser("sweep", help="run a strategy over a parameter grid and tickers")
+    sw.add_argument("--strategy", required=True)
+    sw.add_argument("--timeframe", required=True, choices=[tf.value for tf in Timeframe])
+    sw.add_argument("--ticker", action="append", default=[], help="repeatable; default every ticker")
+    sw.add_argument("--start")
+    sw.add_argument("--end")
+    sw.add_argument("--grid", action="append", default=[], help="name=v1,v2; window defaults to the catalog")
+    sw.add_argument("--param", action="append", default=[], help="name=value held fixed")
+    sw.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    sw.add_argument("--top", type=int, default=10)
     serve = commands.add_parser("serve", help="run the API or the web UI").add_subparsers(
         dest="action", required=True
     )
@@ -196,21 +300,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     settings = Settings.from_env()
     log.setup(settings.log_level)
-    match args.command, getattr(args, "action", None):
-        case "env", _:
-            return env(settings)
-        case "catalog", "build":
-            return catalog_build(settings, args)
-        case "catalog", "show":
-            return catalog_show(settings, args)
-        case "features", "adopt":
-            return features_adopt(settings, args)
-        case "serve", "api":
-            return serve_api(settings, args)
-        case "serve", "ui":
-            return serve_ui(args)
-        case _:
-            parser.error(f"unknown command {args.command}")
+    handler = COMMANDS.get((args.command, getattr(args, "action", None)))
+    if handler is None:
+        parser.error(f"unknown command {args.command}")
+    return handler(settings, args)
 
 
 if __name__ == "__main__":

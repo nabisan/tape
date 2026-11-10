@@ -57,5 +57,26 @@ class Client:
         body = r.json()
         return str(body["key"]), Metrics.model_validate(body["metrics"])
 
+    def start_sweep(self, spec: dict[str, Any]) -> dict[str, Any]:
+        r = self._http.post("/sweeps", json=spec)
+        if r.status_code != 200:
+            raise ApiError(f"{r.status_code}: {_detail(r)}")
+        result: dict[str, Any] = r.json()
+        return result
+
+    def sweep(self, key: str) -> dict[str, Any]:
+        result: dict[str, Any] = self._get(f"/sweeps/{key}").json()
+        return result
+
+    def sweep_summary(self, key: str) -> pd.DataFrame:
+        return pd.read_parquet(io.BytesIO(self._get(f"/sweeps/{key}/summary").content))
+
+    def metrics(self, key: str) -> Metrics:
+        return Metrics.model_validate(self._get(f"/runs/{key}").json()["metrics"])
+
+    def spec(self, key: str) -> dict[str, Any]:
+        result: dict[str, Any] = self._get(f"/runs/{key}").json()["spec"]
+        return result
+
     def table(self, key: str, table: Table) -> pd.DataFrame:
         return pd.read_parquet(io.BytesIO(self._get(f"/runs/{key}/{table}").content))

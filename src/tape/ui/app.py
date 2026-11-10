@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import math
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import TYPE_CHECKING, Any, Final
@@ -202,51 +203,16 @@ def space(strategy: str, ticker: str) -> dict[str, Any]:
     return client().space(strategy, ticker)
 
 
-def sidebar(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | None:
-    with st.sidebar:
-        st.header("tape")
-        st.caption("Bar-level backtests · XNYS regular hours")
-        tickers = [t["ticker"] for t in cat["tickers"]]
-        info = {t["ticker"]: t for t in cat["tickers"]}
-        ticker = st.selectbox("Ticker", tickers, index=tickers.index("AAPL") if "AAPL" in tickers else 0)
-        first = date.fromisoformat(info[ticker]["first_session"])
-        last = date.fromisoformat(info[ticker]["last_session"])
-        span = st.date_input("Dates", (first, last), min_value=first, max_value=last, format="DD/MM/YYYY")
-        compare = st.toggle("Compare two strategies", value=False)
-        runs: dict[str, tuple[str, dict[str, Any] | None]] = {}
-        for label in LABELS if compare else LABELS[:1]:
-            st.subheader(f"Strategy {label}" if compare else "Strategy")
-            names = list(strats)
-            name = st.selectbox(
-                "Strategy",
-                names,
-                index=LABELS.index(label) % len(names),
-                format_func=forms.label,
-                key=f"strategy:{label}",
-            )
-            resolved = space(name, ticker)
-            runs[label] = (
-                name,
-                forms.strategy(resolved["config_schema"], resolved["space"], f"{label}:{name}"),
-            )
-        with st.expander("Execution", expanded=False):
-            cash = st.number_input("Initial cash ($)", min_value=1_000.0, value=100_000.0, step=10_000.0)
-            commission = st.number_input("Commission ($/share)", 0.0, 1.0, 0.005, 0.001, format="%.4f")
-            slippage = st.number_input("Slippage (bps)", 0.0, 1_000.0, 1.0, 0.5)
-            prob_limit = st.slider("Limit fill probability on touch", 0.0, 1.0, 1.0, 0.05)
-            intraday = st.toggle("Intraday (flat at every close)")
-            delay = st.number_input("Entry delay after open (min)", 0, 390, 0, 5, disabled=not intraday)
-            squareoff = st.number_input("Square-off before close (min)", 1, 390, 5, 1, disabled=not intraday)
-        ready = all(params is not None for _, params in runs.values())
-        submit = st.button(
-            "Run comparison" if compare else "Run backtest",
-            type="primary",
-            width="stretch",
-            disabled=not ready,
-        )
-    if not submit or not isinstance(span, tuple) or len(span) != 2:
-        return None
-    execution = {
+def execution_form() -> dict[str, Any]:
+    with st.expander("Execution", expanded=False):
+        cash = st.number_input("Initial cash ($)", min_value=1_000.0, value=100_000.0, step=10_000.0)
+        commission = st.number_input("Commission ($/share)", 0.0, 1.0, 0.005, 0.001, format="%.4f")
+        slippage = st.number_input("Slippage (bps)", 0.0, 1_000.0, 1.0, 0.5)
+        prob_limit = st.slider("Limit fill probability on touch", 0.0, 1.0, 1.0, 0.05)
+        intraday = st.toggle("Intraday (flat at every close)")
+        delay = st.number_input("Entry delay after open (min)", 0, 390, 0, 5, disabled=not intraday)
+        squareoff = st.number_input("Square-off before close (min)", 1, 390, 5, 1, disabled=not intraday)
+    return {
         "initial_cash": cash,
         "fill": {
             "commission_per_share": commission,
@@ -257,6 +223,43 @@ def sidebar(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | Non
         "entry_delay_minutes": int(delay),
         "squareoff_minutes_before_close": int(squareoff),
     }
+
+
+def _span(first: date, last: date, key: str) -> tuple[date, date] | None:
+    span = st.date_input(
+        "Dates", (first, last), min_value=first, max_value=last, format="DD/MM/YYYY", key=key
+    )
+    return (span[0], span[1]) if isinstance(span, tuple) and len(span) == 2 else None
+
+
+def backtest_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | None:
+    tickers = [t["ticker"] for t in cat["tickers"]]
+    info = {t["ticker"]: t for t in cat["tickers"]}
+    ticker = st.selectbox("Ticker", tickers, index=tickers.index("AAPL") if "AAPL" in tickers else 0)
+    span = _span(
+        date.fromisoformat(info[ticker]["first_session"]),
+        date.fromisoformat(info[ticker]["last_session"]),
+        "dates:backtest",
+    )
+    compare = st.toggle("Compare two strategies", value=False)
+    runs: dict[str, tuple[str, dict[str, Any] | None]] = {}
+    for label in LABELS if compare else LABELS[:1]:
+        st.subheader(f"Strategy {label}" if compare else "Strategy")
+        names = list(strats)
+        name = st.selectbox(
+            "Strategy",
+            names,
+            index=LABELS.index(label) % len(names),
+            format_func=lambda n: strats[n]["title"],
+            key=f"strategy:{label}",
+        )
+        resolved = space(name, ticker)
+        runs[label] = (name, forms.strategy(resolved["config_schema"], resolved["space"], f"{label}:{name}"))
+    execution = execution_form()
+    ready = span is not None and all(params is not None for _, params in runs.values())
+    label_text = "Run comparison" if compare else "Run backtest"
+    if not st.button(label_text, type="primary", width="stretch", disabled=not ready) or span is None:
+        return None
     return {
         label: {
             "ticker": ticker,
@@ -267,6 +270,54 @@ def sidebar(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | Non
             "execution": execution,
         }
         for label, (name, params) in runs.items()
+    }
+
+
+def sweep_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | None:
+    tickers = [t["ticker"] for t in cat["tickers"]]
+    chosen = st.multiselect("Tickers", tickers, default=["AAPL"] if "AAPL" in tickers else tickers[:1])
+    if st.toggle("All tickers", value=False):
+        chosen = tickers
+    if not chosen:
+        st.info("Choose at least one ticker.")
+        return None
+    span = _span(
+        date.fromisoformat(cat["first_session"]), date.fromisoformat(cat["last_session"]), "dates:sweep"
+    )
+    name = st.selectbox(
+        "Strategy", list(strats), format_func=lambda n: strats[n]["title"], key="sweep:strategy"
+    )
+    resolved = space(name, chosen[0])
+    timeframes: list[str] = resolved["space"]["timeframes"]
+    if not timeframes:
+        st.warning(f"No precomputed features cover {strats[name]['title']} for {chosen[0]}.")
+        return None
+    tf = st.selectbox("Timeframe", timeframes, index=len(timeframes) - 1, key="sweep:timeframe")
+    grid = {
+        param: st.multiselect(forms.label(param), domain, default=domain, key=f"sweep:{name}:{tf}:{param}")
+        for param, domain in resolved["space"]["choices"][tf].items()
+    }
+    schema = resolved["config_schema"]
+    fixed = {
+        n: forms.scalar(
+            st, n, forms.resolve(schema["properties"][n], schema.get("$defs", {})), f"sweep:{name}:{n}"
+        )
+        for n in schema["properties"]
+        if n != "timeframe" and n not in grid
+    }
+    execution = execution_form()
+    ready = span is not None and all(grid.values())
+    if not st.button("Run sweep", type="primary", width="stretch", disabled=not ready) or span is None:
+        return None
+    return {
+        "tickers": chosen,
+        "start": span[0].isoformat(),
+        "end": span[1].isoformat(),
+        "strategy": name,
+        "timeframe": tf,
+        "grid": grid,
+        "params": fixed,
+        "execution": execution,
     }
 
 
@@ -318,31 +369,14 @@ def strategy_tab(label: str, key: str, spec: dict[str, Any]) -> None:
         st.html(monthly(eq))
 
 
-def main() -> None:
-    st.set_page_config(page_title="tape", layout="wide")
-    st.markdown(CSS, unsafe_allow_html=True)
-    try:
-        cat, strats = catalog(), strategies()
-    except (ApiError, OSError) as e:
-        st.error(f"API unavailable at {API_URL}: {e}")
-        return
-    specs = sidebar(cat, strats)
-    if specs is not None:
-        with st.spinner("Running"), ThreadPoolExecutor(len(specs)) as pool:
-            futures = {label: pool.submit(client().run, s) for label, s in specs.items()}
-            try:
-                st.session_state["results"] = {label: f.result() for label, f in futures.items()}
-                st.session_state["specs"] = specs
-            except ApiError as e:
-                st.error(str(e))
-                return
-    results: dict[str, tuple[str, Metrics]] | None = st.session_state.get("results")
-    if not results:
-        st.info("Choose a ticker, a date range and a strategy in the sidebar, then run the backtest.")
-        return
-    specs = st.session_state["specs"]
+def show_runs(
+    results: dict[str, tuple[str, Metrics]],
+    specs: dict[str, Any],
+    cat: dict[str, Any],
+    strats: dict[str, Any],
+) -> None:
     names = {
-        label: f"{forms.label(s['strategy'])} · {s['params'].get('timeframe', '1d')}"
+        label: f"{strats[s['strategy']]['title']} · {s['params'].get('timeframe', '1d')}"
         for label, s in specs.items()
     }
     st.html(board(next(iter(specs.values())), results, names, cat["data_version"]))
@@ -360,6 +394,151 @@ def main() -> None:
     for tab, (label, (key, _)) in zip(tabs, results.items(), strict=True):
         with tab:
             strategy_tab(label, key, specs[label])
+
+
+SWEEP_COLUMNS: Final = {
+    "key": None,
+    "net_pnl": st.column_config.NumberColumn("Net P&L $", format="%,.0f"),
+    "total_return_pct": st.column_config.NumberColumn("Return %", format="%.2f"),
+    "cagr_pct": st.column_config.NumberColumn("CAGR %", format="%.2f"),
+    "sharpe": st.column_config.NumberColumn("Sharpe", format="%.2f"),
+    "sortino": st.column_config.NumberColumn("Sortino", format="%.2f"),
+    "max_drawdown_pct": st.column_config.NumberColumn("Max DD %", format="%.2f"),
+    "calmar": st.column_config.NumberColumn("Calmar", format="%.2f"),
+    "trades": st.column_config.NumberColumn("Trades", format="%,d"),
+    "win_rate_pct": st.column_config.NumberColumn("Win %", format="%.1f"),
+    "profit_factor": st.column_config.NumberColumn("PF", format="%.2f"),
+    "exposure_pct": st.column_config.NumberColumn("Exposure %", format="%.1f"),
+    "buy_hold_return_pct": st.column_config.NumberColumn("Buy & hold %", format="%.1f"),
+}
+
+
+def run_sweep(spec: dict[str, Any]) -> str | None:
+    try:
+        started = client().start_sweep(spec)
+    except ApiError as e:
+        st.error(str(e))
+        return None
+    key = str(started["key"])
+    bar = st.progress(0.0, "Starting sweep")
+    status = started
+    while status["state"] == "running":
+        total = max(1, int(status["total"]))
+        bar.progress(int(status["done"]) / total, f"{status['done']:,} of {total:,} runs")
+        time.sleep(1.0)
+        status = client().sweep(key)
+    bar.empty()
+    if status["state"] == "failed":
+        st.error(f"Sweep failed: {status['error']}")
+        return None
+    for s in status["skipped"]:
+        st.warning(f"{s['ticker']} skipped: {s['reason']}")
+    return key
+
+
+def show_sweep(key: str, spec: dict[str, Any], cat: dict[str, Any], strats: dict[str, Any]) -> None:
+    frame = client().sweep_summary(key)
+    if frame.empty:
+        st.info("The sweep produced no runs.")
+        return
+    swept = [c for c in frame.columns if c in spec["grid"]]
+    measures = [c for c in SWEEP_COLUMNS if c in frame.columns and c != "key"]
+    fixed = [
+        c for c in frame.columns if c not in {"ticker", "key", *swept, *measures} and frame[c].nunique() == 1
+    ]
+    shown = [c for c in frame.columns if c not in fixed]
+    title = strats[spec["strategy"]]["title"]
+    best = frame.sort_values("sharpe", ascending=False, na_position="last").reset_index(drop=True)
+    count = len(spec["tickers"])
+    held_fixed = " · ".join(f"{forms.label(c)} {forms.label(frame[c].iloc[0])}" for c in fixed)
+    st.html(
+        f'<div class="tape-board"><div class="line"><span class="ticker">{html.escape(title)} sweep</span>'
+        f'<span class="span">{spec["timeframe"]} · {count} ticker{"s" if count != 1 else ""} · '
+        f"{len(frame):,} runs</span>"
+        f'<span class="meta">sweep {key[:10]}</span></div>'
+        f'<div class="tape-leg"><span class="k">Held fixed</span>'
+        f"<span>{html.escape(held_fixed)}</span></div></div>"
+    )
+    if count == 1 and len(swept) == 2:
+        left, right = st.columns([3, 2], gap="large")
+        with left:
+            st.plotly_chart(
+                charts.heatmap(frame, swept[0], swept[1], "sharpe"),
+                width="stretch",
+                key="sweep:heatmap",
+                config=charts.CONFIG,
+            )
+        with right:
+            top = [*swept, "sharpe", "cagr_pct", "max_drawdown_pct", "trades"]
+            st.dataframe(
+                best[top].head(12), width="stretch", height=420, hide_index=True, column_config=SWEEP_COLUMNS
+            )
+    st.dataframe(best[shown], width="stretch", height=480, hide_index=True, column_config=SWEEP_COLUMNS)
+    st.download_button(
+        "Download sweep (CSV)", best.drop(columns=["key"]).to_csv(index=False), f"sweep_{key[:8]}.csv"
+    )
+    labels = [
+        f"{r.ticker} · "
+        + " ".join(f"{c}={getattr(r, c)}" for c in swept)
+        + f" · Sharpe {_fmt(float(str(r.sharpe)), '{:.2f}')}"
+        for r in best.itertuples()
+    ]
+    pick = st.selectbox(
+        "Open a run",
+        range(len(best)),
+        format_func=lambda i: labels[i],
+        index=None,
+        placeholder="Choose a run to open",
+    )
+    if pick is not None:
+        run_key = str(best.loc[pick, "key"])
+        run_spec = client().spec(run_key)
+        show_runs({"A": (run_key, client().metrics(run_key))}, {"A": run_spec}, cat, strats)
+
+
+def main() -> None:
+    st.set_page_config(page_title="tape", layout="wide")
+    st.markdown(CSS, unsafe_allow_html=True)
+    try:
+        cat, strats = catalog(), strategies()
+    except (ApiError, OSError) as e:
+        st.error(f"API unavailable at {API_URL}: {e}")
+        return
+    with st.sidebar:
+        st.header("tape")
+        st.caption("Bar-level backtests · XNYS regular hours")
+        mode = st.segmented_control(
+            "Mode", ["Backtest", "Sweep"], default="Backtest", label_visibility="collapsed"
+        )
+        if mode == "Sweep":
+            sweep_spec = sweep_form(cat, strats)
+            specs = None
+        else:
+            specs = backtest_form(cat, strats)
+            sweep_spec = None
+    if mode == "Sweep":
+        if sweep_spec is not None and (key := run_sweep(sweep_spec)) is not None:
+            st.session_state["sweep"] = (key, sweep_spec)
+        current = st.session_state.get("sweep")
+        if current is None:
+            st.info("Choose tickers, a strategy and the parameter values to sweep, then run the sweep.")
+            return
+        show_sweep(current[0], current[1], cat, strats)
+        return
+    if specs is not None:
+        with st.spinner("Running"), ThreadPoolExecutor(len(specs)) as pool:
+            futures = {label: pool.submit(client().run, s) for label, s in specs.items()}
+            try:
+                st.session_state["results"] = {label: f.result() for label, f in futures.items()}
+                st.session_state["specs"] = specs
+            except ApiError as e:
+                st.error(str(e))
+                return
+    results: dict[str, tuple[str, Metrics]] | None = st.session_state.get("results")
+    if not results:
+        st.info("Choose a ticker, a date range and a strategy in the sidebar, then run the backtest.")
+        return
+    show_runs(results, st.session_state["specs"], cat, strats)
 
 
 main()

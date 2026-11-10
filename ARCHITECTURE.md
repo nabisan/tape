@@ -163,6 +163,12 @@ An event-driven loop modelled on NautilusTrader's bar execution, in Python:
 
 **Logging.** `tape.log` on top of stdlib `logging`, so third-party loggers (uvicorn, numba) share one format: `2026-11-10T12:58:40.389883000Z [INFO] Catalog: built ticker=AAPL bars=780000`. UTC nanosecond timestamp in bold white, level in colour, component, then structured `key=value` fields. Colour only on a TTY; under systemd the plain lines go to journald.
 
+## 10a. Feature build and sweeps
+
+**Build.** `FeatureGrid` is a typed set of timeframes and `FeatureSpec`s; `DEFAULT_GRID` is SMA and EMA 5 to 200, channels 10, 20 and 55, ATR 14 and volume SMA 20 on 5m to 1d. `tape features build` computes, for every ticker and timeframe, only the specs the catalog does not already hold (`--force` rebuilds), writes them under `features/built/` with columns named by feature id, and registers them with origin `built`.
+
+**Sweeps.** `SweepSpec` names tickers, dates, strategy, timeframe, a grid of parameter values, fixed parameters, execution and feature policy; its key is its digest. `expand` turns it into `RunSpec`s: under the precomputed policy each window parameter's domain is the catalog's resolved domain for that ticker (intersected with any explicit grid), ordering constraints are applied, and tickers without coverage are reported as skipped. Every run is an ordinary run with its own key, so sweeps share results with single runs. The API runs sweeps as background jobs on the worker pool with bounded concurrency (`POST /sweeps`, `GET /sweeps/{key}`, `GET /sweeps/{key}/summary`); `tape sweep` does the same from the command line. The summary is one row per run: ticker, swept parameters, key metrics, run key.
+
 ## 11. UI
 
 Streamlit, thin client. It never imports the engine.
@@ -223,4 +229,4 @@ Each step is reviewed before the next begins.
 6. Service: API, workers, result store, feature policy. (done)
 7. UI: single run or A/B comparison, rendered from strategy parameter spaces. (done)
 8. Deployment: systemd, nginx, optional team login. (done)
-9. Feature build from a typed grid, then parameter sweeps.
+9. Feature build from a typed grid, then parameter sweeps. (done)

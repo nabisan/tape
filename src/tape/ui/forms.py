@@ -10,7 +10,7 @@ def label(value: object) -> str:
     return text[:1].upper() + text[1:]
 
 
-def _resolve(prop: dict[str, Any], defs: dict[str, Any]) -> dict[str, Any]:
+def resolve(prop: dict[str, Any], defs: dict[str, Any]) -> dict[str, Any]:
     ref = prop.get("$ref") or next((p.get("$ref") for p in prop.get("allOf", []) if "$ref" in p), None)
     if ref is None:
         return prop
@@ -32,7 +32,7 @@ def _window_options(
     return options
 
 
-def _scalar(col: Any, name: str, prop: dict[str, Any], key: str) -> Any:
+def scalar(col: Any, name: str, prop: dict[str, Any], key: str) -> Any:
     title = prop.get("title") or label(name)
     default = prop.get("default")
     if "enum" in prop:
@@ -92,5 +92,5 @@ def strategy(schema: dict[str, Any], space: dict[str, Any], key: str) -> dict[st
     rest = [n for n in props if n != "timeframe" and n not in choices]
     cols = st.columns(2)
     for i, name in enumerate(rest):
-        out[name] = _scalar(cols[i % 2], name, _resolve(props[name], defs), f"{key}:{name}")
+        out[name] = scalar(cols[i % 2], name, resolve(props[name], defs), f"{key}:{name}")
     return out

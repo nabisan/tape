@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Final
 
 import plotly.graph_objects as go
@@ -86,3 +87,23 @@ def price(bars: pd.DataFrame, fills: pd.DataFrame, indicators: list[str], intrad
         breaks.append({"bounds": [16, 9.5], "pattern": "hour"})
     fig.update_xaxes(rangebreaks=breaks, rangeslider_visible=False)
     return _style(fig, 560)
+
+
+def heatmap(frame: pd.DataFrame, x: str, y: str, value: str) -> go.Figure:
+    grid = frame.pivot_table(index=y, columns=x, values=value).sort_index()
+    fig = go.Figure(
+        go.Heatmap(
+            z=grid.to_numpy(),
+            x=[str(c) for c in grid.columns],
+            y=[str(i) for i in grid.index],
+            colorscale=[[0.0, SELL], [0.5, "#f0efec"], [1.0, "#2a78d6"]],
+            zmid=0,
+            text=[["" if math.isnan(v) else f"{v:.2f}" for v in row] for row in grid.to_numpy()],
+            texttemplate="%{text}",
+            hovertemplate=f"{x} %{{x}}<br>{y} %{{y}}<br>{value} %{{z:.2f}}<extra></extra>",
+            colorbar={"title": {"text": value}, "thickness": 12},
+        )
+    )
+    fig.update_xaxes(title_text=x, type="category")
+    fig.update_yaxes(title_text=y, type="category")
+    return _style(fig, 420)

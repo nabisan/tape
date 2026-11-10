@@ -13,6 +13,8 @@ from tape.runner import RunSpec
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from pydantic import BaseModel
+
     from tape.core.hashing import Digest
     from tape.runner import Result
 
@@ -67,6 +69,17 @@ class ResultStore:
 
     def table(self, key: Digest, table: Table) -> bytes:
         return (self.root / key / f"{table}.parquet").read_bytes()
+
+    def sweep_summary(self, key: Digest) -> Path:
+        return self.root / "sweeps" / f"{key}.parquet"
+
+    def save_sweep(self, key: Digest, spec: BaseModel, frame: pd.DataFrame) -> None:
+        path = self.sweep_summary(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        frame.to_parquet(tmp, index=False, compression="zstd")
+        path.with_suffix(".json").write_text(spec.model_dump_json(indent=2))
+        tmp.replace(path)
 
     def frame(self, key: Digest, table: Table) -> pd.DataFrame:
         return pd.read_parquet(self.root / key / f"{table}.parquet")

@@ -44,6 +44,9 @@ src = ["src", "tests"]
 select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "PTH", "PERF", "PL", "RUF", "TID", "TC"]
 ignore = ["PLR2004", "PLR0913"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/tape/service/api.py" = ["TC001", "TC002", "TC003"]
+
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 

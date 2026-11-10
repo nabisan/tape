@@ -16,6 +16,13 @@ class ApiError(Exception):
     pass
 
 
+def _detail(r: httpx2.Response) -> str:
+    if r.headers.get("content-type", "").startswith("application/json"):
+        detail = r.json().get("detail", r.text)
+        return detail if isinstance(detail, str) else str(detail)
+    return r.text.strip() or r.reason_phrase
+
+
 class Client:
     __slots__ = ("_http",)
 
@@ -46,7 +53,7 @@ class Client:
     def run(self, spec: dict[str, Any]) -> tuple[str, Metrics]:
         r = self._http.post("/runs", json=spec)
         if r.status_code != 200:
-            raise ApiError(f"{r.status_code}: {r.json().get('detail', r.text)}")
+            raise ApiError(f"{r.status_code}: {_detail(r)}")
         body = r.json()
         return str(body["key"]), Metrics.model_validate(body["metrics"])
 

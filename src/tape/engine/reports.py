@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 
 if TYPE_CHECKING:
     from tape.calendar import Sessions
@@ -115,35 +115,46 @@ def equity(run: Run, sessions: Sessions, initial_cash: float) -> pd.DataFrame:
     )
 
 
+def _from_wire(v: object) -> object:
+    return math.nan if v is None else v
+
+
+def _to_wire(v: float) -> float | None:
+    return None if math.isnan(v) else v
+
+
+type Measure = Annotated[float, BeforeValidator(_from_wire), PlainSerializer(_to_wire, when_used="json")]
+
+
 class Metrics(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     start: str
     end: str
     sessions: int
-    initial_cash: float
-    final_equity: float
-    net_pnl: float
-    total_return_pct: float
-    cagr_pct: float
-    volatility_pct: float
-    sharpe: float
-    sortino: float
-    max_drawdown_pct: float
+    initial_cash: Measure
+    final_equity: Measure
+    net_pnl: Measure
+    total_return_pct: Measure
+    cagr_pct: Measure
+    volatility_pct: Measure
+    sharpe: Measure
+    sortino: Measure
+    max_drawdown_pct: Measure
     max_drawdown_sessions: int
-    calmar: float
-    exposure_pct: float
+    calmar: Measure
+    exposure_pct: Measure
     trades: int
-    win_rate_pct: float
-    avg_win: float
-    avg_loss: float
-    payoff_ratio: float
-    profit_factor: float
-    expectancy: float
-    avg_trade_return_pct: float
-    avg_duration_hours: float
-    total_commission: float
-    buy_hold_return_pct: float
+    win_rate_pct: Measure
+    avg_win: Measure
+    avg_loss: Measure
+    payoff_ratio: Measure
+    profit_factor: Measure
+    expectancy: Measure
+    avg_trade_return_pct: Measure
+    avg_duration_hours: Measure
+    total_commission: Measure
+    buy_hold_return_pct: Measure
 
 
 def _ratio(a: float, b: float) -> float:

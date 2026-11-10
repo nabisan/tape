@@ -1,0 +1,75 @@
+[project]
+name = "tape"
+version = "0.1.0"
+description = "Bar-level US equity backtesting service"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "exchange-calendars>=4.13",
+    "fastapi>=0.120",
+    "httpx2>=2.16",
+    "numba>=0.68",
+    "numpy>=2.5",
+    "pandas>=2.3",
+    "plotly>=6.3",
+    "pyarrow>=26",
+    "pydantic>=2.14",
+    "streamlit>=1.50",
+    "ta-lib>=0.8.3",
+    "uvicorn>=0.38",
+]
+
+[project.scripts]
+tape = "tape.cli:main"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4",
+    "pandas-stubs>=2.3",
+    "pyarrow-stubs>=20",
+    "pytest>=9.2",
+    "ruff>=0.17",
+]
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 110
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "PTH", "PERF", "PL", "RUF", "TID", "TC"]
+ignore = ["PLR2004", "PLR0913"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tape"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["talib", "talib.*", "numba", "numba.*", "exchange_calendars", "exchange_calendars.*", "plotly", "plotly.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+filterwarnings = ["error"]

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# usage: sudo deploy/install.sh [public-hostname]
+# usage: sudo deploy/install.sh [--open] [public-hostname]
 set -euo pipefail
+
+auth=1
+if [[ ${1:-} == --open ]]; then auth=0; shift; fi
 
 [[ $EUID -eq 0 ]] || { echo "run with sudo" >&2; exit 1; }
 user="${SUDO_USER:?run through sudo as the deploy user}"
@@ -22,6 +25,11 @@ if [[ ! -f $etc/tls.crt ]]; then
         -addext "subjectAltName=DNS:$host" -keyout "$etc/tls.key" -out "$etc/tls.crt" 2>/dev/null
 fi
 [[ -f $etc/htpasswd ]] || : > "$etc/htpasswd"
+if (( auth )); then
+    printf 'auth_basic "tape";\nauth_basic_user_file %s/htpasswd;\n' "$etc" > "$etc/auth.conf"
+else
+    : > "$etc/auth.conf"
+fi
 chown root:www-data "$etc/tls.key" "$etc/tls.crt" "$etc/htpasswd"
 chmod 640 "$etc/tls.key" "$etc/htpasswd"
 
@@ -34,4 +42,8 @@ systemctl daemon-reload
 systemctl enable tape-api tape-ui >/dev/null
 systemctl restart tape-api tape-ui
 systemctl reload nginx
-echo "installed: https://$host  users: $(grep -c . "$etc/htpasswd" || true)"
+if (( auth )); then
+    echo "installed: https://$host  login on, users: $(grep -c . "$etc/htpasswd" || true)"
+else
+    echo "installed: https://$host  login OFF"
+fi

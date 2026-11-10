@@ -53,7 +53,7 @@ Once per host, on the host:
 sudo ~/tape/app/deploy/install.sh <public-hostname>
 ```
 
-Installs the `tape-api` and `tape-ui` systemd services and nginx: HTTPS, HTTP redirected to HTTPS, basic-auth login in front of the UI, API reachable only from the host. The certificate is self-signed until a domain points at the host. The user file starts empty; add each person with:
+Installs the `tape-api` and `tape-ui` systemd services and nginx: HTTPS, HTTP redirected to HTTPS, basic-auth login in front of the UI (`--open` turns it off), API reachable only from the host. The certificate is self-signed until a domain points at the host. The user file starts empty; add each person with:
 
 ```bash
 sudo htpasswd -B /etc/nginx/tape/htpasswd <name>

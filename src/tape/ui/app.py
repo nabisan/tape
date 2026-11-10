@@ -54,6 +54,10 @@ GROUPS: Final[list[list[tuple[str, str, str]]]] = [
 ]
 
 
+def notice(message: str) -> None:
+    st.html(f'<div class="tape-notice">{html.escape(message)}</div>')
+
+
 def badge(label: str) -> str:
     color = SERIES[LABELS.index(label)]
     return f'<span class="tape-line" style="background:{color}">{label}</span>'
@@ -281,7 +285,7 @@ def sweep_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | 
     if st.toggle("All tickers", value=False):
         chosen = tickers
     if not chosen:
-        st.info("Choose at least one ticker.")
+        notice("Choose at least one ticker.")
         return None
     span = _span(
         date.fromisoformat(cat["first_session"]), date.fromisoformat(cat["last_session"]), "dates:sweep"
@@ -437,7 +441,7 @@ def run_sweep(spec: dict[str, Any]) -> str | None:
 def show_sweep(key: str, spec: dict[str, Any], cat: dict[str, Any], strats: dict[str, Any]) -> None:
     frame = client().sweep_summary(key)
     if frame.empty:
-        st.info("The sweep produced no runs.")
+        notice("The sweep produced no runs.")
         return
     swept = [c for c in frame.columns if c in spec["grid"]]
     measures = [c for c in SWEEP_COLUMNS if c in frame.columns and c != "key"]
@@ -519,7 +523,7 @@ def main() -> None:
             st.session_state["sweep"] = (key, sweep_spec)
         current = st.session_state.get("sweep")
         if current is None:
-            st.info("Choose tickers, a strategy and the parameter values to sweep, then run the sweep.")
+            notice("Choose tickers, a strategy and the parameter values to sweep, then run the sweep.")
             return
         show_sweep(current[0], current[1], cat, strats)
         return
@@ -534,7 +538,7 @@ def main() -> None:
                 return
     results: dict[str, tuple[str, Metrics]] | None = st.session_state.get("results")
     if not results:
-        st.info("Choose a ticker, a date range and a strategy in the sidebar, then run the backtest.")
+        notice("Choose a ticker, a date range and a strategy in the sidebar, then run the backtest.")
         return
     show_runs(results, st.session_state["specs"], cat, strats)
 

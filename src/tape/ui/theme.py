@@ -67,6 +67,8 @@ section[data-testid="stSidebar"] h3 {{ font-size: .9rem; font-weight: 600; margi
 table.months td.up {{ background: #e9f5ef; }}
 table.months td.down {{ background: {SIGNAL_TINT}; }}
 table.months td, table.months th {{ padding: .25rem .45rem; }}
+.tape-notice {{ color: {INK}; background: {PANEL}; border-left: 2px solid {INK}; padding: .75rem 1rem;
+  font-size: .95rem; }}
 table.tape {{ border-collapse: collapse; width: 100%; font-size: .95rem; }}
 table.tape th, table.tape td {{ padding: .3rem .6rem; border-bottom: 1px solid {HAIRLINE};
   white-space: nowrap; }}

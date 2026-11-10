@@ -19,6 +19,7 @@ from tape.catalog.store import Status, Store
 from tape.config import Settings
 from tape.core.hashing import Digest
 from tape.core.types import ticker
+from tape.features.adopt import AdoptionError, adopt
 from tape.service.api import create_app
 from tape.ui.theme import STREAMLIT as THEME
 
@@ -118,6 +119,20 @@ def catalog_show(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def features_adopt(settings: Settings, args: argparse.Namespace) -> int:
+    try:
+        adopt(
+            settings.store_dir,
+            Path(args.source).expanduser(),
+            workers=args.workers,
+            audit_every=args.audit_every,
+        )
+    except AdoptionError as e:
+        log.Log("Features").error("adoption failed", reason=e)
+        return 1
+    return 0
+
+
 def serve_api(settings: Settings, args: argparse.Namespace) -> int:
     uvicorn.run(create_app(settings, args.workers), host=args.host, port=args.port, log_config=None)
     return 0
@@ -160,6 +175,13 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     s = catalog.add_parser("show", help="summarise a store and list rejected or gapped tickers")
     s.add_argument("--data-version")
+    features = commands.add_parser("features", help="feature store").add_subparsers(
+        dest="action", required=True
+    )
+    a = features.add_parser("adopt", help="register precomputed features whose bars match the catalog")
+    a.add_argument("source", help="directory with bars/ and features/ in the Hive layout, plus manifest.json")
+    a.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    a.add_argument("--audit-every", type=int, default=20)
     serve = commands.add_parser("serve", help="run the API or the web UI").add_subparsers(
         dest="action", required=True
     )
@@ -181,6 +203,8 @@ def main(argv: list[str] | None = None) -> int:
             return catalog_build(settings, args)
         case "catalog", "show":
             return catalog_show(settings, args)
+        case "features", "adopt":
+            return features_adopt(settings, args)
         case "serve", "api":
             return serve_api(settings, args)
         case "serve", "ui":

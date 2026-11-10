@@ -166,7 +166,7 @@ def _log_report(r: TickerReport) -> None:
     fields = {"ticker": r.ticker, "rows": r.regular_rows, "sessions": r.sessions_expected}
     if r.sessions_missing or r.drops.total or r.non_session_days:
         log.warn(
-            "built with gaps",
+            "built with anomalies",
             **fields,
             missing=len(r.sessions_missing),
             dropped=r.drops.total,

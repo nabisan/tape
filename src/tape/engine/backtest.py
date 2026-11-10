@@ -14,6 +14,8 @@ from tape.engine.portfolio import Portfolio, Trade
 from tape.engine.strategy import Bar
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from tape.calendar import Sessions
     from tape.catalog.bars import Bars
     from tape.core.types import F64, I32, I64
@@ -21,6 +23,8 @@ if TYPE_CHECKING:
     from tape.features.kinds import FeatureSpec
 
 ENGINE_VERSION = 1
+
+type Stored = Callable[[FeatureSpec], F64 | None]
 
 
 class ExecutionSpec(BaseModel):
@@ -44,11 +48,13 @@ class Context:
         "orders",
         "portfolio",
         "session",
+        "stored",
         "working",
     )
 
-    def __init__(self, bars: Bars, initial_cash: float) -> None:
+    def __init__(self, bars: Bars, initial_cash: float, stored: Stored | None = None) -> None:
         self.bars = bars
+        self.stored = stored
         self.portfolio = Portfolio(initial_cash)
         self.orders: list[Order] = []
         self.incoming: list[Order] = []
@@ -61,7 +67,10 @@ class Context:
 
     def feature(self, spec: FeatureSpec) -> F64:
         if spec.id not in self._features:
-            self._features[spec.id] = (spec, spec.compute(self.bars))
+            values = self.stored(spec) if self.stored is not None else None
+            if values is None or len(values) != len(self.bars):
+                values = spec.compute(self.bars)
+            self._features[spec.id] = (spec, values)
         return self._features[spec.id][1]
 
     def features(self) -> list[tuple[FeatureSpec, F64]]:
@@ -147,6 +156,7 @@ class BacktestEngine:
         sessions: Sessions,
         execution: ExecutionSpec,
         fast_forward: bool = True,
+        stored: Stored | None = None,
     ) -> None:
         ends = last_minutes(m1, sessions, strategy.config.timeframe)
         assert len(ends) == len(decision)
@@ -154,7 +164,7 @@ class BacktestEngine:
         self.execution = execution
         self.ends = ends
         self.decision = decision
-        self.ctx = Context(decision, execution.initial_cash)
+        self.ctx = Context(decision, execution.initial_cash, stored)
         self.matcher = MatchingEngine(execution.fill)
         self.fills: list[Fill] = []
         self.marks: tuple[list[int], list[float], list[int], list[float]] = ([], [], [], [])

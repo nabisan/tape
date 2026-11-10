@@ -12,6 +12,7 @@ from tape.core.hashing import Digest, Json, digest
 from tape.core.types import Ticker, Timeframe
 from tape.engine import reports
 from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec
+from tape.features.store import FeatureStore
 from tape.strategies.registry import STRATEGIES, create
 
 if TYPE_CHECKING:
@@ -70,7 +71,15 @@ def execute(store: Store, spec: RunSpec) -> Result:
     m1 = store.bars(spec.ticker, Timeframe.M1)
     decision = store.bars(spec.ticker, timeframe)
     first, last = session_range(sessions, spec.start, spec.end)
-    engine = BacktestEngine(strategy, m1=m1, decision=decision, sessions=sessions, execution=spec.execution)
+    features = FeatureStore(store)
+    engine = BacktestEngine(
+        strategy,
+        m1=m1,
+        decision=decision,
+        sessions=sessions,
+        execution=spec.execution,
+        stored=lambda f: features.get(spec.ticker, timeframe, f),
+    )
     run = engine.run(first, last)
 
     equity = reports.equity(run, sessions, spec.execution.initial_cash)

@@ -135,7 +135,7 @@ A strategy is a class with typed identity and a typed parameter space:
 
 Strategies reach features only through `indicator(spec)`, place orders through `submit` (market, limit, stop), and use `target` and `flatten` helpers. They never see the ledger.
 
-Initial strategies: SMA cross (`fast < slow`, optionally only on a fresh cross) and N-bar channel breakout (entry window `N`, exit window `M <= N`, resting stops or close triggers).
+Initial strategies: SMA cross (`fast < slow`, enters only on a cross) and N-bar channel breakout (entry window `N`, exit window `M <= N`, resting stops or close triggers).
 
 ## 9. Engine
 

@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 class SmaCrossConfig(StrategyConfig):
     fast: Window = 20
     slow: Window = 50
-    require_cross: bool = True
 
     @model_validator(mode="after")
     def _ordered(self) -> Self:
@@ -37,7 +36,7 @@ def direction_of(fast: float, slow: float) -> int:
 
 
 class SmaCross(Strategy[SmaCrossConfig]):
-    version: ClassVar[int] = 2
+    version: ClassVar[int] = 3
     title: ClassVar[str] = "SMA cross"
     name: ClassVar[str] = "sma_cross"
     config_type: ClassVar[type[StrategyConfig]] = SmaCrossConfig
@@ -60,8 +59,7 @@ class SmaCross(Strategy[SmaCrossConfig]):
         if not self.slow.ready:
             return
         now = direction_of(self.fast.value, self.slow.value)
-        if self.config.require_cross:
-            fast, slow = self.fast.ago(1), self.slow.ago(1)
-            if math.isnan(fast) or math.isnan(slow) or now in {direction_of(fast, slow), 0}:
-                return
+        fast, slow = self.fast.ago(1), self.slow.ago(1)
+        if math.isnan(fast) or math.isnan(slow) or now in {direction_of(fast, slow), 0}:
+            return
         self.target(now)

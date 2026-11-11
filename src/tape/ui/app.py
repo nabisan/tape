@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Final
 
 import httpx2
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import streamlit as st
 from pydantic import ValidationError
@@ -29,6 +31,8 @@ from tape.ui.theme import (
     DOWN,
     FAINT,
     GRID_STAMP,
+    HEAT_DOWN,
+    HEAT_UP,
     INDICATORS,
     INK,
     MUTED,
@@ -364,6 +368,22 @@ def performance(results: dict[str, tuple[str, Metrics]], value: Valuation) -> st
     return title("Performance") + body
 
 
+HEAT_SCALE: Final = 90
+HEAT_FLOOR: Final = 1.0
+
+
+def shade(value: float, cap: float) -> str:
+    target = HEAT_UP if value > 0 else HEAT_DOWN
+    t = min(1.0, abs(value) / cap)
+    r, g, b = (round(255 + (c - 255) * t) for c in target)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def heat_cap(values: npt.NDArray[np.float64]) -> float:
+    finite = np.abs(values[~np.isnan(values)])
+    return max(HEAT_FLOOR, float(np.percentile(finite, HEAT_SCALE))) if finite.size else HEAT_FLOOR
+
+
 def monthly(eq: pd.DataFrame) -> str:
     s = eq.set_index("date")["equity"]
     month_end = s.resample("ME").last()
@@ -374,11 +394,17 @@ def monthly(eq: pd.DataFrame) -> str:
     grid = pd.DataFrame({"year": months.year, "month": months.month, "ret": m.to_numpy()})
     pivot = grid.pivot_table(index="year", columns="month", values="ret").reindex(columns=range(1, 13))
 
+    caps = {
+        "": heat_cap(np.asarray(pivot, dtype=np.float64)),
+        "year": heat_cap(np.asarray(y, dtype=np.float64)),
+    }
+
     def cell(v: float, tone: str = "") -> str:
         if math.isnan(v):
             return "<td></td>"
         down = " down" if v < 0 else ""
-        return f'<td class="{tone}{down}">{_fmt(v, "{:.1f}", signed=True)}</td>'
+        fill = "" if v == 0 else f' style="background:{shade(v, caps[tone])}"'
+        return f'<td class="{tone}{down}"{fill}>{_fmt(v, "{:.1f}", signed=True)}</td>'
 
     head = "".join(f"<th>{n}</th>" for n in MONTHS) + "<th>Year</th>"
     body = "".join(
@@ -454,11 +480,35 @@ def execution_form(intraday_allowed: bool = True) -> ExecutionSpec:
     )
 
 
-def _span(first: date, last: date, key: str) -> tuple[date, date] | None:
-    span = st.date_input(
-        "Dates", (first, last), min_value=first, max_value=last, format="DD/MM/YYYY", key=key
+def _span(first: date, last: date, scope: str) -> tuple[date, date]:
+    lo, hi, preset = f"{scope}:from", f"{scope}:to", f"{scope}:preset:{first}:{last}"
+    offered = forms.presets(first, last)
+    stored = lo in st.session_state
+    wanted = (st.session_state.get(lo, first), st.session_state.get(hi, last))
+    st.session_state[lo] = min(max(wanted[0], first), last)
+    st.session_state[hi] = min(max(wanted[1], st.session_state[lo]), last)
+    adjusted = stored and (st.session_state[lo], st.session_state[hi]) != wanted
+
+    def pick() -> None:
+        choice = st.session_state[preset]
+        if choice is None:
+            return
+        st.session_state[lo], st.session_state[hi] = forms.preset_span(choice, first, last)
+
+    def edited() -> None:
+        st.session_state[preset] = None
+
+    st.segmented_control("Range", offered, key=preset, on_change=pick, label_visibility="collapsed")
+    left, right = st.columns(2)
+    start = left.date_input(
+        "From", min_value=first, max_value=st.session_state[hi], format="DD/MM/YYYY", key=lo, on_change=edited
     )
-    return (span[0], span[1]) if isinstance(span, tuple) and len(span) == 2 else None
+    end = right.date_input(
+        "To", min_value=start, max_value=last, format="DD/MM/YYYY", key=hi, on_change=edited
+    )
+    if adjusted:
+        st.caption(f"Data covers {first.strftime(DATE)} to {last.strftime(DATE)}; dates adjusted.")
+    return start, end
 
 
 def backtest_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> dict[str, RunSpec] | None:
@@ -479,13 +529,13 @@ def backtest_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> dict[str, Ru
             format_func=lambda n: strats[n].title,
             key=f"strategy:{label}",
         )
-        resolved = space(name, ticker, span[1] if span else None)
+        resolved = space(name, ticker, span[1])
         params = forms.strategy(resolved.config_schema, resolved.space, f"{label}:{name}")
         runs[label] = (name, params)
     execution = execution_form(all(strats[name].intraday for name, _ in runs.values()))
-    ready = span is not None and all(params is not None for _, params in runs.values())
+    ready = all(params is not None for _, params in runs.values())
     label_text = "Run comparison" if compare else "Run backtest"
-    if not st.button(label_text, type="primary", width="stretch", disabled=not ready) or span is None:
+    if not st.button(label_text, type="primary", width="stretch", disabled=not ready):
         return None
     try:
         return {
@@ -514,9 +564,8 @@ def sweep_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> SweepSpec | Non
     else:
         pool, class_notes = basket.classify(client(), pool)
         notes += class_notes
-        if span is not None:
-            pool, vol_notes = basket.volatility(client(), pool, span[0])
-            notes += vol_notes
+        pool, vol_notes = basket.volatility(client(), pool, span[0])
+        notes += vol_notes
         fingerprint = hashlib.blake2b("|".join(pool).encode(), digest_size=8).hexdigest()
         with st.expander(f"Tickers · {len(pool):,}"):
             chosen = st.multiselect(
@@ -531,7 +580,7 @@ def sweep_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> SweepSpec | Non
         notice("The basket is empty.")
         return None
     name = st.selectbox("Strategy", list(strats), format_func=lambda n: strats[n].title, key="sweep:strategy")
-    resolved = space(name, chosen[0], span[1] if span else None)
+    resolved = space(name, chosen[0], span[1])
     typed = resolved.space
     timeframes = list(typed.timeframes)
     if not timeframes:
@@ -559,8 +608,8 @@ def sweep_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> SweepSpec | Non
         schema["properties"], schema.get("$defs", {}), f"sweep:{name}", skip={"timeframe", *grid}
     )
     execution = execution_form(strats[name].intraday)
-    ready = span is not None and combos > 0
-    if not st.button("Run sweep", type="primary", width="stretch", disabled=not ready) or span is None:
+    ready = combos > 0
+    if not st.button("Run sweep", type="primary", width="stretch", disabled=not ready):
         return None
     try:
         return SweepSpec(

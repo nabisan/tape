@@ -29,6 +29,8 @@ FIELD: Final = "#f5f5f5"
 UP: Final = "#8cc5a0"
 DOWN: Final = "#e7a3a3"
 DOWN_FILL: Final = "rgba(231,163,163,0.35)"
+HEAT_UP: Final = (205, 239, 215)
+HEAT_DOWN: Final = (248, 200, 208)
 
 SERIES: Final = ((INK, "solid"), (MUTED, "dash"))
 INDICATORS: Final = ((INK, "solid"), (MUTED, "solid"), (INK, "dot"), (MUTED, "dot"))

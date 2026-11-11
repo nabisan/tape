@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 import streamlit as st
 
 if TYPE_CHECKING:
+    from datetime import date
+
     from tape.engine.parameters import ResolvedSpace
 
 
@@ -113,3 +115,22 @@ def fields(
         out[name] = context[name] = scalar(cols[shown % 2], name, prop, f"{key}:{name}")
         shown += 1
     return out
+
+
+PRESETS: Final[dict[str, int | None]] = {"1Y": 1, "3Y": 3, "5Y": 5, "Max": None}
+
+
+def years_before(day: date, years: int) -> date:
+    try:
+        return day.replace(year=day.year - years)
+    except ValueError:
+        return day.replace(year=day.year - years, day=28)
+
+
+def presets(first: date, last: date) -> list[str]:
+    return [name for name, years in PRESETS.items() if years is None or years_before(last, years) >= first]
+
+
+def preset_span(name: str, first: date, last: date) -> tuple[date, date]:
+    years = PRESETS[name]
+    return (first if years is None else max(first, years_before(last, years))), last

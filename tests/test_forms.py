@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import date
+
 from tape.strategies.breakout import HighBreakoutConfig
 from tape.strategies.sma_cross import SmaCrossConfig
+from tape.ui import forms
 from tape.ui.forms import fixed, visible
 
 PROPS = SmaCrossConfig.model_json_schema()["properties"]
@@ -25,3 +28,14 @@ def test_fixed_values_are_not_inputs() -> None:
     assert props["direction"]["const"] == "long_only"
     assert not fixed(props["stop_loss_pct"])
     assert not fixed(PROPS["direction"])
+
+
+def test_presets_only_offer_ranges_inside_the_history() -> None:
+    last = date(2026, 4, 30)
+    assert forms.presets(date(2018, 5, 1), last) == ["1Y", "3Y", "5Y", "Max"]
+    assert forms.presets(date(2023, 4, 30), last) == ["1Y", "3Y", "Max"]
+    assert forms.presets(date(2024, 1, 2), last) == ["1Y", "Max"]
+    assert forms.presets(date(2025, 11, 3), last) == ["Max"]
+    assert forms.preset_span("3Y", date(2018, 5, 1), last) == (date(2023, 4, 30), last)
+    assert forms.preset_span("Max", date(2024, 1, 2), last) == (date(2024, 1, 2), last)
+    assert forms.years_before(date(2024, 2, 29), 1) == date(2023, 2, 28)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from tape.engine.matching import BarPath, FillModel, MatchingEngine
-from tape.engine.orders import Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce
+from tape.engine.orders import Fill, Order, OrderOrigin, OrderSide, OrderStatus, OrderType, TimeInForce
 from tape.engine.portfolio import Portfolio, PositionSide
 
 FREE = FillModel(commission_per_share=0.0, slippage_bps=0.0)
@@ -147,3 +147,20 @@ def test_stop_with_notional_sizes_at_the_stop_level() -> None:
     )
     [f] = list(MatchingEngine(FREE).process([o], 1, (100.0, 101, 99, 100.5)))
     assert (f.quantity, f.price) == (100, 100.8)
+
+
+def test_signal_time_is_the_decision_for_market_and_the_trigger_for_stops() -> None:
+    market = Order(1, OrderSide.BUY, OrderType.MARKET, 10, TimeInForce.GTC, 100, 0)
+    assert market.signal_ns is None
+    market.status, market.closed_ns = OrderStatus.FILLED, 200
+    assert market.signal_ns == 100
+    stop = Order(2, OrderSide.BUY, OrderType.STOP_MARKET, 10, TimeInForce.GTC, 100, 0, 5.0)
+    stop.status, stop.closed_ns = OrderStatus.FILLED, 300
+    assert stop.signal_ns == 300
+    for origin in (OrderOrigin.STOP_LOSS, OrderOrigin.SQUARE_OFF):
+        o = Order(3, OrderSide.SELL, OrderType.MARKET, 10, TimeInForce.DAY, 100, 0, origin=origin)
+        o.status, o.closed_ns = OrderStatus.FILLED, 100
+        assert o.signal_ns is None
+    rejected = Order(4, OrderSide.BUY, OrderType.MARKET, 10, TimeInForce.GTC, 100, 0)
+    rejected.status = OrderStatus.REJECTED
+    assert rejected.signal_ns is None

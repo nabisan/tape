@@ -2,18 +2,36 @@ from __future__ import annotations
 
 import io
 from datetime import date
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Final
 
 import httpx2
 import pandas as pd
+from pydantic import TypeAdapter
 
 from tape.benchmarks import Comparison
-from tape.engine.reports import Metrics
+from tape.fundamentals import Valuation
+from tape.service.ledgers import LedgerStatus
+from tape.service.models import (
+    Catalog,
+    RunDetail,
+    RunSummary,
+    StrategyInfo,
+    StrategySpace,
+    UniverseInfo,
+)
 from tape.service.results import BARS_PER_ROW
+from tape.service.sweeps import SweepStatus
+from tape.sweep import SweepSpec
 from tape.universe import Classification, Profiles
 
 if TYPE_CHECKING:
+    from tape.runner import RunSpec
     from tape.service.results import Table
+
+
+JSON: Final = {"content-type": "application/json"}
+STRATEGIES: Final = TypeAdapter(dict[str, StrategyInfo])
+UNIVERSES: Final = TypeAdapter(list[UniverseInfo])
 
 
 class ApiError(Exception):
@@ -45,60 +63,48 @@ class Client:
             raise ApiError(f"GET {path}: {r.status_code} {r.text}")
         return r
 
-    def catalog(self) -> dict[str, Any]:
-        result: dict[str, Any] = self._get("/catalog").json()
-        return result
+    def catalog(self) -> Catalog:
+        return Catalog.model_validate(self._get("/catalog").json())
 
-    def strategies(self) -> dict[str, Any]:
-        result: dict[str, Any] = self._get("/strategies").json()
-        return result
+    def strategies(self) -> dict[str, StrategyInfo]:
+        return STRATEGIES.validate_python(self._get("/strategies").json())
 
-    def space(self, strategy: str, ticker: str, end: str | None = None) -> dict[str, Any]:
-        params = {"ticker": ticker} | ({"end": end} if end else {})
+    def space(self, strategy: str, ticker: str, end: date | None = None) -> StrategySpace:
+        params = {"ticker": ticker} | ({"end": end.isoformat()} if end else {})
         r = self._http.get(f"/strategies/{strategy}/space", params=params)
         if r.status_code != 200:
             raise ApiError(f"{r.status_code}: {r.text}")
-        result: dict[str, Any] = r.json()
-        return result
+        return StrategySpace.model_validate(r.json())
 
-    def run(self, spec: dict[str, Any]) -> tuple[str, Metrics]:
-        r = self._http.post("/runs", json=spec)
+    def run(self, spec: RunSpec) -> RunSummary:
+        r = self._http.post("/runs", content=spec.model_dump_json(), headers=JSON)
         if r.status_code != 200:
             raise ApiError(f"{r.status_code}: {_detail(r)}")
-        body = r.json()
-        return str(body["key"]), Metrics.model_validate(body["metrics"])
+        return RunSummary.model_validate(r.json())
 
-    def start_sweep(self, spec: dict[str, Any]) -> dict[str, Any]:
-        r = self._http.post("/sweeps", json=spec)
+    def start_sweep(self, spec: SweepSpec) -> SweepStatus:
+        r = self._http.post("/sweeps", content=spec.model_dump_json(), headers=JSON)
         if r.status_code != 200:
             raise ApiError(f"{r.status_code}: {_detail(r)}")
-        result: dict[str, Any] = r.json()
-        return result
+        return SweepStatus.model_validate(r.json())
 
-    def sweep(self, key: str) -> dict[str, Any]:
-        result: dict[str, Any] = self._get(f"/sweeps/{key}").json()
-        return result
+    def sweep(self, key: str) -> SweepStatus:
+        return SweepStatus.model_validate(self._get(f"/sweeps/{key}").json())
 
     def sweep_summary(self, key: str) -> pd.DataFrame:
         return pd.read_parquet(io.BytesIO(self._get(f"/sweeps/{key}/summary").content))
 
-    def sweep_spec(self, key: str) -> dict[str, Any]:
-        result: dict[str, Any] = self._get(f"/sweeps/{key}/spec").json()
-        return result
+    def sweep_spec(self, key: str) -> SweepSpec:
+        return SweepSpec.model_validate(self._get(f"/sweeps/{key}/spec").json())
 
     def sweep_paths(self, key: str) -> pd.DataFrame:
         return pd.read_parquet(io.BytesIO(self._get(f"/sweeps/{key}/paths").content))
 
-    def metrics(self, key: str) -> Metrics:
-        return Metrics.model_validate(self._get(f"/runs/{key}").json()["metrics"])
+    def detail(self, key: str) -> RunDetail:
+        return RunDetail.model_validate(self._get(f"/runs/{key}").json())
 
-    def spec(self, key: str) -> dict[str, Any]:
-        result: dict[str, Any] = self._get(f"/runs/{key}").json()["spec"]
-        return result
-
-    def universes(self) -> list[dict[str, Any]]:
-        result: list[dict[str, Any]] = self._get("/universes").json()
-        return result
+    def universes(self) -> list[UniverseInfo]:
+        return UNIVERSES.validate_python(self._get("/universes").json())
 
     def classification(self) -> list[Classification]:
         return [Classification.model_validate(e) for e in self._get("/universes/classification").json()]
@@ -108,6 +114,21 @@ class Client:
 
     def comparison(self, key: str) -> Comparison:
         return Comparison.model_validate(self._get(f"/runs/{key}/comparison").json())
+
+    def ledger(self, key: str) -> LedgerStatus:
+        return LedgerStatus.model_validate(self._get(f"/runs/{key}/ledger").json())
+
+    def build_ledger(self, key: str) -> LedgerStatus:
+        r = self._http.post(f"/runs/{key}/ledger")
+        if r.status_code != 200:
+            raise ApiError(f"POST /runs/{key}/ledger: {r.status_code} {_detail(r)}")
+        return LedgerStatus.model_validate(r.json())
+
+    def ledger_file(self, key: str) -> bytes:
+        return self._get(f"/runs/{key}/ledger.xlsx").content
+
+    def valuation(self, key: str) -> Valuation:
+        return Valuation.model_validate(self._get(f"/runs/{key}/valuation").json())
 
     def days(self, key: str) -> tuple[list[date], date | None]:
         body = self._get(f"/runs/{key}/days").json()

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from tape.catalog.bars import last_minutes
 from tape.core.types import INTRADAY_MINUTES, NS_PER_MINUTE, Minutes, Notional
 from tape.engine.matching import FillModel, MatchingEngine
-from tape.engine.orders import Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce
+from tape.engine.orders import Fill, Order, OrderOrigin, OrderSide, OrderStatus, OrderType, TimeInForce
 from tape.engine.portfolio import Portfolio, Trade
 from tape.engine.strategy import Bar
 
@@ -20,10 +20,11 @@ if TYPE_CHECKING:
     from tape.calendar import Sessions
     from tape.catalog.bars import Bars
     from tape.core.types import F64, I32, I64
+    from tape.engine.ledger import Ledger
     from tape.engine.strategy import Strategy, StrategyConfig
     from tape.features.kinds import FeatureSpec
 
-ENGINE_VERSION = 3
+ENGINE_VERSION = 4
 
 type Stored = Callable[[FeatureSpec], F64 | None]
 
@@ -134,6 +135,7 @@ class Context:
             self.session,
             price,
             "stop",
+            origin=OrderOrigin.STOP_LOSS,
         )
         self.orders.append(order)
         self.working.append(order)
@@ -198,6 +200,7 @@ class BacktestEngine:
         execution: ExecutionSpec,
         fast_forward: bool = True,
         stored: Stored | None = None,
+        ledger: Ledger | None = None,
     ) -> None:
         timeframe = strategy.config.timeframe
         by_bar = execution.fill_on is FillOn.BAR
@@ -206,6 +209,7 @@ class BacktestEngine:
         assert len(ends) == len(decision)
         self.strategy = strategy
         self.execution = execution
+        self.ledger = ledger
         self.ends = ends
         self.decision = decision
         self.ctx = Context(decision, execution.initial_cash, stored)
@@ -256,6 +260,7 @@ class BacktestEngine:
         j0 = int(self.ends[k0 - 1]) + 1 if k0 else 0
         j1 = int(self.ends[k1])
         self.strategy.attach(self.ctx)
+        self.ctx.now_ns, self.ctx.session = self.time[j0], self.sess[j0]
         self.strategy.on_start()
         k = k0
         intraday = self.execution.intraday
@@ -282,6 +287,8 @@ class BacktestEngine:
                 self._session_end(j, t, s)
             j += 1
         self.strategy.on_stop()
+        if self.ledger is not None:
+            self.ledger.settle(self.fills, self.ctx)
         return self._result(k0, k1)
 
     def _next_event(self, j: int) -> int:
@@ -327,6 +334,7 @@ class BacktestEngine:
                 t,
                 s,
                 tag="squareoff",
+                origin=OrderOrigin.SQUARE_OFF,
             )
             self.ctx.orders.append(order)
             if (fill := self.matcher.market(order, t, price)) is not None:
@@ -350,6 +358,8 @@ class BacktestEngine:
             int(d.volume[k]),
         )
         self.strategy.on_bar(bar)
+        if self.ledger is not None:
+            self.ledger.mark(k, bar.time_ns, bar.close, self.fills, ctx)
 
     def _session_end(self, j: int, t: int, s: int) -> None:
         close = self.ohlc[j][3]

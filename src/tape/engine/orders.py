@@ -29,6 +29,12 @@ class TimeInForce(StrEnum):
     DAY = "day"
 
 
+class OrderOrigin(StrEnum):
+    STRATEGY = "strategy"
+    STOP_LOSS = "stop_loss"
+    SQUARE_OFF = "square_off"
+
+
 class OrderStatus(StrEnum):
     ACCEPTED = "accepted"
     FILLED = "filled"
@@ -55,6 +61,7 @@ class Order:
     notional: float | None = None
     stop_loss: float | None = None
     through: bool = False
+    origin: OrderOrigin = OrderOrigin.STRATEGY
 
     def __post_init__(self) -> None:
         assert self.quantity > 0 or (self.notional is not None and self.notional > 0)
@@ -70,6 +77,12 @@ class Order:
     @property
     def working(self) -> bool:
         return self.status is OrderStatus.ACCEPTED
+
+    @property
+    def signal_ns(self) -> int | None:
+        if self.origin is not OrderOrigin.STRATEGY or self.status is not OrderStatus.FILLED:
+            return None
+        return self.submitted_ns if self.type is OrderType.MARKET else self.closed_ns
 
 
 @dataclass(frozen=True, slots=True)

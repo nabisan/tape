@@ -350,3 +350,28 @@ def test_low_breakdown_matches_the_rule(store: Store, strategy: tuple[str, dict[
     closed = [(x, p) for _, _, x, p in expected if x is not None]
     assert buys["bar"].tolist() == [x for x, _ in closed]
     assert buys["price"].to_numpy() == pytest.approx([p for _, p in closed])
+
+
+def test_sma_signals_are_the_decision_bars(store: Store) -> None:
+    r = execute(store, spec(SMA_D1))
+    decided = r.orders[(r.orders["tag"] == "signal") & (r.orders["status"] == "filled")]["submitted"]
+    assert len(decided) > 1
+    assert r.metrics.first_signal == decided.min().to_pydatetime()
+    assert r.metrics.last_signal == decided.max().to_pydatetime()
+
+
+def test_breakout_signals_exclude_protective_stops_and_start_on_the_clock(store: Store) -> None:
+    s = spec(HB_1H).model_copy(update={"ticker": Ticker("SPY")})
+    r = execute(store, s)
+    assert r.orders["submitted"].min() >= pd.Timestamp(s.start)
+    buys = r.fills[r.fills["side"] == "buy"]["time"]
+    assert len(buys) > 3 and (r.fills["side"] == "sell").any()
+    assert r.metrics.first_signal == buys.min().to_pydatetime()
+    assert r.metrics.last_signal == buys.max().to_pydatetime()
+
+
+def test_orders_record_their_origin(store: Store) -> None:
+    r = execute(store, spec(HB_1H).model_copy(update={"ticker": Ticker("SPY")}))
+    by_tag = r.orders.groupby("tag")["origin"].unique().to_dict()
+    assert list(by_tag["stop"]) == ["stop_loss"]
+    assert set(by_tag["breakout"]) == {"strategy"} and set(by_tag["initial"]) == {"strategy"}

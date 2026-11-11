@@ -13,6 +13,7 @@ from tape.core.hashing import Digest, Json, digest
 from tape.core.types import DATE, Ticker, Timeframe
 from tape.engine import reports
 from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec
+from tape.engine.ledger import Ledger
 from tape.features.build import materialize
 from tape.features.catalog import FeatureCatalog
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
@@ -21,10 +22,13 @@ from tape.strategies.registry import STRATEGIES, create
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import pyarrow as pa
+
     from tape.calendar import Sessions
     from tape.catalog.bars import Bars
     from tape.catalog.store import Store
     from tape.core.types import F64
+    from tape.engine.ledger import TradeSummary
     from tape.engine.parameters import ParameterSpace, ResolvedSpace
     from tape.features.kinds import FeatureSpec
 
@@ -69,6 +73,10 @@ class RunSpec(BaseModel):
     execution: ExecutionSpec = ExecutionSpec()
     features: FeaturePolicy = FeaturePolicy.MATERIALIZE
 
+    @property
+    def timeframe(self) -> Timeframe:
+        return STRATEGIES[self.strategy].config_type.model_validate(self.params).timeframe
+
     @model_validator(mode="after")
     def _holding(self) -> Self:
         cls = STRATEGIES.get(self.strategy)
@@ -88,6 +96,13 @@ class RunSpec(BaseModel):
                 "data_version": data_version,
             }
         )
+
+
+@dataclass(frozen=True, slots=True)
+class Recording:
+    table: pa.Table
+    trades: dict[int, TradeSummary]
+    net_pnl: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +181,17 @@ def session_range(sessions: Sessions, start: date, end: date) -> tuple[int, int]
     return lo, hi
 
 
-def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Result:
+@dataclass(frozen=True, slots=True)
+class Prepared:
+    engine: BacktestEngine
+    sessions: Sessions
+    m1: Bars
+    decision: Bars
+    first: int
+    last: int
+
+
+def prepare(store: Store, spec: RunSpec, grid: FeatureGrid, ledger: Ledger | None = None) -> Prepared:
     if reasons := cold(store, spec):
         raise ColdFeaturesError(f"{spec.ticker}: {'; '.join(reasons)}")
     strategy = create(spec.strategy, spec.params)
@@ -194,7 +219,25 @@ def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Re
         sessions=sessions,
         execution=spec.execution,
         stored=stored,
+        ledger=ledger,
     )
+    return Prepared(engine, sessions, m1, decision, first, last)
+
+
+def record(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Recording:
+    ledger = Ledger()
+    p = prepare(store, spec, grid, ledger)
+    p.engine.run(p.first, p.last)
+    return Recording(
+        table=reports.ledger(ledger, p.decision, p.engine.ctx, spec.execution.initial_cash),
+        trades=ledger.trades(p.engine.ctx.portfolio),
+        net_pnl=ledger.marks[-1].equity - spec.execution.initial_cash if ledger.marks else 0.0,
+    )
+
+
+def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Result:
+    p = prepare(store, spec, grid)
+    engine, sessions, m1, decision, first, last = p.engine, p.sessions, p.m1, p.decision, p.first, p.last
     run = engine.run(first, last)
 
     equity = reports.equity(run, sessions, spec.execution.initial_cash)
@@ -216,7 +259,7 @@ def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Re
     return Result(
         key=spec.key(store.manifest.data_version),
         spec=spec,
-        metrics=reports.metrics(equity, trades, spec.execution.initial_cash),
+        metrics=reports.metrics(equity, trades, spec.execution.initial_cash, run.orders),
         equity=equity,
         trades=trades,
         orders=reports.orders(run),

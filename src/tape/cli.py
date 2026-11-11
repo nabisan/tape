@@ -16,6 +16,7 @@ from typing import Final
 import httpx2
 import numpy as np
 import numpy.typing as npt
+import pyarrow.compute as pc
 import uvicorn
 
 from tape import log
@@ -26,6 +27,9 @@ from tape.core.hashing import Digest, Json
 from tape.core.types import Ticker, Timeframe, ticker
 from tape.features.adopt import AdoptionError, adopt
 from tape.features.build import build as build_features
+from tape.fundamentals import FundamentalsError
+from tape.fundamentals import load as load_fundamentals
+from tape.fundamentals import save as save_fundamentals
 from tape.service.api import create_app
 from tape.service.results import ResultStore
 from tape.service.worker import execute_run, init_worker
@@ -161,6 +165,25 @@ def features_build(settings: Settings, args: argparse.Namespace) -> int:
         tickers=[ticker(t) for t in args.ticker] or None,
         workers=args.workers,
         force=args.force,
+    )
+    return 0
+
+
+def fundamentals_import(settings: Settings, args: argparse.Namespace) -> int:
+    out = log.Log("Fundamentals")
+    try:
+        found = load_fundamentals(Path(args.source).expanduser())
+    except (FundamentalsError, OSError) as e:
+        out.error("import failed", reason=e)
+        return 1
+    path = save_fundamentals(found, settings.store_dir)
+    masked = found.num_rows - int(pc.sum(found["plausible"]).as_py() or 0)
+    out.info(
+        "imported",
+        path=path,
+        rows=found.num_rows,
+        tickers=len(pc.unique(found["ticker"])),
+        implausible=masked,
     )
     return 0
 
@@ -315,6 +338,7 @@ COMMANDS: Final[dict[tuple[str, str | None], Handler]] = {
     ("features", "build"): features_build,
     ("sweep", None): sweep,
     ("universes", "fetch"): universes_fetch,
+    ("fundamentals", "import"): fundamentals_import,
     ("serve", "api"): serve_api,
     ("serve", "ui"): lambda _, a: serve_ui(a),
 }
@@ -359,6 +383,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     uf = universes.add_parser("fetch", help="fetch index constituents and sector classifications")
     uf.add_argument("--api", help="read the catalog tickers from a running tape API instead of the store")
+    fundamentals = commands.add_parser("fundamentals", help="valuation reference data").add_subparsers(
+        dest="action", required=True
+    )
+    fi = fundamentals.add_parser("import", help="import daily market cap and P/E into the store")
+    fi.add_argument("source", help="parquet with ticker, date, shares, market_cap, ttm_net_income, pe_ratio")
     serve = commands.add_parser("serve", help="run the API or the web UI").add_subparsers(
         dest="action", required=True
     )

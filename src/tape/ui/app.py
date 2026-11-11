@@ -6,17 +6,21 @@ import math
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
 from typing import TYPE_CHECKING, Any, Final
 
 import httpx2
 import pandas as pd
 import streamlit as st
+from pydantic import ValidationError
 
 from tape.benchmarks import REFERENCE
-from tape.core.types import DATE, STAMP, Timeframe
-from tape.engine.parameters import ResolvedSpace
+from tape.core.types import DATE, STAMP, Ticker, Timeframe
+from tape.engine.backtest import ExecutionSpec
+from tape.engine.matching import FillModel
+from tape.runner import RunSpec
+from tape.service.ledgers import MEDIA, LedgerState, filename
 from tape.service.results import Table
+from tape.sweep import SweepSpec
 from tape.ui import basket, charts, forms
 from tape.ui.client import ApiError, Client, GoneError
 from tape.ui.theme import (
@@ -36,45 +40,55 @@ from tape.ui.theme import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from datetime import date, datetime
 
     from tape.benchmarks import Comparison
     from tape.engine.reports import Metrics
+    from tape.fundamentals import Snapshot, Valuation
+    from tape.service.models import Catalog, StrategyInfo, StrategySpace
+
+type Row = tuple[str, Callable[[Metrics], float], str]
+type Moment = tuple[str, Callable[[Metrics], datetime | None]]
 
 API_URL: Final = os.environ.get("TAPE_API_URL", "http://127.0.0.1:8000")
 LABELS: Final = ("A", "B")
 LINKS: Final = dict(zip(LABELS, ("run", "b"), strict=True))
 SWEEP_LINK: Final = "sweep"
 MODE: Final = "mode"
-GROUPS: Final[list[list[tuple[str, str, str]]]] = [
+GROUPS: Final[list[list[Row]]] = [
     [
-        ("net_pnl", "Net P&L $", "{:,.0f}"),
-        ("total_return_pct", "Total return %", "{:.2f}"),
-        ("cagr_pct", "CAGR %", "{:.2f}"),
+        ("Net P&L $", lambda m: m.net_pnl, "{:,.0f}"),
+        ("Total return %", lambda m: m.total_return_pct, "{:.2f}"),
+        ("CAGR %", lambda m: m.cagr_pct, "{:.2f}"),
     ],
     [
-        ("volatility_pct", "Volatility, ann. %", "{:.2f}"),
-        ("sharpe", "Sharpe, ann.", "{:.2f}"),
-        ("sortino", "Sortino, ann.", "{:.2f}"),
-        ("max_drawdown_pct", "Max drawdown %", "{:.2f}"),
-        ("max_drawdown_sessions", "Longest DD, sessions", "{:,.0f}"),
-        ("calmar", "Calmar", "{:.2f}"),
-        ("exposure_pct", "Exposure %", "{:.1f}"),
+        ("Volatility, ann. %", lambda m: m.volatility_pct, "{:.2f}"),
+        ("Sharpe, ann.", lambda m: m.sharpe, "{:.2f}"),
+        ("Sortino, ann.", lambda m: m.sortino, "{:.2f}"),
+        ("Max drawdown %", lambda m: m.max_drawdown_pct, "{:.2f}"),
+        ("Longest DD, sessions", lambda m: m.max_drawdown_sessions, "{:,.0f}"),
+        ("Calmar", lambda m: m.calmar, "{:.2f}"),
+        ("Exposure %", lambda m: m.exposure_pct, "{:.1f}"),
     ],
     [
-        ("trades", "Trades", "{:,.0f}"),
-        ("win_rate_pct", "Win rate %", "{:.1f}"),
-        ("profit_factor", "Profit factor", "{:.2f}"),
-        ("payoff_ratio", "Payoff ratio", "{:.2f}"),
-        ("expectancy", "Expectancy $", "{:,.2f}"),
-        ("avg_win", "Average win $", "{:,.2f}"),
-        ("avg_loss", "Average loss $", "{:,.2f}"),
-        ("avg_duration_hours", "Average hold, h", "{:,.1f}"),
+        ("Trades", lambda m: m.trades, "{:,.0f}"),
+        ("Win rate %", lambda m: m.win_rate_pct, "{:.1f}"),
+        ("Profit factor", lambda m: m.profit_factor, "{:.2f}"),
+        ("Payoff ratio", lambda m: m.payoff_ratio, "{:.2f}"),
+        ("Expectancy $", lambda m: m.expectancy, "{:,.2f}"),
+        ("Average win $", lambda m: m.avg_win, "{:,.2f}"),
+        ("Average loss $", lambda m: m.avg_loss, "{:,.2f}"),
+        ("Average hold, h", lambda m: m.avg_duration_hours, "{:,.1f}"),
     ],
     [
-        ("total_commission", "Commission $", "{:,.0f}"),
-        ("final_equity", "Final equity $", "{:,.0f}"),
+        ("Commission $", lambda m: m.total_commission, "{:,.0f}"),
+        ("Final equity $", lambda m: m.final_equity, "{:,.0f}"),
     ],
 ]
+LEDGER_POLL: Final = 3.0
+MOMENTS: Final[dict[str, tuple[Moment, ...]]] = {
+    "Trades": (("First signal", lambda m: m.first_signal), ("Last signal", lambda m: m.last_signal))
+}
 
 
 @st.cache_resource
@@ -83,12 +97,12 @@ def client() -> Client:
 
 
 @st.cache_data(ttl=300)
-def catalog() -> dict[str, Any]:
+def catalog() -> Catalog:
     return client().catalog()
 
 
 @st.cache_data(ttl=300)
-def strategies() -> dict[str, Any]:
+def strategies() -> dict[str, StrategyInfo]:
     return client().strategies()
 
 
@@ -102,14 +116,19 @@ def market(key: str) -> Comparison:
     return client().comparison(key)
 
 
+@st.cache_resource(max_entries=64)
+def worth(key: str) -> Valuation:
+    return client().valuation(key)
+
+
 GROUP_TITLES: Final = ("Returns", "Risk", "Trades", "Costs")
-COMPARE: Final = (
-    ("Net P&L", "net_pnl", "${:,.0f}"),
-    ("Total return", "total_return_pct", "{:.2f}%"),
-    ("CAGR", "cagr_pct", "{:.2f}%"),
-    ("Ann. vol", "volatility_pct", "{:.2f}%"),
-    ("Ann. Sharpe", "sharpe", "{:.2f}"),
-    ("Max DD", "max_drawdown_pct", "{:.2f}%"),
+COMPARE: Final[tuple[Row, ...]] = (
+    ("Net P&L", lambda m: m.net_pnl, "${:,.0f}"),
+    ("Total return", lambda m: m.total_return_pct, "{:.2f}%"),
+    ("CAGR", lambda m: m.cagr_pct, "{:.2f}%"),
+    ("Ann. vol", lambda m: m.volatility_pct, "{:.2f}%"),
+    ("Ann. Sharpe", lambda m: m.sharpe, "{:.2f}"),
+    ("Max DD", lambda m: m.max_drawdown_pct, "{:.2f}%"),
 )
 MINUS: Final = "\u2212"
 TIMES: Final = "\u00d7"
@@ -137,8 +156,8 @@ def _value(value: Any) -> str:
     return forms.label(value).lower()
 
 
-def _day(text: str) -> str:
-    return date.fromisoformat(text).strftime(DATE)
+def _day(day: date) -> str:
+    return day.strftime(DATE)
 
 
 def mark(label: str, compare: bool) -> str:
@@ -164,19 +183,19 @@ def notice(message: str) -> None:
     st.html(f'<div class="t-notice">{html.escape(message)}</div>')
 
 
-def execution_line(execution: dict[str, Any]) -> str:
-    fill = execution["fill"]
-    commission, slippage = fill["commission_per_share"], fill["slippage_bps"]
+def execution_line(execution: ExecutionSpec) -> str:
+    fill = execution.fill
+    commission, slippage = fill.commission_per_share, fill.slippage_bps
     parts = [
-        f"cash ${execution['initial_cash']:,.0f}",
+        f"cash ${execution.initial_cash:,.0f}",
         f"commission ${commission:g}/share" if commission else "no commission",
         f"slippage {slippage:g} bps" if slippage else "no slippage",
-        f"limit fill {fill['prob_fill_on_limit']:.0%}",
+        f"limit fill {fill.prob_fill_on_limit:.0%}",
     ]
-    if execution["intraday"]:
+    if execution.intraday:
         parts.append(
-            f"intraday, enter {execution['entry_delay_minutes']} min after open, "
-            f"flat {execution['squareoff_minutes_before_close']} min before close"
+            f"intraday, enter {execution.entry_delay_minutes} min after open, "
+            f"flat {execution.squareoff_minutes_before_close} min before close"
         )
     else:
         parts.append("held overnight")
@@ -184,7 +203,7 @@ def execution_line(execution: dict[str, Any]) -> str:
 
 
 def header(
-    specs: dict[str, Any],
+    specs: dict[str, RunSpec],
     results: dict[str, tuple[str, Metrics]],
     names: dict[str, str],
     version: str,
@@ -197,7 +216,7 @@ def header(
     for label, s in specs.items():
         params = " &middot; ".join(
             f"{html.escape(forms.label(k).lower())} {html.escape(_value(v))}"
-            for k, v in s["params"].items()
+            for k, v in s.params.items()
             if k != "timeframe"
         )
         legs.append(
@@ -208,11 +227,11 @@ def header(
         f"run {label.lower() + ' ' if compare else ''}{key[:8]}" for label, (key, _) in results.items()
     )
     left = (
-        f'<div><div class="t-ticker">{html.escape(spec["ticker"])}</div>'
-        f'<div class="t-meta">{_day(spec["start"])} &ndash; {_day(spec["end"])}'
+        f'<div><div class="t-ticker">{html.escape(spec.ticker)}</div>'
+        f'<div class="t-meta">{_day(spec.start)} &ndash; {_day(spec.end)}'
         f" &middot; {sessions:,} sessions</div>"
         f"{''.join(legs)}"
-        f'<div class="t-meta">{execution_line(spec["execution"])}</div>'
+        f'<div class="t-meta">{execution_line(spec.execution)}</div>'
         f'<div class="t-ids">{keys} &middot; data {version[:8]}</div></div>'
     )
     return f'<div class="t-head">{left}{comparison(results, names, markets, spec)}</div>'
@@ -226,7 +245,7 @@ def comparison(
     results: dict[str, tuple[str, Metrics]],
     names: dict[str, str],
     markets: dict[str, Comparison],
-    spec: dict[str, Any],
+    spec: RunSpec,
 ) -> str:
     compare = len(results) == 2
     market = next(iter(markets.values()))
@@ -235,13 +254,13 @@ def comparison(
     rows = []
     for label, (_, m) in results.items():
         e = markets[label].run
-        values = [(float(getattr(m, f)), fmt) for _, f, fmt in COMPARE]
+        values = [(float(get(m)), fmt) for _, get, fmt in COMPARE]
         values += [(e.beta, "{:.2f}"), (e.correlation, "{:.2f}")]
         name = f"{mark(label, compare)}{html.escape(names[label])}"
         rows.append(f'<tr class="run"><td>{name}</td>{_cells(values)}</tr>')
-    cash = float(spec["execution"]["initial_cash"])
+    cash = spec.execution.initial_cash
     for b in market.benchmarks:
-        held = " hold" if b.ticker == spec["ticker"] else ""
+        held = " hold" if b.ticker == spec.ticker else ""
         values = [
             (cash * b.total_return_pct / 100, "${:,.0f}"),
             (b.total_return_pct, "{:.2f}%"),
@@ -258,7 +277,7 @@ def comparison(
     )
 
 
-def _group(heading: str, group: list[tuple[str, str, str]], results: dict[str, tuple[str, Metrics]]) -> str:
+def _group(heading: str, group: list[Row], results: dict[str, tuple[str, Metrics]]) -> str:
     labels = list(results)
     compare = len(labels) == 2
     head = ""
@@ -269,21 +288,79 @@ def _group(heading: str, group: list[tuple[str, str, str]], results: dict[str, t
             + "<th>B &minus; A</th></tr></thead>"
         )
     rows = []
-    for field, text, fmt in group:
-        values = [float(getattr(results[lb][1], field)) for lb in labels]
+    for text, get, fmt in group:
+        values = [float(get(results[lb][1])) for lb in labels]
         cells = "".join(f"<td>{_fmt(v, fmt)}</td>" for v in values)
         if compare:
             cells += f'<td class="diff">{_fmt(values[1] - values[0], fmt, signed=True)}</td>'
         rows.append(f"<tr><td>{html.escape(text)}</td>{cells}</tr>")
+    for text, moment in MOMENTS.get(heading, ()):
+        moments = [moment(results[lb][1]) for lb in labels]
+        cells = "".join(f"<td>{_stamp(m)}</td>" for m in moments)
+        if compare:
+            cells += '<td class="diff"></td>'
+        rows.append(f"<tr><td>{html.escape(text)}</td>{cells}</tr>")
     return f'<div class="t-group"><h5>{heading}</h5><table>{head}<tbody>{"".join(rows)}</tbody></table></div>'
 
 
-def performance(results: dict[str, tuple[str, Metrics]]) -> str:
+def _stamp(moment: datetime | None) -> str:
+    return "&ndash;" if moment is None else f"{moment.strftime(DATE)}<br>{moment:%H:%M:%S}"
+
+
+SCALES: Final = (("T", 1e12), ("B", 1e9), ("M", 1e6))
+
+
+def _cap(s: Snapshot | None) -> str:
+    if s is None:
+        return "&ndash;"
+    if not s.plausible:
+        return "n/a"
+    v = s.market_cap
+    if math.isnan(v):
+        return "&ndash;"
+    unit, size = next(((u, n) for u, n in SCALES if v >= n), ("", 1.0))
+    return f"${v / size:,.2f}{unit}"
+
+
+def _pe(s: Snapshot | None) -> str:
+    if s is None:
+        return "&ndash;"
+    if not s.plausible:
+        return "n/a"
+    if math.isnan(s.pe):
+        return "loss" if s.net_income <= 0 else "&ndash;"
+    return f"{s.pe:,.1f}"
+
+
+def valuation(v: Valuation) -> str:
+    ends = (v.start, v.end)
+    head = "".join(
+        f"<th>{s.day.strftime(DATE) if s is not None else name}</th>"
+        for s, name in zip(ends, ("Start", "End"), strict=True)
+    )
+    rows = [
+        ("Market cap $", [_cap(s) for s in ends]),
+        ("P/E, TTM", [_pe(s) for s in ends]),
+    ]
+    body = "".join(
+        f"<tr><td>{text}</td>{''.join(f'<td>{c}</td>' for c in cells)}</tr>" for text, cells in rows
+    )
+    return (
+        f'<div class="t-group"><h5>Valuation &middot; {html.escape(v.ticker)}</h5>'
+        f"<table><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table></div>"
+    )
+
+
+def performance(results: dict[str, tuple[str, Metrics]], value: Valuation) -> str:
     groups = [_group(h, g, results) for h, g in zip(GROUP_TITLES, GROUPS, strict=True)]
+    block = valuation(value)
     if len(results) == 2:
-        body = f'<div class="t-perf compare">{"".join(groups)}</div>'
+        body = f'<div class="t-perf compare">{"".join(groups)}{block}</div>'
     else:
-        body = f'<div class="t-perf"><div>{groups[0]}{groups[1]}</div><div>{groups[2]}{groups[3]}</div></div>'
+        body = (
+            f'<div class="t-perf"><div>{groups[0]}{groups[1]}{block}</div>'
+            f"<div>{groups[2]}{groups[3]}</div></div>"
+        )
     return title("Performance") + body
 
 
@@ -347,11 +424,11 @@ def held(d: pd.Timedelta) -> str:
 
 
 @st.cache_data(ttl=300)
-def space(strategy: str, ticker: str, end: date | None) -> dict[str, Any]:
-    return client().space(strategy, ticker, end.isoformat() if end else None)
+def space(strategy: str, ticker: str, end: date | None) -> StrategySpace:
+    return client().space(strategy, ticker, end)
 
 
-def execution_form(intraday_allowed: bool = True) -> dict[str, Any]:
+def execution_form(intraday_allowed: bool = True) -> ExecutionSpec:
     with st.expander("Execution", expanded=False):
         cash = st.number_input(
             "Initial cash ($)", min_value=1_000.0, value=100_000.0, step=10_000.0, format="%.0f"
@@ -368,17 +445,13 @@ def execution_form(intraday_allowed: bool = True) -> dict[str, Any]:
         if intraday:
             delay = st.number_input("Entry delay after open (min)", 0, 390, 0, 5)
             squareoff = st.number_input("Square-off before close (min)", 1, 390, 5, 1)
-    return {
-        "initial_cash": cash,
-        "fill": {
-            "commission_per_share": commission,
-            "slippage_bps": slippage,
-            "prob_fill_on_limit": prob_limit,
-        },
-        "intraday": intraday,
-        "entry_delay_minutes": int(delay),
-        "squareoff_minutes_before_close": int(squareoff),
-    }
+    return ExecutionSpec(
+        initial_cash=cash,
+        fill=FillModel(commission_per_share=commission, slippage_bps=slippage, prob_fill_on_limit=prob_limit),
+        intraday=intraday,
+        entry_delay_minutes=int(delay),
+        squareoff_minutes_before_close=int(squareoff),
+    )
 
 
 def _span(first: date, last: date, key: str) -> tuple[date, date] | None:
@@ -388,15 +461,11 @@ def _span(first: date, last: date, key: str) -> tuple[date, date] | None:
     return (span[0], span[1]) if isinstance(span, tuple) and len(span) == 2 else None
 
 
-def backtest_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | None:
-    tickers = [t["ticker"] for t in cat["tickers"]]
-    info = {t["ticker"]: t for t in cat["tickers"]}
+def backtest_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> dict[str, RunSpec] | None:
+    info = {t.ticker: t for t in cat.tickers}
+    tickers = list(info)
     ticker = st.selectbox("Ticker", tickers, index=tickers.index("AAPL") if "AAPL" in tickers else 0)
-    span = _span(
-        date.fromisoformat(info[ticker]["first_session"]),
-        date.fromisoformat(info[ticker]["last_session"]),
-        "dates:backtest",
-    )
+    span = _span(info[ticker].first_session, info[ticker].last_session, "dates:backtest")
     compare = st.toggle("Compare two strategies", value=False)
     runs: dict[str, tuple[str, dict[str, Any] | None]] = {}
     for label in LABELS if compare else LABELS[:1]:
@@ -407,67 +476,69 @@ def backtest_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any]
             "Strategy",
             names,
             index=LABELS.index(label) % len(names),
-            format_func=lambda n: strats[n]["title"],
+            format_func=lambda n: strats[n].title,
             key=f"strategy:{label}",
         )
         resolved = space(name, ticker, span[1] if span else None)
-        params = forms.strategy(
-            resolved["config_schema"], resolved["space"], f"{label}:{name}", span[0] if span else None
-        )
+        params = forms.strategy(resolved.config_schema, resolved.space, f"{label}:{name}")
         runs[label] = (name, params)
-    execution = execution_form(all(strats[name]["intraday"] for name, _ in runs.values()))
+    execution = execution_form(all(strats[name].intraday for name, _ in runs.values()))
     ready = span is not None and all(params is not None for _, params in runs.values())
     label_text = "Run comparison" if compare else "Run backtest"
     if not st.button(label_text, type="primary", width="stretch", disabled=not ready) or span is None:
         return None
-    return {
-        label: {
-            "ticker": ticker,
-            "start": span[0].isoformat(),
-            "end": span[1].isoformat(),
-            "strategy": name,
-            "params": params,
-            "execution": execution,
+    try:
+        return {
+            label: RunSpec(
+                ticker=Ticker(ticker),
+                start=span[0],
+                end=span[1],
+                strategy=name,
+                params=params or {},
+                execution=execution,
+            )
+            for label, (name, params) in runs.items()
         }
-        for label, (name, params) in runs.items()
-    }
+    except ValidationError as e:
+        st.error("; ".join(str(err["msg"]) for err in e.errors()))
+        return None
 
 
-def sweep_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | None:
-    tickers = [t["ticker"] for t in cat["tickers"]]
-    _, pool, note = basket.universe(client(), tickers)
-    pool, notes = basket.classify(client(), pool)
-    notes = [note, *notes]
-    span = _span(
-        date.fromisoformat(cat["first_session"]), date.fromisoformat(cat["last_session"]), "dates:sweep"
-    )
-    if span is not None:
-        pool, vol_notes = basket.volatility(client(), pool, span[0])
-        notes += vol_notes
-    fingerprint = hashlib.blake2b("|".join(pool).encode(), digest_size=8).hexdigest()
-    with st.expander(f"Tickers · {len(pool):,}"):
-        chosen = st.multiselect(
-            "Tickers",
-            tickers,
-            default=pool,
-            key=f"basket:tickers:{fingerprint}",
-            label_visibility="collapsed",
-        )
+def sweep_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> SweepSpec | None:
+    tickers = [t.ticker for t in cat.tickers]
+    universe, pool, note = basket.universe(client(), tickers)
+    notes = [note]
+    span = _span(cat.first_session, cat.last_session, "dates:sweep")
+    if universe == basket.CUSTOM:
+        chosen = st.multiselect("Tickers", tickers, key="basket:custom", placeholder="Choose tickers")
+    else:
+        pool, class_notes = basket.classify(client(), pool)
+        notes += class_notes
+        if span is not None:
+            pool, vol_notes = basket.volatility(client(), pool, span[0])
+            notes += vol_notes
+        fingerprint = hashlib.blake2b("|".join(pool).encode(), digest_size=8).hexdigest()
+        with st.expander(f"Tickers · {len(pool):,}"):
+            chosen = st.multiselect(
+                "Tickers",
+                tickers,
+                default=pool,
+                key=f"basket:tickers:{fingerprint}",
+                label_visibility="collapsed",
+            )
     basket.summary(chosen, notes)
     if not chosen:
         notice("The basket is empty.")
         return None
-    name = st.selectbox(
-        "Strategy", list(strats), format_func=lambda n: strats[n]["title"], key="sweep:strategy"
-    )
+    name = st.selectbox("Strategy", list(strats), format_func=lambda n: strats[n].title, key="sweep:strategy")
     resolved = space(name, chosen[0], span[1] if span else None)
-    timeframes: list[str] = resolved["space"]["timeframes"]
+    typed = resolved.space
+    timeframes = list(typed.timeframes)
     if not timeframes:
-        st.warning(f"No precomputed features cover {strats[name]['title']} for {chosen[0]}.")
+        st.warning(f"No precomputed features cover {strats[name].title} for {chosen[0]}.")
         return None
     tf = st.selectbox("Timeframe", timeframes, index=len(timeframes) - 1, key="sweep:timeframe")
-    typed = ResolvedSpace.model_validate(resolved["space"])
-    choices = typed.choices[Timeframe(tf)]
+    choices = typed.choices[tf]
     grid: dict[str, list[int]] = {}
     for param, domain in choices.items():
         options = typed.options(param, domain, {**choices, **grid})
@@ -483,24 +554,28 @@ def sweep_form(cat: dict[str, Any], strats: dict[str, Any]) -> dict[str, Any] | 
     combos = typed.count(grid)
     runs = f"{len(chosen):,} tickers {TIMES} {combos:,} valid combinations = {len(chosen) * combos:,} runs"
     st.caption(runs)
-    schema = resolved["config_schema"]
+    schema = resolved.config_schema
     fixed = forms.fields(
         schema["properties"], schema.get("$defs", {}), f"sweep:{name}", skip={"timeframe", *grid}
     )
-    execution = execution_form(strats[name]["intraday"])
+    execution = execution_form(strats[name].intraday)
     ready = span is not None and combos > 0
     if not st.button("Run sweep", type="primary", width="stretch", disabled=not ready) or span is None:
         return None
-    return {
-        "tickers": chosen,
-        "start": span[0].isoformat(),
-        "end": span[1].isoformat(),
-        "strategy": name,
-        "timeframe": tf,
-        "grid": grid,
-        "params": fixed,
-        "execution": execution,
-    }
+    try:
+        return SweepSpec(
+            tickers=tuple(Ticker(t) for t in chosen),
+            start=span[0],
+            end=span[1],
+            strategy=name,
+            timeframe=tf,
+            grid={k: tuple(v) for k, v in grid.items()},
+            params=fixed,
+            execution=execution,
+        )
+    except ValidationError as e:
+        st.error("; ".join(str(err["msg"]) for err in e.errors()))
+        return None
 
 
 MAX_CANDLES: Final = 3_000
@@ -551,8 +626,8 @@ def trades_csv(key: str) -> str:
 
 
 @st.fragment
-def price_view(label: str, key: str, spec: dict[str, Any]) -> None:
-    tf = spec["params"].get("timeframe", "1d")
+def price_view(label: str, key: str, spec: RunSpec) -> None:
+    tf = spec.timeframe
     days, recent = run_days(key)
     if not days:
         notice("No bars were stored for this run.")
@@ -572,19 +647,49 @@ def price_view(label: str, key: str, spec: dict[str, Any]) -> None:
     indicators = [c for c in bars.columns if c not in OHLCV]
     keys = "".join(key_line(forms.label(n), c, d) for n, (c, d) in zip(indicators, INDICATORS, strict=False))
     keys += key_marker("Buy", BUY_GLYPH) + key_marker("Sell", SELL_GLYPH)
-    caption = f"{html.escape(spec['ticker'])} &middot; {tf} &middot; {len(bars):,} candles"
+    caption = f"{html.escape(spec.ticker)} &middot; {tf} &middot; {len(bars):,} candles"
     if factor > 1:
         caption += f" &middot; each aggregates {factor:,} bars"
     heading.html(title("Price", caption, keys))
     chart.plotly_chart(
-        charts.price(bars, fills, indicators, tf != "1d"),
+        charts.price(bars, fills, indicators, tf is not Timeframe.D1),
         width="stretch",
         key=f"price:{label}",
         config=charts.CONFIG,
     )
 
 
-def strategy_view(label: str, key: str, spec: dict[str, Any]) -> None:
+def ledger_link(label: str, key: str, spec: RunSpec) -> None:
+    status = client().ledger(key)
+    if status.state is LedgerState.ABSENT:
+        status = client().build_ledger(key)
+    if status.state is LedgerState.BUILDING:
+        ledger_wait(key)
+    elif status.state is LedgerState.FAILED:
+        st.caption(f"MTM ledger failed: {status.detail}")
+        if st.button("Retry MTM ledger", key=f"mtm:retry:{label}"):
+            client().build_ledger(key)
+            st.rerun()
+    else:
+        size = (status.size or 0) / 1e6
+        st.download_button(
+            f"MTM ledger · {size:,.1f} MB",
+            lambda: client().ledger_file(key),
+            filename(spec),
+            mime=MEDIA,
+            key=f"mtm:{label}",
+        )
+
+
+@st.fragment(run_every=LEDGER_POLL)
+def ledger_wait(key: str) -> None:
+    if client().ledger(key).state is LedgerState.BUILDING:
+        st.caption("Building MTM ledger…")
+    else:
+        st.rerun()
+
+
+def strategy_view(label: str, key: str, spec: RunSpec) -> None:
     price_view(label, key, spec)
     trades = blotter_frame(key)
     orders = table(key, Table.ORDERS)
@@ -599,12 +704,15 @@ def strategy_view(label: str, key: str, spec: dict[str, Any]) -> None:
             hide_index=True,
             column_config=TRADE_COLUMNS,
         )
-        st.download_button(
+        csv, mtm = st.columns([1, 6])
+        csv.download_button(
             "Trades CSV",
             trades_csv(key),
             f"trades_{label}_{key[:8]}.csv",
             key=f"dl:{label}",
         )
+        with mtm:
+            ledger_link(label, key, spec)
     with order_tab:
         st.dataframe(
             orders,
@@ -618,7 +726,7 @@ def strategy_view(label: str, key: str, spec: dict[str, Any]) -> None:
 
 
 @st.fragment
-def detail(results: dict[str, tuple[str, Metrics]], specs: dict[str, Any], names: dict[str, str]) -> None:
+def detail(results: dict[str, tuple[str, Metrics]], specs: dict[str, RunSpec], names: dict[str, str]) -> None:
     labels = list(results)
     label = labels[0]
     if len(labels) == 2:
@@ -639,21 +747,18 @@ def detail(results: dict[str, tuple[str, Metrics]], specs: dict[str, Any], names
 
 def show_runs(
     results: dict[str, tuple[str, Metrics]],
-    specs: dict[str, Any],
-    cat: dict[str, Any],
-    strats: dict[str, Any],
+    specs: dict[str, RunSpec],
+    cat: Catalog,
+    strats: dict[str, StrategyInfo],
 ) -> None:
-    names = {
-        label: f"{strats[s['strategy']]['title']} · {s['params'].get('timeframe', '1d')}"
-        for label, s in specs.items()
-    }
+    names = {label: f"{strats[s.strategy].title} · {s.timeframe}" for label, s in specs.items()}
     markets = {label: market(key) for label, (key, _) in results.items()}
-    st.html(header(specs, results, names, cat["data_version"], markets))
+    st.html(header(specs, results, names, cat.data_version, markets))
     left, right = st.columns([7, 5])
     with left:
         equity_block(results)
     with right:
-        st.html(performance(results))
+        st.html(performance(results, worth(next(iter(results.values()))[0])))
     detail(results, specs, names)
 
 
@@ -674,26 +779,25 @@ SWEEP_COLUMNS: Final = {
 }
 
 
-def run_sweep(spec: dict[str, Any]) -> str | None:
+def run_sweep(spec: SweepSpec) -> str | None:
     try:
-        started = client().start_sweep(spec)
+        status = client().start_sweep(spec)
     except ApiError as e:
         st.error(str(e))
         return None
-    key = str(started["key"])
+    key = status.key
     bar = st.progress(0.0, "Starting sweep")
-    status = started
-    while status["state"] == "running":
-        total = max(1, int(status["total"]))
-        bar.progress(int(status["done"]) / total, f"{status['done']:,} of {total:,} runs")
+    while status.state == "running":
+        total = max(1, status.total)
+        bar.progress(status.done / total, f"{status.done:,} of {total:,} runs")
         time.sleep(1.0)
         status = client().sweep(key)
     bar.empty()
-    if status["state"] == "failed":
-        st.error(f"Sweep failed: {status['error']}")
+    if status.state == "failed":
+        st.error(f"Sweep failed: {status.error}")
         return None
-    for s in status["skipped"]:
-        st.warning(f"{s['ticker']} skipped: {s['reason']}")
+    for s in status.skipped:
+        st.warning(f"{s.ticker} skipped: {s.reason}")
     return key
 
 
@@ -728,20 +832,20 @@ def sweep_paths(key: str) -> pd.DataFrame:
 
 
 @st.fragment
-def show_sweep(key: str, spec: dict[str, Any], cat: dict[str, Any], strats: dict[str, Any]) -> None:
+def show_sweep(key: str, spec: SweepSpec, cat: Catalog, strats: dict[str, StrategyInfo]) -> None:
     frame = client().sweep_summary(key)
     if frame.empty:
         notice("The sweep produced no runs.")
         return
-    swept = [c for c in frame.columns if c in spec["grid"]]
+    swept = [c for c in frame.columns if c in spec.grid]
     measures = [c for c in SWEEP_COLUMNS if c in frame.columns and c != "key"]
     fixed = [
         c for c in frame.columns if c not in {"ticker", "key", *swept, *measures} and frame[c].nunique() == 1
     ]
     shown = [c for c in frame.columns if c not in fixed]
-    strategy_title = strats[spec["strategy"]]["title"]
+    strategy_title = strats[spec.strategy].title
     best = frame.sort_values("sharpe", ascending=False, na_position="last").reset_index(drop=True)
-    count = len(spec["tickers"])
+    count = len(spec.tickers)
     held_fixed = " · ".join(f"{forms.label(c)} {forms.label(frame[c].iloc[0])}" for c in fixed)
     runs = f"{count} ticker{'s' if count != 1 else ''} &middot; {len(frame):,} runs"
     fixed_line = (
@@ -750,8 +854,8 @@ def show_sweep(key: str, spec: dict[str, Any], cat: dict[str, Any], strats: dict
     st.html(
         '<div class="t-head"><div>'
         f'<div class="t-ticker">{html.escape(strategy_title)} sweep</div>'
-        f'<div class="t-meta">{_day(spec["start"])} &ndash; {_day(spec["end"])} &middot; '
-        f"{spec['timeframe']} &middot; {runs}</div>"
+        f'<div class="t-meta">{_day(spec.start)} &ndash; {_day(spec.end)} &middot; '
+        f"{spec.timeframe} &middot; {runs}</div>"
         f"{fixed_line}"
         f'<div class="t-ids">sweep {key[:8]}</div></div>{sweep_stats(frame)}</div>'
     )
@@ -836,19 +940,19 @@ def show_sweep(key: str, spec: dict[str, Any], cat: dict[str, Any], strats: dict
         label_visibility="collapsed",
     )
     if pick is not None:
-        run_key = str(best.loc[pick, "key"])
-        run_spec = client().spec(run_key)
-        show_runs({"A": (run_key, client().metrics(run_key))}, {"A": run_spec}, cat, strats)
+        run = client().detail(str(best.loc[pick, "key"]))
+        show_runs({"A": (run.key, run.metrics)}, {"A": run.spec}, cat, strats)
 
 
-def restore() -> tuple[dict[str, tuple[str, Metrics]], dict[str, Any]] | None:
+def restore() -> tuple[dict[str, tuple[str, Metrics]], dict[str, RunSpec]] | None:
     keys = {label: st.query_params[name] for label, name in LINKS.items() if name in st.query_params}
     if LABELS[0] not in keys:
         return None
     try:
+        found = {label: client().detail(key) for label, key in keys.items()}
         return (
-            {label: (key, client().metrics(key)) for label, key in keys.items()},
-            {label: client().spec(key) for label, key in keys.items()},
+            {label: (d.key, d.metrics) for label, d in found.items()},
+            {label: d.spec for label, d in found.items()},
         )
     except GoneError:
         raise
@@ -856,7 +960,7 @@ def restore() -> tuple[dict[str, tuple[str, Metrics]], dict[str, Any]] | None:
         return None
 
 
-def sweep_page(sweep_spec: dict[str, Any] | None, cat: dict[str, Any], strats: dict[str, Any]) -> None:
+def sweep_page(sweep_spec: SweepSpec | None, cat: Catalog, strats: dict[str, StrategyInfo]) -> None:
     if sweep_spec is not None and (key := run_sweep(sweep_spec)) is not None:
         st.session_state["sweep"] = (key, sweep_spec)
         st.query_params.from_dict({SWEEP_LINK: key})
@@ -877,12 +981,13 @@ def sweep_page(sweep_spec: dict[str, Any] | None, cat: dict[str, Any], strats: d
     show_sweep(current[0], current[1], cat, strats)
 
 
-def backtest_page(specs: dict[str, Any] | None, cat: dict[str, Any], strats: dict[str, Any]) -> None:
+def backtest_page(specs: dict[str, RunSpec] | None, cat: Catalog, strats: dict[str, StrategyInfo]) -> None:
     if specs is not None:
         with st.spinner("Running"), ThreadPoolExecutor(len(specs)) as pool:
             futures = {label: pool.submit(client().run, s) for label, s in specs.items()}
             try:
-                st.session_state["results"] = {label: f.result() for label, f in futures.items()}
+                summaries = {label: f.result() for label, f in futures.items()}
+                st.session_state["results"] = {label: (r.key, r.metrics) for label, r in summaries.items()}
                 st.session_state["specs"] = specs
                 st.query_params.from_dict(
                     {LINKS[label]: key for label, (key, _) in st.session_state["results"].items()}
@@ -922,11 +1027,12 @@ def main() -> None:
         if MODE not in st.session_state:
             st.session_state[MODE] = "Sweep" if SWEEP_LINK in st.query_params else "Backtest"
         mode = st.segmented_control("Mode", ["Backtest", "Sweep"], key=MODE, label_visibility="collapsed")
-        form = sweep_form(cat, strats) if mode == "Sweep" else backtest_form(cat, strats)
+        sweep = sweep_form(cat, strats) if mode == "Sweep" else None
+        runs = backtest_form(cat, strats) if mode != "Sweep" else None
     if mode == "Sweep":
-        sweep_page(form, cat, strats)
+        sweep_page(sweep, cat, strats)
     else:
-        backtest_page(form, cat, strats)
+        backtest_page(runs, cat, strats)
 
 
 main()

@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ValidationError
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import ValidationError
 
 from tape import log
 from tape.benchmarks import Comparison, compare
@@ -19,17 +19,27 @@ from tape.catalog.store import Status, Store
 from tape.core.hashing import Digest
 from tape.core.types import Ticker, Timeframe
 from tape.engine.backtest import ENGINE_VERSION, ExecutionSpec
-from tape.engine.parameters import ResolvedSpace
-from tape.engine.reports import Metrics
 from tape.features.catalog import FeatureCatalog
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
+from tape.fundamentals import Fundamentals, Valuation
 from tape.runner import MissingFeaturesError, RunSpec, cold, missing_features, unbuildable, warm
+from tape.service.ledgers import MEDIA, Ledgers, LedgerStatus, filename
+from tape.service.models import (
+    Catalog,
+    RunDays,
+    RunDetail,
+    RunSummary,
+    StrategyInfo,
+    StrategySpace,
+    TickerInfo,
+    UniverseInfo,
+)
 from tape.service.results import BARS_PER_ROW, STALE, ResultStore, StaleResultError, Table, thin
 from tape.service.sweeps import SweepManager, SweepStatus, paths
-from tape.service.worker import execute_run, init_worker
+from tape.service.worker import build_ledger, execute_run, init_ledger_worker, init_worker
 from tape.strategies.registry import STRATEGIES
 from tape.sweep import SweepSpec
-from tape.universe import Classification, Membership, Profiles, classifications, memberships, profiles
+from tape.universe import Classification, Profiles, classifications, memberships, profiles
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -40,57 +50,6 @@ if TYPE_CHECKING:
 
 PARQUET = "application/vnd.apache.parquet"
 RECENT_BARS = 2_500
-
-
-class TickerInfo(BaseModel):
-    ticker: str
-    first_session: str
-    last_session: str
-
-
-class Catalog(BaseModel):
-    data_version: str
-    first_session: str
-    last_session: str
-    tickers: list[TickerInfo]
-
-
-class StrategyInfo(BaseModel):
-    title: str
-    version: int
-    intraday: bool
-    config_schema: dict[str, Any]
-
-
-class StrategySpace(BaseModel):
-    name: str
-    version: int
-    ticker: str
-    space: ResolvedSpace
-    config_schema: dict[str, Any]
-
-
-class UniverseInfo(BaseModel):
-    membership: Membership
-    in_catalog: list[str]
-    missing: list[str]
-
-
-class RunDays(BaseModel):
-    days: list[date]
-    recent: date | None
-
-
-class RunSummary(BaseModel):
-    key: str
-    cached: bool
-    metrics: Metrics
-
-
-class RunDetail(BaseModel):
-    key: str
-    spec: RunSpec
-    metrics: Metrics
 
 
 def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
@@ -106,14 +65,12 @@ def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
     def catalog() -> Catalog:
         return Catalog(
             data_version=manifest.data_version,
-            first_session=str(manifest.first_session),
-            last_session=str(manifest.last_session),
+            first_session=manifest.first_session,
+            last_session=manifest.last_session,
             tickers=[
-                TickerInfo(
-                    ticker=r.ticker, first_session=str(r.first_session), last_session=str(r.last_session)
-                )
+                TickerInfo(ticker=r.ticker, first_session=r.first_session, last_session=r.last_session)
                 for r in manifest.tickers.values()
-                if r.status is Status.OK
+                if r.status is Status.OK and r.first_session is not None and r.last_session is not None
             ],
         )
 
@@ -333,11 +290,15 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
             grid.model_dump_json(),
         )
         app.state.pool = ProcessPoolExecutor(max_workers=workers, initializer=init_worker, initargs=initargs)
+        app.state.ledger_pool = ProcessPoolExecutor(
+            max_workers=1, initializer=init_ledger_worker, initargs=initargs
+        )
         out.info(
             "ready", data_version=manifest.data_version, tickers=len(manifest.available), workers=workers
         )
         yield
         app.state.pool.shutdown(cancel_futures=True)
+        app.state.ledger_pool.shutdown(cancel_futures=True)
 
     app = FastAPI(title="tape", version=str(ENGINE_VERSION), lifespan=lifespan)
 
@@ -349,13 +310,57 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         executor: Executor = app.state.pool
         return executor
 
+    def ledger_pool() -> Executor:
+        executor: Executor = app.state.ledger_pool
+        return executor
+
     sweeps = SweepManager(
         store, results, pool=pool, execute=execute_run, concurrency=max(1, workers) * 2, grid=grid
     )
     app.include_router(_catalog_routes(store, grid))
+    app.include_router(_valuation_routes(results, Fundamentals.open(settings.store_dir)))
+    app.include_router(_ledger_routes(results, Ledgers(results, ledger_pool, build_ledger)))
     app.include_router(_run_routes(store, results, pool, grid))
     app.include_router(_sweep_routes(store, results, sweeps))
     return app
+
+
+def _valuation_routes(results: ResultStore, fundamentals: Fundamentals | None) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/runs/{key}/valuation")
+    def valuation(key: str) -> Valuation:
+        k = _known(results, key)
+        spec = results.spec(k)
+        days = results.frame(k, Table.EQUITY)["date"]
+        start, end = (days.iloc[0].date(), days.iloc[-1].date()) if len(days) else (spec.start, spec.end)
+        if fundamentals is None:
+            return Valuation(ticker=spec.ticker, start=None, end=None)
+        return fundamentals.valuation(spec.ticker, start, end)
+
+    return router
+
+
+def _ledger_routes(results: ResultStore, ledgers: Ledgers) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/runs/{key}/ledger")
+    def ledger_status(key: str) -> LedgerStatus:
+        return ledgers.status(_known(results, key))
+
+    @router.post("/runs/{key}/ledger")
+    def ledger_start(key: str) -> LedgerStatus:
+        return ledgers.start(_known(results, key))
+
+    @router.get("/runs/{key}/ledger.xlsx")
+    def ledger_file(key: str) -> FileResponse:
+        k = _known(results, key)
+        path = ledgers.path(k)
+        if not path.is_file():
+            raise HTTPException(404, f"the ledger for run {key[:8]} is not built yet")
+        return FileResponse(path, media_type=MEDIA, filename=filename(results.spec(k)))
+
+    return router
 
 
 def _known(results: ResultStore, key: str) -> Digest:

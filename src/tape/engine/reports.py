@@ -1,25 +1,36 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Annotated
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Annotated, Any
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import pyarrow as pa
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 
 from tape.engine import tables
+from tape.engine.ledger import event
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from tape.calendar import Sessions
     from tape.catalog.bars import Bars
-    from tape.engine.backtest import Run
+    from tape.engine.backtest import Context, Run
+    from tape.engine.ledger import Ledger
+    from tape.engine.orders import Order
 
 TRADING_DAYS = 252
 
 
 def _ts(ns: int | None) -> pd.Timestamp | None:
     return None if ns is None else pd.Timestamp(ns, unit="ns")
+
+
+def _moment(ns: int | None) -> datetime | None:
+    return None if ns is None else pd.Timestamp(ns, unit="ns").to_pydatetime()
 
 
 def orders(run: Run) -> pd.DataFrame:
@@ -37,6 +48,7 @@ def orders(run: Run) -> pd.DataFrame:
                 "closed": _ts(o.closed_ns),
                 "fill_price": o.fill_price,
                 "tag": o.tag,
+                "origin": o.origin.value,
                 "reason": o.reason,
             }
             for o in run.orders
@@ -132,11 +144,18 @@ def _to_wire(v: float) -> float | None:
 type Measure = Annotated[float, BeforeValidator(_from_wire), PlainSerializer(_to_wire, when_used="json")]
 
 
+def _day(v: object) -> object:
+    return None if v == "" else v
+
+
+type Day = Annotated[date | None, BeforeValidator(_day)]
+
+
 class Metrics(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    start: str
-    end: str
+    start: Day
+    end: Day
     sessions: int
     initial_cash: Measure
     final_equity: Measure
@@ -161,6 +180,8 @@ class Metrics(BaseModel):
     avg_duration_hours: Measure
     total_commission: Measure
     buy_hold_return_pct: Measure
+    first_signal: datetime | None = None
+    last_signal: datetime | None = None
 
 
 def _ratio(a: float, b: float) -> float:
@@ -175,7 +196,8 @@ def annualized(r: npt.NDArray[np.float64], growth: float) -> tuple[float, float,
     return vol, cagr, sharpe
 
 
-def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float) -> Metrics:
+def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float, orders: Sequence[Order]) -> Metrics:
+    signals = sorted(ns for o in orders if (ns := o.signal_ns) is not None)
     r = eq["return"].to_numpy(dtype=float)
     values = eq["equity"].to_numpy(dtype=float)
     final = float(values[-1]) if len(values) else initial_cash
@@ -192,8 +214,8 @@ def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float) -> Metrics:
     max_dd = float(eq["drawdown_pct"].min()) if len(eq) else 0.0
     closes = eq["close"].to_numpy(dtype=float)
     return Metrics(
-        start=str(eq["date"].iloc[0].date()) if len(eq) else "",
-        end=str(eq["date"].iloc[-1].date()) if len(eq) else "",
+        start=eq["date"].iloc[0].date() if len(eq) else None,
+        end=eq["date"].iloc[-1].date() if len(eq) else None,
         sessions=len(eq),
         initial_cash=initial_cash,
         final_equity=final,
@@ -225,4 +247,46 @@ def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float) -> Metrics:
         avg_duration_hours=float(closed["duration"].dt.total_seconds().mean() / 3600) if len(closed) else 0.0,
         total_commission=float(tr["commission"].sum()) if len(tr) else 0.0,
         buy_hold_return_pct=100 * (closes[-1] / closes[0] - 1) if len(closes) else math.nan,
+        first_signal=_moment(signals[0]) if signals else None,
+        last_signal=_moment(signals[-1]) if signals else None,
     )
+
+
+def ledger(book: Ledger, decision: Bars, ctx: Context, initial_cash: float) -> pa.Table:
+    marks = book.marks
+    at = np.fromiter((m.bar for m in marks), dtype=np.int64, count=len(marks))
+    features = ctx.features()
+    schema = tables.ledger(f.name for f, _ in features)
+    equity = np.fromiter((m.equity for m in marks), dtype=np.float64, count=len(marks))
+    previous = np.r_[initial_cash, equity[:-1]] if len(marks) else equity
+    columns: dict[str, Any] = {
+        "time": decision.time_ns[at].astype("datetime64[ns]"),
+        "open": decision.open[at],
+        "high": decision.high[at],
+        "low": decision.low[at],
+        "close": decision.close[at],
+        "volume": decision.volume[at].astype(np.uint64),
+        **{f.name: values[at] for f, values in features},
+        "state": [m.state.value for m in marks],
+        "trade": [m.trade for m in marks],
+        "position": [m.position for m in marks],
+        "avg_cost": [m.avg_cost for m in marks],
+        "buy_trigger": [m.buy_trigger for m in marks],
+        "sell_trigger": [m.sell_trigger for m in marks],
+        "stop": [m.stop for m in marks],
+        "event": [" | ".join(event(f, ctx.orders[f.order_id - 1]) for f in m.fills) for m in marks],
+        "realized_pnl": [m.realized for m in marks],
+        "commission": [m.commission for m in marks],
+        "unrealized_pnl": [m.unrealized for m in marks],
+        "bar_pnl": equity - previous,
+        "cumulative_pnl": equity - initial_cash,
+        "equity": equity,
+    }
+    try:
+        found = pa.table(
+            {n: pa.array(columns[n], type=schema.field(n).type, from_pandas=True) for n in schema.names},
+            schema=schema,
+        )
+    except (pa.ArrowInvalid, pa.ArrowTypeError) as e:
+        raise tables.SchemaError(f"ledger does not match its declared schema: {e}") from e
+    return tables.check(found, schema)

@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import io
 import json
+import time
 from typing import TYPE_CHECKING
 
 import pandas as pd
+import pyarrow as pa
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 from tape.config import Settings
 from tape.engine.tables import FILLS, ORDERS, TRADES
 from tape.features.grid import FeatureGrid
+from tape.fundamentals import save
 from tape.service.api import create_app
 from tests.test_engine_runs import make_store
 
@@ -210,3 +214,58 @@ def test_space_offers_only_windows_warm_by_the_end(client: TestClient) -> None:
         for name, windows in domain.items():
             assert set(windows) <= set(full["choices"][tf][name])
             assert all(early["ready"][tf][name][str(w)] <= "2024-01-20" for w in windows)
+
+
+def test_valuation_route_with_and_without_fundamentals(tmp_path: Path) -> None:
+    make_store(tmp_path)
+    store = tmp_path / "store"
+    settings = Settings(source_dir=tmp_path / "source", store_dir=store, results_dir=tmp_path / "results")
+    grid = FeatureGrid(timeframes=(), specs=())
+    with TestClient(create_app(settings, workers=1, grid=grid)) as c:
+        key = c.post("/runs", json=RUN).json()["key"]
+        r = c.get(f"/runs/{key}/valuation")
+        assert r.status_code == 200, r.text
+        assert r.json() == {"ticker": RUN["ticker"], "start": None, "end": None}
+    days = pd.date_range(RUN["start"], RUN["end"], freq="D")
+    table = pa.table(
+        {
+            "ticker": [RUN["ticker"]] * len(days),
+            "day": pa.array(days.date, pa.date32()),
+            "shares": [1e9] * len(days),
+            "market_cap": [5e10] * len(days),
+            "net_income": [1e9] * len(days),
+            "pe": [50.0] * len(days),
+            "earnings_period": pa.array(days.date, pa.date32()),
+            "plausible": [True] * len(days),
+        }
+    )
+    save(table, store)
+    with TestClient(create_app(settings, workers=1, grid=grid)) as c:
+        body = c.get(f"/runs/{key}/valuation").json()
+        assert body["start"]["market_cap"] == 5e10 and body["end"]["pe"] == 50.0
+
+
+def test_ledger_builds_in_the_background_and_downloads(tmp_path: Path) -> None:
+    make_store(tmp_path)
+    settings = Settings(
+        source_dir=tmp_path / "source", store_dir=tmp_path / "store", results_dir=tmp_path / "results"
+    )
+    with TestClient(create_app(settings, workers=1, grid=FeatureGrid(timeframes=(), specs=()))) as c:
+        key = c.post("/runs", json=RUN).json()["key"]
+        assert c.get(f"/runs/{key}/ledger").json()["state"] == "absent"
+        assert c.get(f"/runs/{key}/ledger.xlsx").status_code == 404
+        assert c.post(f"/runs/{key}/ledger").json()["state"] in {"building", "ready"}
+        deadline = time.monotonic() + 120
+        while (status := c.get(f"/runs/{key}/ledger").json())["state"] == "building":
+            assert time.monotonic() < deadline
+            time.sleep(0.2)
+        assert status["state"] == "ready", status
+        r = c.get(f"/runs/{key}/ledger.xlsx")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
+        assert "AAPL_high_breakout_1h_" in r.headers["content-disposition"]
+        assert len(r.content) == status["size"]
+        sheet = load_workbook(io.BytesIO(r.content)).active
+        assert sheet is not None and str(sheet.cell(1, 1).value).startswith("AAPL · High")
+        assert c.post(f"/runs/{key}/ledger").json()["state"] == "ready"
+        assert c.get("/runs/feedface/ledger").status_code == 404

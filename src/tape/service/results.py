@@ -13,6 +13,7 @@ import pyarrow.parquet as pq
 from pydantic import ValidationError
 
 from tape.engine import tables
+from tape.engine.orders import OrderOrigin
 from tape.engine.reports import Metrics
 from tape.runner import RunSpec
 
@@ -50,6 +51,17 @@ SCHEMAS: Final = {
     Table.ORDERS: tables.ORDERS,
     Table.FILLS: tables.FILLS,
 }
+
+
+LEGACY_ORIGIN: Final = {"stop": OrderOrigin.STOP_LOSS, "squareoff": OrderOrigin.SQUARE_OFF}
+
+
+def upgrade(table: Table, found: pa.Table) -> pa.Table:
+    names = found.schema.names
+    if table is not Table.ORDERS or not names or "origin" in names:
+        return found
+    origin = [LEGACY_ORIGIN.get(t or "", OrderOrigin.STRATEGY).value for t in found["tag"].to_pylist()]
+    return found.add_column(names.index("tag") + 1, "origin", pa.array(origin, tables.TEXT))
 
 
 def schema(table: Table, names: Sequence[str]) -> pa.Schema:
@@ -126,7 +138,8 @@ class ResultStore:
     def table(self, key: Digest, table: Table) -> bytes:
         path = self.root / key / f"{table}.parquet"
         stored = pq.read_schema(path)
-        if stored.names and stored.equals(schema(table, stored.names)):
+        declared = schema(table, stored.names)
+        if stored.names and stored.equals(declared) and not tables.domains(declared):
             return path.read_bytes()
         sink = pa.BufferOutputStream()
         pq.write_table(self._load(key, table), sink)
@@ -135,9 +148,9 @@ class ResultStore:
     def _load(self, key: Digest, table: Table, where: pc.Expression | None = None) -> pa.Table:
         path = self.root / key / f"{table}.parquet"
         names = pq.read_schema(path).names
-        found = pq.read_table(path, filters=where if names else None)
+        found = upgrade(table, pq.read_table(path, filters=where if names else None))
         try:
-            return tables.conform(found, schema(table, names))
+            return tables.conform(found, schema(table, found.schema.names))
         except tables.SchemaError as e:
             raise StaleResultError(f"run {key[:8]} {table} was {STALE}") from e
 

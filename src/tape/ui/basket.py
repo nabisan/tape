@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import html
 import math
-from datetime import date
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Final
 
 import numpy as np
 import streamlit as st
@@ -13,10 +12,14 @@ from tape.core.types import DATE
 from tape.universe import sic_division
 
 if TYPE_CHECKING:
+    from datetime import date
+
+    from tape.service.models import UniverseInfo
     from tape.ui.client import Client
     from tape.universe import Classification, Profiles
 
 ALL: Final = "All catalog"
+CUSTOM: Final = "Custom"
 QUINTILES: Final = ("Q1 lowest", "Q2", "Q3", "Q4", "Q5 highest")
 FULL_WINDOW: Final = 0.95
 
@@ -40,7 +43,7 @@ def quintiles(values: dict[str, float]) -> dict[str, int]:
 
 
 @st.cache_data(ttl=3600)
-def _universes(_client: Client) -> list[dict[str, Any]]:
+def _universes(_client: Client) -> list[UniverseInfo]:
     return _client.universes()
 
 
@@ -55,17 +58,18 @@ def _profiles(_client: Client, before: str) -> Profiles:
 
 
 def universe(client: Client, catalog: list[str]) -> tuple[str, list[str], str]:
-    found = {u["membership"]["title"]: u for u in _universes(client)}
-    name = st.selectbox("Universe", [ALL, *found], key="basket:universe")
+    found = {u.membership.title: u for u in _universes(client)}
+    name = st.selectbox("Universe", [ALL, *found, CUSTOM], key="basket:universe")
     if name == ALL:
         return name, catalog, f"all {len(catalog):,} catalog tickers"
+    if name == CUSTOM:
+        return name, [], "custom selection"
     u = found[name]
-    m = u["membership"]
-    as_of = date.fromisoformat(m["as_of"]).strftime(DATE)
+    as_of = u.membership.as_of.strftime(DATE)
     note = f"{name} members as of {as_of}, today's list, survivorship-biased"
-    if u["missing"]:
-        note += f"; {len(u['missing'])} not in the catalog"
-    return name, list(u["in_catalog"]), note
+    if u.missing:
+        note += f"; {len(u.missing)} not in the catalog"
+    return name, list(u.in_catalog), note
 
 
 def classify(client: Client, tickers: list[str]) -> tuple[list[str], list[str]]:

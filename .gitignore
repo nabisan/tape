@@ -19,3 +19,6 @@ results/
 *.pem
 
 .gradientdeck/
+
+ARCHITECTURE.md
+DESIGN.md

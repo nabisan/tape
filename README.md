@@ -1,6 +1,18 @@
 # tape
 
-Bar-level US equity backtesting service. Design: [ARCHITECTURE.md](ARCHITECTURE.md).
+Bar-level US equity backtesting service.
+
+Single run: benchmark comparison, equity and drawdown, performance.
+
+![Run view](docs/screenshots/run.jpg)
+
+Parameter sweep across tickers: every run's equity, return distribution, ranked runs.
+
+![Sweep view](docs/screenshots/sweep.jpg)
+
+Price with fills, trade blotter and monthly returns.
+
+![Blotter](docs/screenshots/blotter.jpg)
 
 ## Setup
 

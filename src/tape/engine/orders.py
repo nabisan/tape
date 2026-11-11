@@ -53,11 +53,15 @@ class Order:
     fill_price: float | None = None
     reason: str = ""
     notional: float | None = None
+    stop_loss: float | None = None
+    through: bool = False
 
     def __post_init__(self) -> None:
         assert self.quantity > 0 or (self.notional is not None and self.notional > 0)
         assert self.quantity >= 0
         assert (self.price is None) == (self.type is OrderType.MARKET)
+        assert self.stop_loss is None or 0 < self.stop_loss < 1
+        assert not self.through or self.type is OrderType.STOP_MARKET
 
     def resolve(self, price: float) -> int:
         extra = math.floor(self.notional / price) if self.notional is not None else 0
@@ -77,3 +81,4 @@ class Fill:
     price: float
     commission: float
     tag: str
+    reference: float

@@ -90,6 +90,7 @@ class Strategy[C: StrategyConfig]:
     version: ClassVar[int] = 1
     config_type: ClassVar[type[StrategyConfig]]
     parameters: ClassVar[ParameterSpace] = ParameterSpace()
+    intraday: ClassVar[bool] = True
 
     def __init__(self, config: C) -> None:
         self.config = config
@@ -143,10 +144,22 @@ class Strategy[C: StrategyConfig]:
         tif: TimeInForce = TimeInForce.GTC,
         tag: str = "",
         notional: float | None = None,
+        stop_loss: float | None = None,
+        through: bool = False,
     ) -> Order | None:
         if quantity <= 0 and notional is None:
             return None
-        return self.ctx.submit(side, quantity, kind=kind, price=price, tif=tif, tag=tag, notional=notional)
+        return self.ctx.submit(
+            side,
+            quantity,
+            kind=kind,
+            price=price,
+            tif=tif,
+            tag=tag,
+            notional=notional,
+            stop_loss=stop_loss,
+            through=through,
+        )
 
     def enter(self, side: OrderSide, *, close: int = 0, **order: Any) -> Order | None:
         shares, notional = self.opening()

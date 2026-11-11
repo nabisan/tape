@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from tape.engine.matching import FillModel, MatchingEngine
+from tape.engine.matching import BarPath, FillModel, MatchingEngine
 from tape.engine.orders import Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce
 from tape.engine.portfolio import Portfolio, PositionSide
 
@@ -18,9 +18,16 @@ def run(o: Order, bar: tuple[float, float, float, float], model: FillModel = FRE
 
 
 def test_market_fills_at_open_with_slippage() -> None:
-    [f] = run(order(OrderSide.BUY, OrderType.MARKET), (100, 101, 99, 100.5), FillModel(slippage_bps=10))
+    costly = FillModel(slippage_bps=10, commission_per_share=0.005)
+    [f] = run(order(OrderSide.BUY, OrderType.MARKET), (100, 101, 99, 100.5), costly)
     assert f.price == pytest.approx(100.1)
     assert f.commission == pytest.approx(0.5)
+
+
+def test_costs_are_off_by_default() -> None:
+    [f] = run(order(OrderSide.BUY, OrderType.MARKET), (100, 101, 99, 100.5), FillModel())
+    assert f.price == 100
+    assert f.commission == 0
 
 
 def test_limit_buy_fills_at_limit_when_touched_intrabar() -> None:
@@ -55,16 +62,26 @@ def test_stop_sell_slips_against_seller() -> None:
     assert f.price == pytest.approx(99.5 * 0.999)
 
 
-def test_adaptive_ordering_visits_nearer_extreme_first() -> None:
-    m = MatchingEngine(FREE)
-    assert m.path((100, 100.2, 98, 99)) == (100, 100.2, 98, 99)
-    assert m.path((100, 102, 99.9, 101)) == (100, 99.9, 102, 101)
-    assert MatchingEngine(FillModel(adaptive_high_low=False)).path((100, 102, 99.9, 101)) == (
-        100,
-        102,
-        99.9,
-        101,
-    )
+def test_bar_paths() -> None:
+    bar = (100, 102, 99.9, 101)
+    assert MatchingEngine(FillModel(path=BarPath.LOW_FIRST)).path(bar) == (100, 99.9, 102, 101)
+    assert MatchingEngine(FillModel(path=BarPath.HIGH_FIRST)).path(bar) == (100, 102, 99.9, 101)
+    adverse = MatchingEngine(FillModel(path=BarPath.ADVERSE_FIRST))
+    assert adverse.path(bar, 1) == (100, 99.9, 102, 101)
+    assert adverse.path(bar, -1) == (100, 102, 99.9, 101)
+    assert adverse.path(bar, 0) == (100, 99.9, 102, 101)
+    adaptive = MatchingEngine(FillModel(path=BarPath.ADAPTIVE))
+    assert adaptive.path((100, 100.2, 98, 99)) == (100, 100.2, 98, 99)
+    assert adaptive.path(bar) == (100, 99.9, 102, 101)
+
+
+def test_stop_through_needs_a_strict_break() -> None:
+    touch = order(OrderSide.BUY, OrderType.STOP_MARKET, price=101)
+    assert run(touch, (100, 101, 99, 100), FREE) != []
+    strict = order(OrderSide.BUY, OrderType.STOP_MARKET, price=101)
+    strict.through = True
+    assert run(strict, (100, 101, 99, 100), FREE) == []
+    assert run(strict, (100, 101.01, 99, 100), FREE) != []
 
 
 def test_limit_touch_respects_probability() -> None:
@@ -73,7 +90,7 @@ def test_limit_touch_respects_probability() -> None:
 
 
 def fill(side: OrderSide, qty: int, price: float, commission: float = 1.0, oid: int = 1) -> Fill:
-    return Fill(oid, oid, side, qty, price, commission, "t")
+    return Fill(oid, oid, side, qty, price, commission, "t", price)
 
 
 def test_portfolio_flip_realizes_and_reopens() -> None:

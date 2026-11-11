@@ -41,6 +41,10 @@ def ticker(symbol: str) -> Ticker:
     return Ticker(symbol)
 
 
+DATE: Final = "%d %b %Y"
+STAMP: Final = "%d %b %Y %H:%M:%S"
+
+
 class Timeframe(StrEnum):
     M1 = "1m"
     M5 = "5m"

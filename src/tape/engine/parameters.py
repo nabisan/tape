@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+from datetime import date
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -9,6 +11,7 @@ from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.features.kinds import FeatureKind, spec_for
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
     from typing import Self
 
     from pydantic import BaseModel as Config
@@ -35,6 +38,12 @@ class Ordered(BaseModel):
         return lower < upper if self.strict else lower <= upper
 
 
+def admits(ordered: Sequence[Ordered], values: Mapping[str, int]) -> bool:
+    return all(
+        o.holds(values[o.lower], values[o.upper]) for o in ordered if o.lower in values and o.upper in values
+    )
+
+
 class ParameterSpace(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -47,6 +56,9 @@ class ParameterSpace(BaseModel):
             if {o.lower, o.upper} - self.windows.keys():
                 raise ValueError(f"ordering {o.lower} < {o.upper} names a parameter that is not a window")
         return self
+
+    def warmup(self, name: str, window: int) -> int:
+        return max(spec_for(kind, window).warmup() for kind in self.windows[name].kinds)
 
     def requires(self, config: Config) -> list[FeatureSpec]:
         return [spec_for(kind, getattr(config, name)) for name, p in self.windows.items() for kind in p.kinds]
@@ -91,3 +103,20 @@ class ResolvedSpace(BaseModel):
     choices: dict[Timeframe, dict[str, list[int]]]
     ordered: tuple[Ordered, ...]
     on_demand: list[Timeframe] = []
+    ready: dict[Timeframe, dict[str, dict[int, date]]] = {}
+
+    def options(self, name: str, domain: Sequence[int], partners: Mapping[str, Sequence[int]]) -> list[int]:
+        values = list(domain)
+        for o in self.ordered:
+            if o.upper == name and o.lower in partners:
+                lows = partners[o.lower]
+                values = [w for w in values if any(o.holds(lo, w) for lo in lows)]
+            if o.lower == name and o.upper in partners:
+                highs = partners[o.upper]
+                values = [w for w in values if any(o.holds(w, hi) for hi in highs)]
+        return values
+
+    def count(self, grid: Mapping[str, Sequence[int]]) -> int:
+        names = list(grid)
+        combos = (dict(zip(names, combo, strict=True)) for combo in itertools.product(*grid.values()))
+        return sum(admits(self.ordered, values) for values in combos)

@@ -1,0 +1,6606 @@
+{
+  "as_of": "2026-11-11",
+  "sources": {
+    "gics": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+    "sic": "https://www.sec.gov/files/company_tickers.json"
+  },
+  "entries": [
+    {
+      "ticker": "A",
+      "name": "Agilent Technologies",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "3826",
+        "industry": "Laboratory Analytical Instruments"
+      }
+    },
+    {
+      "ticker": "AAPL",
+      "name": "Apple Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3571",
+        "industry": "Electronic Computers"
+      }
+    },
+    {
+      "ticker": "ABBV",
+      "name": "AbbVie",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Biotechnology"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "ABNB",
+      "name": "Airbnb, Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Hotels, Resorts & Cruise Lines"
+      },
+      "sic": {
+        "code": "7340",
+        "industry": "Services-To Dwellings & Other Buildings"
+      }
+    },
+    {
+      "ticker": "ABT",
+      "name": "Abbott Laboratories",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "ACGL",
+      "name": "Arch Capital Group",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Property & Casualty Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "ACHR",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3721",
+        "industry": "Aircraft"
+      }
+    },
+    {
+      "ticker": "ACN",
+      "name": "Accenture",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "IT Consulting & Other Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "ADBE",
+      "name": "Adobe Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "ADI",
+      "name": "Analog Devices, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "ADM",
+      "name": "Archer Daniels Midland",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Agricultural Products & Services"
+      },
+      "sic": {
+        "code": "2070",
+        "industry": "Fats & Oils"
+      }
+    },
+    {
+      "ticker": "ADP",
+      "name": "Automatic Data Processing, Inc. Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Human Resource & Employment Services"
+      },
+      "sic": {
+        "code": "7374",
+        "industry": "Services-Computer Processing & Data Preparation"
+      }
+    },
+    {
+      "ticker": "ADSK",
+      "name": "Autodesk, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "AEE",
+      "name": "Ameren",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "AEP",
+      "name": "American Electric Power Company, Inc. Common Stock",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "AES",
+      "name": "AES Corporation",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Independent Power Producers & Energy Traders"
+      },
+      "sic": {
+        "code": "4991",
+        "industry": "Cogeneration Services & Small Power Producers"
+      }
+    },
+    {
+      "ticker": "AFL",
+      "name": "Aflac",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Life & Health Insurance"
+      },
+      "sic": {
+        "code": "6321",
+        "industry": "Accident & Health Insurance"
+      }
+    },
+    {
+      "ticker": "AFRM",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6141",
+        "industry": "Personal Credit Institutions"
+      }
+    },
+    {
+      "ticker": "AI",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "AIG",
+      "name": "American International Group",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Multi-line Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "AIZ",
+      "name": "Assurant",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Multi-line Insurance"
+      },
+      "sic": {
+        "code": "6399",
+        "industry": "Insurance Carriers, NEC"
+      }
+    },
+    {
+      "ticker": "AJG",
+      "name": "Arthur J. Gallagher & Co.",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Insurance Brokers"
+      },
+      "sic": {
+        "code": "6411",
+        "industry": "Insurance Agents, Brokers & Service"
+      }
+    },
+    {
+      "ticker": "AKAM",
+      "name": "Akamai Technologies",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Internet Services & Infrastructure"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "ALAB",
+      "name": "Astera Labs, Inc. Common Stock",
+      "gics": null,
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "ALB",
+      "name": "Albemarle Corporation",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Specialty Chemicals"
+      },
+      "sic": {
+        "code": "2821",
+        "industry": "Plastic Materials, Synth Resins & Nonvulcan Elastomers"
+      }
+    },
+    {
+      "ticker": "ALGN",
+      "name": "Align Technology",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Supplies"
+      },
+      "sic": {
+        "code": "3842",
+        "industry": "Orthopedic, Prosthetic & Surgical Appliances & Supplies"
+      }
+    },
+    {
+      "ticker": "ALL",
+      "name": "Allstate",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Property & Casualty Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "ALLE",
+      "name": "Allegion",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Building Products"
+      },
+      "sic": {
+        "code": "7381",
+        "industry": "Services-Detective, Guard & Armored Car Services"
+      }
+    },
+    {
+      "ticker": "ALNY",
+      "name": "Alnylam Pharmaceuticals, Inc. Common Stock",
+      "gics": null,
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "AMAT",
+      "name": "Applied Materials, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductor Materials & Equipment"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "AMC",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7830",
+        "industry": "Services-Motion Picture Theaters"
+      }
+    },
+    {
+      "ticker": "AMCR",
+      "name": "Amcor",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Paper & Plastic Packaging Products & Materials"
+      },
+      "sic": {
+        "code": "3990",
+        "industry": "Miscellaneous Manufacturing Industries"
+      }
+    },
+    {
+      "ticker": "AMD",
+      "name": "Advanced Micro Devices, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "AME",
+      "name": "Ametek",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Electrical Components & Equipment"
+      },
+      "sic": {
+        "code": "3823",
+        "industry": "Industrial Instruments For Measurement, Display, and Control"
+      }
+    },
+    {
+      "ticker": "AMGN",
+      "name": "Amgen Inc. Common Stock",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Biotechnology"
+      },
+      "sic": {
+        "code": "2836",
+        "industry": "Biological Products, (No Diagnostic Substances)"
+      }
+    },
+    {
+      "ticker": "AMP",
+      "name": "Ameriprise Financial",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6282",
+        "industry": "Investment Advice"
+      }
+    },
+    {
+      "ticker": "AMT",
+      "name": "American Tower",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Telecom Tower REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "AMZN",
+      "name": "Amazon.com, Inc. Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Broadline Retail"
+      },
+      "sic": {
+        "code": "5961",
+        "industry": "Retail-Catalog & Mail-Order Houses"
+      }
+    },
+    {
+      "ticker": "ANET",
+      "name": "Arista Networks",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Communications Equipment"
+      },
+      "sic": {
+        "code": "3576",
+        "industry": "Computer Communications Equipment"
+      }
+    },
+    {
+      "ticker": "AON",
+      "name": "Aon plc",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Insurance Brokers"
+      },
+      "sic": {
+        "code": "6411",
+        "industry": "Insurance Agents, Brokers & Service"
+      }
+    },
+    {
+      "ticker": "AOS",
+      "name": "A. O. Smith",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Building Products"
+      },
+      "sic": {
+        "code": "3630",
+        "industry": "Household Appliances"
+      }
+    },
+    {
+      "ticker": "APA",
+      "name": "APA Corporation",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "1311",
+        "industry": "Crude Petroleum & Natural Gas"
+      }
+    },
+    {
+      "ticker": "APD",
+      "name": "Air Products",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Industrial Gases"
+      },
+      "sic": {
+        "code": "2810",
+        "industry": "Industrial Inorganic Chemicals"
+      }
+    },
+    {
+      "ticker": "APH",
+      "name": "Amphenol",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Components"
+      },
+      "sic": {
+        "code": "3678",
+        "industry": "Electronic Connectors"
+      }
+    },
+    {
+      "ticker": "APO",
+      "name": "Apollo Global Management",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6282",
+        "industry": "Investment Advice"
+      }
+    },
+    {
+      "ticker": "APP",
+      "name": "Applovin Corporation Class A Common Stock",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Advertising"
+      },
+      "sic": {
+        "code": "7370",
+        "industry": "Services-Computer Programming, Data Processing, Etc."
+      }
+    },
+    {
+      "ticker": "APTV",
+      "name": "Aptiv",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Automotive Parts & Equipment"
+      },
+      "sic": {
+        "code": "3714",
+        "industry": "Motor Vehicle Parts & Accessories"
+      }
+    },
+    {
+      "ticker": "ARE",
+      "name": "Alexandria Real Estate Equities",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Office REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "ARES",
+      "name": "Ares Management",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6282",
+        "industry": "Investment Advice"
+      }
+    },
+    {
+      "ticker": "ARM",
+      "name": "Arm Holdings plc American Depositary Shares",
+      "gics": null,
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "ASML",
+      "name": "ASML Holding N.V. New York Registry Shares",
+      "gics": null,
+      "sic": {
+        "code": "3559",
+        "industry": "Special Industry Machinery, NEC"
+      }
+    },
+    {
+      "ticker": "ASTS",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "4899",
+        "industry": "Communications Services, NEC"
+      }
+    },
+    {
+      "ticker": "ATO",
+      "name": "Atmos Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Gas Utilities"
+      },
+      "sic": {
+        "code": "4924",
+        "industry": "Natural Gas Distribution"
+      }
+    },
+    {
+      "ticker": "AVGO",
+      "name": "Broadcom Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "AVY",
+      "name": "Avery Dennison",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Paper & Plastic Packaging Products & Materials"
+      },
+      "sic": {
+        "code": "2670",
+        "industry": "Converted Paper & Paperboard Prods (No Contaners/Boxes)"
+      }
+    },
+    {
+      "ticker": "AWK",
+      "name": "American Water Works",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Water Utilities"
+      },
+      "sic": {
+        "code": "4941",
+        "industry": "Water Supply"
+      }
+    },
+    {
+      "ticker": "AXON",
+      "name": "Axon Enterprise, Inc. Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3480",
+        "industry": "Ordnance & Accessories, (No Vehicles/Guided Missiles)"
+      }
+    },
+    {
+      "ticker": "AXP",
+      "name": "American Express",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Consumer Finance"
+      },
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "AZO",
+      "name": "AutoZone",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Automotive Retail"
+      },
+      "sic": {
+        "code": "5531",
+        "industry": "Retail-Auto & Home Supply Stores"
+      }
+    },
+    {
+      "ticker": "BA",
+      "name": "Boeing",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3721",
+        "industry": "Aircraft"
+      }
+    },
+    {
+      "ticker": "BAC",
+      "name": "Bank of America",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Diversified Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "BALL",
+      "name": "Ball Corporation",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Metal, Glass & Plastic Containers"
+      },
+      "sic": {
+        "code": "3411",
+        "industry": "Metal Cans"
+      }
+    },
+    {
+      "ticker": "BAX",
+      "name": "Baxter International",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "BBAI",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "BBY",
+      "name": "Best Buy",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Computer & Electronics Retail"
+      },
+      "sic": {
+        "code": "5731",
+        "industry": "Retail-Radio, Tv & Consumer Electronics Stores"
+      }
+    },
+    {
+      "ticker": "BDX",
+      "name": "Becton Dickinson",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "BE",
+      "name": "Bloom Energy",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Electrical Components & Equipment"
+      },
+      "sic": {
+        "code": "3620",
+        "industry": "Electrical Industrial Apparatus"
+      }
+    },
+    {
+      "ticker": "BEN",
+      "name": "Franklin Resources",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6282",
+        "industry": "Investment Advice"
+      }
+    },
+    {
+      "ticker": "BF.B",
+      "name": "Brown–Forman",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Distillers & Vintners"
+      },
+      "sic": {
+        "code": "2080",
+        "industry": "Beverages"
+      }
+    },
+    {
+      "ticker": "BG",
+      "name": "Bunge Global",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Agricultural Products & Services"
+      },
+      "sic": {
+        "code": "2070",
+        "industry": "Fats & Oils"
+      }
+    },
+    {
+      "ticker": "BIIB",
+      "name": "Biogen",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Biotechnology"
+      },
+      "sic": {
+        "code": "2836",
+        "industry": "Biological Products, (No Diagnostic Substances)"
+      }
+    },
+    {
+      "ticker": "BKNG",
+      "name": "Booking Holdings Inc. Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Hotels, Resorts & Cruise Lines"
+      },
+      "sic": {
+        "code": "4700",
+        "industry": "Transportation Services"
+      }
+    },
+    {
+      "ticker": "BKR",
+      "name": "Baker Hughes Company Class A Common Stock",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Equipment & Services"
+      },
+      "sic": {
+        "code": "3533",
+        "industry": "Oil & Gas Field Machinery & Equipment"
+      }
+    },
+    {
+      "ticker": "BLK",
+      "name": "BlackRock",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6211",
+        "industry": "Security Brokers, Dealers & Flotation Companies"
+      }
+    },
+    {
+      "ticker": "BMY",
+      "name": "Bristol Myers Squibb",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Pharmaceuticals"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "BNY",
+      "name": "BNY Mellon",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6022",
+        "industry": "State Commercial Banks"
+      }
+    },
+    {
+      "ticker": "BR",
+      "name": "Broadridge Financial Solutions",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Data Processing & Outsourced Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "BRK.B",
+      "name": "Berkshire Hathaway",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Multi-Sector Holdings"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "BRO",
+      "name": "Brown & Brown",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Insurance Brokers"
+      },
+      "sic": {
+        "code": "6411",
+        "industry": "Insurance Agents, Brokers & Service"
+      }
+    },
+    {
+      "ticker": "BSX",
+      "name": "Boston Scientific",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "BX",
+      "name": "Blackstone Inc.",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6282",
+        "industry": "Investment Advice"
+      }
+    },
+    {
+      "ticker": "BXP",
+      "name": "BXP, Inc.",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Office REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "BYND",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "2000",
+        "industry": "Food and Kindred Products"
+      }
+    },
+    {
+      "ticker": "C",
+      "name": "Citigroup",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Diversified Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "CAH",
+      "name": "Cardinal Health",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Distributors"
+      },
+      "sic": {
+        "code": "5122",
+        "industry": "Wholesale-Drugs, Proprietaries & Druggists' Sundries"
+      }
+    },
+    {
+      "ticker": "CARR",
+      "name": "Carrier Global",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Building Products"
+      },
+      "sic": {
+        "code": "3585",
+        "industry": "Air-Cond & Warm Air Heatg Equip & Comm & Indl Refrig Equip"
+      }
+    },
+    {
+      "ticker": "CASY",
+      "name": "Casey's",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Food Retail"
+      },
+      "sic": {
+        "code": "5500",
+        "industry": "Retail-Auto Dealers & Gasoline Stations"
+      }
+    },
+    {
+      "ticker": "CAT",
+      "name": "Caterpillar Inc.",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Construction Machinery & Heavy Transportation Equipment"
+      },
+      "sic": {
+        "code": "3531",
+        "industry": "Construction Machinery & Equip"
+      }
+    },
+    {
+      "ticker": "CB",
+      "name": "Chubb Limited",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Property & Casualty Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "CBOE",
+      "name": "Cboe Global Markets",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "6200",
+        "industry": "Security & Commodity Brokers, Dealers, Exchanges & Services"
+      }
+    },
+    {
+      "ticker": "CBRE",
+      "name": "CBRE Group",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Real Estate Services"
+      },
+      "sic": {
+        "code": "6500",
+        "industry": "Real Estate"
+      }
+    },
+    {
+      "ticker": "CCEP",
+      "name": "Coca-Cola Europacific Partners plc Ordinary Shares",
+      "gics": null,
+      "sic": {
+        "code": "2086",
+        "industry": "Bottled & Canned Soft Drinks & Carbonated Waters"
+      }
+    },
+    {
+      "ticker": "CCI",
+      "name": "Crown Castle",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Telecom Tower REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "CCL",
+      "name": "Carnival Corporation",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Hotels, Resorts & Cruise Lines"
+      },
+      "sic": {
+        "code": "4400",
+        "industry": "Water Transportation"
+      }
+    },
+    {
+      "ticker": "CDNS",
+      "name": "Cadence Design Systems, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "CDW",
+      "name": "CDW Corporation",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Distributors"
+      },
+      "sic": {
+        "code": "5961",
+        "industry": "Retail-Catalog & Mail-Order Houses"
+      }
+    },
+    {
+      "ticker": "CEG",
+      "name": "Constellation Energy Corporation Common Stock ",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "CELH",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "2086",
+        "industry": "Bottled & Canned Soft Drinks & Carbonated Waters"
+      }
+    },
+    {
+      "ticker": "CF",
+      "name": "CF Industries",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Fertilizers & Agricultural Chemicals"
+      },
+      "sic": {
+        "code": "2870",
+        "industry": "Agricultural Chemicals"
+      }
+    },
+    {
+      "ticker": "CFG",
+      "name": "Citizens Financial Group",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Regional Banks"
+      },
+      "sic": {
+        "code": "6022",
+        "industry": "State Commercial Banks"
+      }
+    },
+    {
+      "ticker": "CHD",
+      "name": "Church & Dwight",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Household Products"
+      },
+      "sic": {
+        "code": "2840",
+        "industry": "Soap, Detergents, Cleang Preparations, Perfumes, Cosmetics"
+      }
+    },
+    {
+      "ticker": "CHRW",
+      "name": "C.H. Robinson",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Air Freight & Logistics"
+      },
+      "sic": {
+        "code": "4731",
+        "industry": "Arrangement of  Transportation of  Freight & Cargo"
+      }
+    },
+    {
+      "ticker": "CHTR",
+      "name": "Charter Communications",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Cable & Satellite"
+      },
+      "sic": {
+        "code": "4841",
+        "industry": "Cable & Other Pay Television Services"
+      }
+    },
+    {
+      "ticker": "CHWY",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "5961",
+        "industry": "Retail-Catalog & Mail-Order Houses"
+      }
+    },
+    {
+      "ticker": "CI",
+      "name": "Cigna",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Services"
+      },
+      "sic": {
+        "code": "6324",
+        "industry": "Hospital & Medical Service Plans"
+      }
+    },
+    {
+      "ticker": "CIEN",
+      "name": "Ciena",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Communications Equipment"
+      },
+      "sic": {
+        "code": "3661",
+        "industry": "Telephone & Telegraph Apparatus"
+      }
+    },
+    {
+      "ticker": "CIFR",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "CINF",
+      "name": "Cincinnati Financial",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Property & Casualty Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "CL",
+      "name": "Colgate-Palmolive",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Household Products"
+      },
+      "sic": {
+        "code": "2844",
+        "industry": "Perfumes, Cosmetics & Other Toilet Preparations"
+      }
+    },
+    {
+      "ticker": "CLX",
+      "name": "Clorox",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Household Products"
+      },
+      "sic": {
+        "code": "2842",
+        "industry": "Specialty Cleaning, Polishing and Sanitation Preparations"
+      }
+    },
+    {
+      "ticker": "CMCSA",
+      "name": "Comcast Corporation Class A Common Stock",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Cable & Satellite"
+      },
+      "sic": {
+        "code": "4841",
+        "industry": "Cable & Other Pay Television Services"
+      }
+    },
+    {
+      "ticker": "CME",
+      "name": "CME Group",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "6200",
+        "industry": "Security & Commodity Brokers, Dealers, Exchanges & Services"
+      }
+    },
+    {
+      "ticker": "CMG",
+      "name": "Chipotle Mexican Grill",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Restaurants"
+      },
+      "sic": {
+        "code": "5812",
+        "industry": "Retail-Eating  Places"
+      }
+    },
+    {
+      "ticker": "CMI",
+      "name": "Cummins",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Construction Machinery & Heavy Transportation Equipment"
+      },
+      "sic": {
+        "code": "3510",
+        "industry": "Engines & Turbines"
+      }
+    },
+    {
+      "ticker": "CMS",
+      "name": "CMS Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "CNC",
+      "name": "Centene Corporation",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Managed Health Care"
+      },
+      "sic": {
+        "code": "6324",
+        "industry": "Hospital & Medical Service Plans"
+      }
+    },
+    {
+      "ticker": "CNP",
+      "name": "CenterPoint Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "COF",
+      "name": "Capital One",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Consumer Finance"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "COHR",
+      "name": "Coherent Corp.",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Components"
+      },
+      "sic": {
+        "code": "3827",
+        "industry": "Optical Instruments & Lenses"
+      }
+    },
+    {
+      "ticker": "COIN",
+      "name": "Coinbase",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "COO",
+      "name": "Cooper Companies (The)",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Supplies"
+      },
+      "sic": {
+        "code": "3851",
+        "industry": "Ophthalmic Goods"
+      }
+    },
+    {
+      "ticker": "COP",
+      "name": "ConocoPhillips",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "2911",
+        "industry": "Petroleum Refining"
+      }
+    },
+    {
+      "ticker": "COR",
+      "name": "Cencora",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Distributors"
+      },
+      "sic": {
+        "code": "5122",
+        "industry": "Wholesale-Drugs, Proprietaries & Druggists' Sundries"
+      }
+    },
+    {
+      "ticker": "COST",
+      "name": "Costco Wholesale Corporation Common Stock",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Consumer Staples Merchandise Retail"
+      },
+      "sic": {
+        "code": "5331",
+        "industry": "Retail-Variety Stores"
+      }
+    },
+    {
+      "ticker": "CPAY",
+      "name": "Corpay",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "CPRT",
+      "name": "Copart, Inc. (DE) Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Diversified Support Services"
+      },
+      "sic": {
+        "code": "5500",
+        "industry": "Retail-Auto Dealers & Gasoline Stations"
+      }
+    },
+    {
+      "ticker": "CPT",
+      "name": "Camden Property Trust",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Multi-Family Residential REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "CRH",
+      "name": "CRH plc",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Construction Materials"
+      },
+      "sic": {
+        "code": "3241",
+        "industry": "Cement, Hydraulic"
+      }
+    },
+    {
+      "ticker": "CRL",
+      "name": "Charles River Laboratories",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "8731",
+        "industry": "Services-Commercial Physical & Biological Research"
+      }
+    },
+    {
+      "ticker": "CRM",
+      "name": "Salesforce",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "CRWD",
+      "name": "CrowdStrike Holdings, Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Systems Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "CRWV",
+      "name": "CoreWeave, Inc. Class A Common Stock",
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "CSCO",
+      "name": "Cisco Systems, Inc. Common Stock (DE)",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Communications Equipment"
+      },
+      "sic": {
+        "code": "3576",
+        "industry": "Computer Communications Equipment"
+      }
+    },
+    {
+      "ticker": "CSGP",
+      "name": "CoStar Group",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Real Estate Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "CSX",
+      "name": "CSX Corporation Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Rail Transportation"
+      },
+      "sic": {
+        "code": "4011",
+        "industry": "Railroads, Line-Haul Operating"
+      }
+    },
+    {
+      "ticker": "CTAS",
+      "name": "Cintas Corporation Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Diversified Support Services"
+      },
+      "sic": {
+        "code": "2320",
+        "industry": "Men's & Boys' Furnishgs, Work Clothg, & Allied Garments"
+      }
+    },
+    {
+      "ticker": "CTSH",
+      "name": "Cognizant",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "IT Consulting & Other Services"
+      },
+      "sic": {
+        "code": "7371",
+        "industry": "Services-Computer Programming Services"
+      }
+    },
+    {
+      "ticker": "CVNA",
+      "name": "Carvana",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Automotive Retail"
+      },
+      "sic": {
+        "code": "5500",
+        "industry": "Retail-Auto Dealers & Gasoline Stations"
+      }
+    },
+    {
+      "ticker": "CVS",
+      "name": "CVS Health",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Services"
+      },
+      "sic": {
+        "code": "5912",
+        "industry": "Retail-Drug Stores and Proprietary Stores"
+      }
+    },
+    {
+      "ticker": "CVX",
+      "name": "Chevron Corporation",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Integrated Oil & Gas"
+      },
+      "sic": {
+        "code": "2911",
+        "industry": "Petroleum Refining"
+      }
+    },
+    {
+      "ticker": "D",
+      "name": "Dominion Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "DAL",
+      "name": "Delta Air Lines",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Passenger Airlines"
+      },
+      "sic": {
+        "code": "4512",
+        "industry": "Air Transportation, Scheduled"
+      }
+    },
+    {
+      "ticker": "DASH",
+      "name": "DoorDash, Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Specialized Consumer Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "DD",
+      "name": "DuPont",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Conglomerates"
+      },
+      "sic": {
+        "code": "2821",
+        "industry": "Plastic Materials, Synth Resins & Nonvulcan Elastomers"
+      }
+    },
+    {
+      "ticker": "DDOG",
+      "name": "Datadog, Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "DE",
+      "name": "Deere & Company",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Agricultural & Farm Machinery"
+      },
+      "sic": {
+        "code": "3523",
+        "industry": "Farm Machinery & Equipment"
+      }
+    },
+    {
+      "ticker": "DECK",
+      "name": "Deckers Brands",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Footwear"
+      },
+      "sic": {
+        "code": "3021",
+        "industry": "Rubber & Plastics Footwear"
+      }
+    },
+    {
+      "ticker": "DELL",
+      "name": "Dell Technologies",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3571",
+        "industry": "Electronic Computers"
+      }
+    },
+    {
+      "ticker": "DG",
+      "name": "Dollar General",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Consumer Staples Merchandise Retail"
+      },
+      "sic": {
+        "code": "5331",
+        "industry": "Retail-Variety Stores"
+      }
+    },
+    {
+      "ticker": "DGX",
+      "name": "Quest Diagnostics",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Services"
+      },
+      "sic": {
+        "code": "8071",
+        "industry": "Services-Medical Laboratories"
+      }
+    },
+    {
+      "ticker": "DHI",
+      "name": "D. R. Horton",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Homebuilding"
+      },
+      "sic": {
+        "code": "1531",
+        "industry": "Operative Builders"
+      }
+    },
+    {
+      "ticker": "DHR",
+      "name": "Danaher Corporation",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "3823",
+        "industry": "Industrial Instruments For Measurement, Display, and Control"
+      }
+    },
+    {
+      "ticker": "DIS",
+      "name": "Walt Disney Company (The)",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Movies & Entertainment"
+      },
+      "sic": {
+        "code": "7990",
+        "industry": "Services-Miscellaneous Amusement & Recreation"
+      }
+    },
+    {
+      "ticker": "DKNG",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7990",
+        "industry": "Services-Miscellaneous Amusement & Recreation"
+      }
+    },
+    {
+      "ticker": "DLR",
+      "name": "Digital Realty",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Data Center REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "DLTR",
+      "name": "Dollar Tree",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Consumer Staples Merchandise Retail"
+      },
+      "sic": {
+        "code": "5331",
+        "industry": "Retail-Variety Stores"
+      }
+    },
+    {
+      "ticker": "DOC",
+      "name": "Healthpeak Properties",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Health Care REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "DOV",
+      "name": "Dover Corporation",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3530",
+        "industry": "Construction, Mining & Materials Handling Machinery & Equip"
+      }
+    },
+    {
+      "ticker": "DOW",
+      "name": "Dow Inc.",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Commodity Chemicals"
+      },
+      "sic": {
+        "code": "2821",
+        "industry": "Plastic Materials, Synth Resins & Nonvulcan Elastomers"
+      }
+    },
+    {
+      "ticker": "DPZ",
+      "name": "Domino's",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Restaurants"
+      },
+      "sic": {
+        "code": "5140",
+        "industry": "Wholesale-Groceries & Related Products"
+      }
+    },
+    {
+      "ticker": "DRI",
+      "name": "Darden Restaurants",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Restaurants"
+      },
+      "sic": {
+        "code": "5812",
+        "industry": "Retail-Eating  Places"
+      }
+    },
+    {
+      "ticker": "DTE",
+      "name": "DTE Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "DUK",
+      "name": "Duke Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "DVA",
+      "name": "DaVita",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Services"
+      },
+      "sic": {
+        "code": "8090",
+        "industry": "Services-Misc Health & Allied Services, NEC"
+      }
+    },
+    {
+      "ticker": "DVN",
+      "name": "Devon Energy",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "1311",
+        "industry": "Crude Petroleum & Natural Gas"
+      }
+    },
+    {
+      "ticker": "DXCM",
+      "name": "DexCom, Inc. Common Stock",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "EBAY",
+      "name": "eBay Inc.",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Broadline Retail"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "ECHO",
+      "name": "EchoStar",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Wireless Telecommunication Services"
+      },
+      "sic": {
+        "code": "4899",
+        "industry": "Communications Services, NEC"
+      }
+    },
+    {
+      "ticker": "ECL",
+      "name": "Ecolab",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Specialty Chemicals"
+      },
+      "sic": {
+        "code": "2840",
+        "industry": "Soap, Detergents, Cleang Preparations, Perfumes, Cosmetics"
+      }
+    },
+    {
+      "ticker": "ED",
+      "name": "Consolidated Edison",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "EFX",
+      "name": "Equifax",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Research & Consulting Services"
+      },
+      "sic": {
+        "code": "7320",
+        "industry": "Services-Consumer Credit Reporting, Collection Agencies"
+      }
+    },
+    {
+      "ticker": "EG",
+      "name": "Everest Group",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Reinsurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "EIX",
+      "name": "Edison International",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "EL",
+      "name": "Estée Lauder Companies (The)",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Personal Care Products"
+      },
+      "sic": {
+        "code": "2844",
+        "industry": "Perfumes, Cosmetics & Other Toilet Preparations"
+      }
+    },
+    {
+      "ticker": "ELV",
+      "name": "Elevance Health",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Managed Health Care"
+      },
+      "sic": {
+        "code": "6324",
+        "industry": "Hospital & Medical Service Plans"
+      }
+    },
+    {
+      "ticker": "EME",
+      "name": "Emcor",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Construction & Engineering"
+      },
+      "sic": {
+        "code": "1731",
+        "industry": "Electrical Work"
+      }
+    },
+    {
+      "ticker": "EMR",
+      "name": "Emerson Electric",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Electrical Components & Equipment"
+      },
+      "sic": {
+        "code": "3600",
+        "industry": "Electronic & Other Electrical Equipment (No Computer Equip)"
+      }
+    },
+    {
+      "ticker": "ENPH",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "EOG",
+      "name": "EOG Resources",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "1311",
+        "industry": "Crude Petroleum & Natural Gas"
+      }
+    },
+    {
+      "ticker": "EQIX",
+      "name": "Equinix",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Data Center REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "EQT",
+      "name": "EQT Corporation",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "1311",
+        "industry": "Crude Petroleum & Natural Gas"
+      }
+    },
+    {
+      "ticker": "ERIE",
+      "name": "Erie Indemnity",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Insurance Brokers"
+      },
+      "sic": {
+        "code": "6411",
+        "industry": "Insurance Agents, Brokers & Service"
+      }
+    },
+    {
+      "ticker": "ES",
+      "name": "Eversource Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "ESS",
+      "name": "Essex Property Trust",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Multi-Family Residential REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "ETN",
+      "name": "Eaton Corporation",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Electrical Components & Equipment"
+      },
+      "sic": {
+        "code": "3590",
+        "industry": "Misc Industrial & Commercial Machinery & Equipment"
+      }
+    },
+    {
+      "ticker": "ETR",
+      "name": "Entergy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "EVRG",
+      "name": "Evergy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "EW",
+      "name": "Edwards Lifesciences",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3842",
+        "industry": "Orthopedic, Prosthetic & Surgical Appliances & Supplies"
+      }
+    },
+    {
+      "ticker": "EXC",
+      "name": "Exelon Corporation Common Stock",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "EXE",
+      "name": "Expand Energy",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "1311",
+        "industry": "Crude Petroleum & Natural Gas"
+      }
+    },
+    {
+      "ticker": "EXPD",
+      "name": "Expeditors International",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Air Freight & Logistics"
+      },
+      "sic": {
+        "code": "4731",
+        "industry": "Arrangement of  Transportation of  Freight & Cargo"
+      }
+    },
+    {
+      "ticker": "EXPE",
+      "name": "Expedia Group",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Hotels, Resorts & Cruise Lines"
+      },
+      "sic": {
+        "code": "4700",
+        "industry": "Transportation Services"
+      }
+    },
+    {
+      "ticker": "EXR",
+      "name": "Extra Space Storage",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Self-Storage REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "F",
+      "name": "Ford Motor Company",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Automobile Manufacturers"
+      },
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "FANG",
+      "name": "Diamondback Energy, Inc. Common Stock",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "1311",
+        "industry": "Crude Petroleum & Natural Gas"
+      }
+    },
+    {
+      "ticker": "FAST",
+      "name": "Fastenal Company Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Trading Companies & Distributors"
+      },
+      "sic": {
+        "code": "5200",
+        "industry": "Retail-Building Materials, Hardware, Garden Supply"
+      }
+    },
+    {
+      "ticker": "FCEL",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3620",
+        "industry": "Electrical Industrial Apparatus"
+      }
+    },
+    {
+      "ticker": "FCX",
+      "name": "Freeport-McMoRan",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Copper"
+      },
+      "sic": {
+        "code": "1000",
+        "industry": "Metal Mining"
+      }
+    },
+    {
+      "ticker": "FDS",
+      "name": "FactSet",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "7370",
+        "industry": "Services-Computer Programming, Data Processing, Etc."
+      }
+    },
+    {
+      "ticker": "FDX",
+      "name": "FedEx",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Air Freight & Logistics"
+      },
+      "sic": {
+        "code": "4513",
+        "industry": "Air Courier Services"
+      }
+    },
+    {
+      "ticker": "FDXF",
+      "name": "FedEx Freight",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Cargo Ground Transportation"
+      },
+      "sic": {
+        "code": "4513",
+        "industry": "Air Courier Services"
+      }
+    },
+    {
+      "ticker": "FE",
+      "name": "FirstEnergy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "FER",
+      "name": "Ferrovial N.V. Ordinary Shares",
+      "gics": null,
+      "sic": {
+        "code": "1600",
+        "industry": "Heavy Construction Other Than Bldg Const - Contractors"
+      }
+    },
+    {
+      "ticker": "FERG",
+      "name": "Ferguson Enterprises",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Trading Companies & Distributors"
+      },
+      "sic": {
+        "code": "5070",
+        "industry": "Wholesale-Hardware & Plumbing & Heating Equipment & Supplies"
+      }
+    },
+    {
+      "ticker": "FFIV",
+      "name": "F5, Inc.",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Communications Equipment"
+      },
+      "sic": {
+        "code": "3576",
+        "industry": "Computer Communications Equipment"
+      }
+    },
+    {
+      "ticker": "FICO",
+      "name": "Fair Isaac",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "FIS",
+      "name": "Fidelity National Information Services",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "FISV",
+      "name": "Fiserv",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "FITB",
+      "name": "Fifth Third Bancorp",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Regional Banks"
+      },
+      "sic": {
+        "code": "6022",
+        "industry": "State Commercial Banks"
+      }
+    },
+    {
+      "ticker": "FIX",
+      "name": "Comfort Systems USA",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Construction & Engineering"
+      },
+      "sic": {
+        "code": "1731",
+        "industry": "Electrical Work"
+      }
+    },
+    {
+      "ticker": "FLEX",
+      "name": "Flex Ltd.",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Manufacturing Services"
+      },
+      "sic": {
+        "code": "3672",
+        "industry": "Printed Circuit Boards"
+      }
+    },
+    {
+      "ticker": "FOX",
+      "name": "Fox Corporation (Class B)",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Broadcasting"
+      },
+      "sic": {
+        "code": "4833",
+        "industry": "Television Broadcasting Stations"
+      }
+    },
+    {
+      "ticker": "FOXA",
+      "name": "Fox Corporation (Class A)",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Broadcasting"
+      },
+      "sic": {
+        "code": "4833",
+        "industry": "Television Broadcasting Stations"
+      }
+    },
+    {
+      "ticker": "FRT",
+      "name": "Federal Realty Investment Trust",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Retail REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "FSLR",
+      "name": "First Solar",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "FTNT",
+      "name": "Fortinet, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Systems Software"
+      },
+      "sic": {
+        "code": "3577",
+        "industry": "Computer Peripheral Equipment, NEC"
+      }
+    },
+    {
+      "ticker": "FTV",
+      "name": "Fortive",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3823",
+        "industry": "Industrial Instruments For Measurement, Display, and Control"
+      }
+    },
+    {
+      "ticker": "GD",
+      "name": "General Dynamics",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3730",
+        "industry": "Ship & Boat Building & Repairing"
+      }
+    },
+    {
+      "ticker": "GDDY",
+      "name": "GoDaddy",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Internet Services & Infrastructure"
+      },
+      "sic": {
+        "code": "7373",
+        "industry": "Services-Computer Integrated Systems Design"
+      }
+    },
+    {
+      "ticker": "GE",
+      "name": "GE Aerospace",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3600",
+        "industry": "Electronic & Other Electrical Equipment (No Computer Equip)"
+      }
+    },
+    {
+      "ticker": "GEHC",
+      "name": "GE HealthCare Technologies Inc. Common Stock ",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3844",
+        "industry": "X-Ray Apparatus & Tubes & Related Irradiation Apparatus"
+      }
+    },
+    {
+      "ticker": "GEN",
+      "name": "Gen Digital",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Systems Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "GEV",
+      "name": "GE Vernova",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Heavy Electrical Equipment"
+      },
+      "sic": {
+        "code": "3600",
+        "industry": "Electronic & Other Electrical Equipment (No Computer Equip)"
+      }
+    },
+    {
+      "ticker": "GILD",
+      "name": "Gilead Sciences, Inc. Common Stock",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Biotechnology"
+      },
+      "sic": {
+        "code": "2836",
+        "industry": "Biological Products, (No Diagnostic Substances)"
+      }
+    },
+    {
+      "ticker": "GIS",
+      "name": "General Mills",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Packaged Foods & Meats"
+      },
+      "sic": {
+        "code": "2040",
+        "industry": "Grain Mill Products"
+      }
+    },
+    {
+      "ticker": "GL",
+      "name": "Globe Life",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Life & Health Insurance"
+      },
+      "sic": {
+        "code": "6311",
+        "industry": "Life Insurance"
+      }
+    },
+    {
+      "ticker": "GLW",
+      "name": "Corning Inc.",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Components"
+      },
+      "sic": {
+        "code": "3357",
+        "industry": "Drawing & Insulating of  Nonferrous Wire"
+      }
+    },
+    {
+      "ticker": "GM",
+      "name": "General Motors",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Automobile Manufacturers"
+      },
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "GME",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "5734",
+        "industry": "Retail-Computer & Computer Software Stores"
+      }
+    },
+    {
+      "ticker": "GNRC",
+      "name": "Generac",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Heavy Electrical Equipment"
+      },
+      "sic": {
+        "code": "3621",
+        "industry": "Motors & Generators"
+      }
+    },
+    {
+      "ticker": "GOOG",
+      "name": "Alphabet Inc. Class C Capital Stock",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Interactive Media & Services"
+      },
+      "sic": {
+        "code": "7370",
+        "industry": "Services-Computer Programming, Data Processing, Etc."
+      }
+    },
+    {
+      "ticker": "GOOGL",
+      "name": "Alphabet Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Interactive Media & Services"
+      },
+      "sic": {
+        "code": "7370",
+        "industry": "Services-Computer Programming, Data Processing, Etc."
+      }
+    },
+    {
+      "ticker": "GPC",
+      "name": "Genuine Parts Company",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Distributors"
+      },
+      "sic": {
+        "code": "5013",
+        "industry": "Wholesale-Motor Vehicle Supplies & New Parts"
+      }
+    },
+    {
+      "ticker": "GPN",
+      "name": "Global Payments",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "GRMN",
+      "name": "Garmin",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Consumer Electronics"
+      },
+      "sic": {
+        "code": "3812",
+        "industry": "Search, Detection, Navigation, Guidance, Aeronautical Sys"
+      }
+    },
+    {
+      "ticker": "GS",
+      "name": "Goldman Sachs",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Investment Banking & Brokerage"
+      },
+      "sic": {
+        "code": "6211",
+        "industry": "Security Brokers, Dealers & Flotation Companies"
+      }
+    },
+    {
+      "ticker": "GWW",
+      "name": "W. W. Grainger",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "5000",
+        "industry": "Wholesale-Durable Goods"
+      }
+    },
+    {
+      "ticker": "HAL",
+      "name": "Halliburton",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Equipment & Services"
+      },
+      "sic": {
+        "code": "1389",
+        "industry": "Oil & Gas Field Services, NEC"
+      }
+    },
+    {
+      "ticker": "HAS",
+      "name": "Hasbro",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Leisure Products"
+      },
+      "sic": {
+        "code": "3944",
+        "industry": "Games, Toys & Children's Vehicles (No Dolls & Bicycles)"
+      }
+    },
+    {
+      "ticker": "HBAN",
+      "name": "Huntington Bancshares",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Regional Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "HCA",
+      "name": "HCA Healthcare",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Facilities"
+      },
+      "sic": {
+        "code": "8062",
+        "industry": "Services-General Medical & Surgical Hospitals, NEC"
+      }
+    },
+    {
+      "ticker": "HD",
+      "name": "Home Depot (The)",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Home Improvement Retail"
+      },
+      "sic": {
+        "code": "5211",
+        "industry": "Retail-Lumber & Other Building Materials Dealers"
+      }
+    },
+    {
+      "ticker": "HIG",
+      "name": "Hartford (The)",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Property & Casualty Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "HII",
+      "name": "Huntington Ingalls Industries",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3730",
+        "industry": "Ship & Boat Building & Repairing"
+      }
+    },
+    {
+      "ticker": "HIMS",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "8011",
+        "industry": "Services-Offices & Clinics of  Doctors of  Medicine"
+      }
+    },
+    {
+      "ticker": "HLT",
+      "name": "Hilton Worldwide",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Hotels, Resorts & Cruise Lines"
+      },
+      "sic": {
+        "code": "7011",
+        "industry": "Hotels & Motels"
+      }
+    },
+    {
+      "ticker": "HON",
+      "name": "Honeywell International Inc. Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Conglomerates"
+      },
+      "sic": {
+        "code": "3724",
+        "industry": "Aircraft Engines & Engine Parts"
+      }
+    },
+    {
+      "ticker": "HONA",
+      "name": "Honeywell Aerospace Inc. Common Stock ",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3724",
+        "industry": "Aircraft Engines & Engine Parts"
+      }
+    },
+    {
+      "ticker": "HOOD",
+      "name": "Robinhood Markets",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Investment Banking & Brokerage"
+      },
+      "sic": {
+        "code": "6211",
+        "industry": "Security Brokers, Dealers & Flotation Companies"
+      }
+    },
+    {
+      "ticker": "HPE",
+      "name": "Hewlett Packard Enterprise",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3570",
+        "industry": "Computer & office Equipment"
+      }
+    },
+    {
+      "ticker": "HPQ",
+      "name": "HP Inc.",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3570",
+        "industry": "Computer & office Equipment"
+      }
+    },
+    {
+      "ticker": "HRL",
+      "name": "Hormel Foods",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Packaged Foods & Meats"
+      },
+      "sic": {
+        "code": "2011",
+        "industry": "Meat Packing Plants"
+      }
+    },
+    {
+      "ticker": "HSIC",
+      "name": "Henry Schein",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Distributors"
+      },
+      "sic": {
+        "code": "5047",
+        "industry": "Wholesale-Medical, Dental & Hospital Equipment & Supplies"
+      }
+    },
+    {
+      "ticker": "HST",
+      "name": "Host Hotels & Resorts",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Hotel & Resort REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "HSY",
+      "name": "Hershey Company (The)",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Packaged Foods & Meats"
+      },
+      "sic": {
+        "code": "2060",
+        "industry": "Sugar & Confectionery Products"
+      }
+    },
+    {
+      "ticker": "HUBB",
+      "name": "Hubbell Incorporated",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3670",
+        "industry": "Electronic Components & Accessories"
+      }
+    },
+    {
+      "ticker": "HUM",
+      "name": "Humana",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Managed Health Care"
+      },
+      "sic": {
+        "code": "6324",
+        "industry": "Hospital & Medical Service Plans"
+      }
+    },
+    {
+      "ticker": "HWM",
+      "name": "Howmet Aerospace",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3350",
+        "industry": "Rolling Drawing & Extruding of  Nonferrous Metals"
+      }
+    },
+    {
+      "ticker": "IBKR",
+      "name": "Interactive Brokers",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Investment Banking & Brokerage"
+      },
+      "sic": {
+        "code": "6211",
+        "industry": "Security Brokers, Dealers & Flotation Companies"
+      }
+    },
+    {
+      "ticker": "IBM",
+      "name": "IBM",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "IT Consulting & Other Services"
+      },
+      "sic": {
+        "code": "3570",
+        "industry": "Computer & office Equipment"
+      }
+    },
+    {
+      "ticker": "ICE",
+      "name": "Intercontinental Exchange",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "6200",
+        "industry": "Security & Commodity Brokers, Dealers, Exchanges & Services"
+      }
+    },
+    {
+      "ticker": "IDXX",
+      "name": "IDEXX Laboratories, Inc. Common Stock",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "2835",
+        "industry": "In Vitro & In Vivo Diagnostic Substances"
+      }
+    },
+    {
+      "ticker": "IEX",
+      "name": "IDEX Corporation",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3561",
+        "industry": "Pumps & Pumping Equipment"
+      }
+    },
+    {
+      "ticker": "IFF",
+      "name": "International Flavors & Fragrances",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Specialty Chemicals"
+      },
+      "sic": {
+        "code": "2860",
+        "industry": "Industrial Organic Chemicals"
+      }
+    },
+    {
+      "ticker": "ILMN",
+      "name": "Illumina, Inc.",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "3826",
+        "industry": "Laboratory Analytical Instruments"
+      }
+    },
+    {
+      "ticker": "INCY",
+      "name": "Incyte",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Biotechnology"
+      },
+      "sic": {
+        "code": "8731",
+        "industry": "Services-Commercial Physical & Biological Research"
+      }
+    },
+    {
+      "ticker": "INTC",
+      "name": "Intel Corporation Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "INTU",
+      "name": "Intuit Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "INVH",
+      "name": "Invitation Homes",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Single-Family Residential REITs"
+      },
+      "sic": {
+        "code": "6510",
+        "industry": "Real Estate Operators (No Developers) & Lessors"
+      }
+    },
+    {
+      "ticker": "IONQ",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7373",
+        "industry": "Services-Computer Integrated Systems Design"
+      }
+    },
+    {
+      "ticker": "IP",
+      "name": "International Paper",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Paper & Plastic Packaging Products & Materials"
+      },
+      "sic": {
+        "code": "2621",
+        "industry": "Paper Mills"
+      }
+    },
+    {
+      "ticker": "IQV",
+      "name": "IQVIA",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "8731",
+        "industry": "Services-Commercial Physical & Biological Research"
+      }
+    },
+    {
+      "ticker": "IR",
+      "name": "Ingersoll Rand",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3560",
+        "industry": "General Industrial Machinery & Equipment"
+      }
+    },
+    {
+      "ticker": "IREN",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "IRM",
+      "name": "Iron Mountain",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Other Specialized REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "ISRG",
+      "name": "Intuitive Surgical, Inc. Common Stock",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3842",
+        "industry": "Orthopedic, Prosthetic & Surgical Appliances & Supplies"
+      }
+    },
+    {
+      "ticker": "IT",
+      "name": "Gartner",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "IT Consulting & Other Services"
+      },
+      "sic": {
+        "code": "8741",
+        "industry": "Services-Management Services"
+      }
+    },
+    {
+      "ticker": "ITW",
+      "name": "Illinois Tool Works",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3560",
+        "industry": "General Industrial Machinery & Equipment"
+      }
+    },
+    {
+      "ticker": "IVZ",
+      "name": "Invesco",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6282",
+        "industry": "Investment Advice"
+      }
+    },
+    {
+      "ticker": "J",
+      "name": "Jacobs Solutions",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Construction & Engineering"
+      },
+      "sic": {
+        "code": "1600",
+        "industry": "Heavy Construction Other Than Bldg Const - Contractors"
+      }
+    },
+    {
+      "ticker": "JBHT",
+      "name": "J.B. Hunt",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Cargo Ground Transportation"
+      },
+      "sic": {
+        "code": "4213",
+        "industry": "Trucking (No Local)"
+      }
+    },
+    {
+      "ticker": "JBL",
+      "name": "Jabil",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Manufacturing Services"
+      },
+      "sic": {
+        "code": "3672",
+        "industry": "Printed Circuit Boards"
+      }
+    },
+    {
+      "ticker": "JCI",
+      "name": "Johnson Controls",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Building Products"
+      },
+      "sic": {
+        "code": "3585",
+        "industry": "Air-Cond & Warm Air Heatg Equip & Comm & Indl Refrig Equip"
+      }
+    },
+    {
+      "ticker": "JKHY",
+      "name": "Jack Henry & Associates",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7373",
+        "industry": "Services-Computer Integrated Systems Design"
+      }
+    },
+    {
+      "ticker": "JNJ",
+      "name": "Johnson & Johnson",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Pharmaceuticals"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "JOBY",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3721",
+        "industry": "Aircraft"
+      }
+    },
+    {
+      "ticker": "JPM",
+      "name": "JPMorgan Chase",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Diversified Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "KDP",
+      "name": "Keurig Dr Pepper Inc. Common Stock",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Soft Drinks & Non-alcoholic Beverages"
+      },
+      "sic": {
+        "code": "2080",
+        "industry": "Beverages"
+      }
+    },
+    {
+      "ticker": "KEY",
+      "name": "KeyCorp",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Regional Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "KEYS",
+      "name": "Keysight Technologies",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Equipment & Instruments"
+      },
+      "sic": {
+        "code": "3823",
+        "industry": "Industrial Instruments For Measurement, Display, and Control"
+      }
+    },
+    {
+      "ticker": "KHC",
+      "name": "Kraft Heinz",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Packaged Foods & Meats"
+      },
+      "sic": {
+        "code": "2030",
+        "industry": "Canned, Frozen & Preservd Fruit, Veg & Food Specialties"
+      }
+    },
+    {
+      "ticker": "KIM",
+      "name": "Kimco Realty",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Retail REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "KKR",
+      "name": "KKR & Co.",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6282",
+        "industry": "Investment Advice"
+      }
+    },
+    {
+      "ticker": "KLAC",
+      "name": "KLA Corporation Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductor Materials & Equipment"
+      },
+      "sic": {
+        "code": "3827",
+        "industry": "Optical Instruments & Lenses"
+      }
+    },
+    {
+      "ticker": "KMB",
+      "name": "Kimberly-Clark",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Household Products"
+      },
+      "sic": {
+        "code": "2670",
+        "industry": "Converted Paper & Paperboard Prods (No Contaners/Boxes)"
+      }
+    },
+    {
+      "ticker": "KMI",
+      "name": "Kinder Morgan",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Storage & Transportation"
+      },
+      "sic": {
+        "code": "4922",
+        "industry": "Natural Gas Transmission"
+      }
+    },
+    {
+      "ticker": "KO",
+      "name": "Coca-Cola Company (The)",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Soft Drinks & Non-alcoholic Beverages"
+      },
+      "sic": {
+        "code": "2080",
+        "industry": "Beverages"
+      }
+    },
+    {
+      "ticker": "KR",
+      "name": "Kroger",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Food Retail"
+      },
+      "sic": {
+        "code": "5411",
+        "industry": "Retail-Grocery Stores"
+      }
+    },
+    {
+      "ticker": "KVUE",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "2844",
+        "industry": "Perfumes, Cosmetics & Other Toilet Preparations"
+      }
+    },
+    {
+      "ticker": "L",
+      "name": "Loews Corporation",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Multi-line Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "LCID",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "LDOS",
+      "name": "Leidos",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Diversified Support Services"
+      },
+      "sic": {
+        "code": "7373",
+        "industry": "Services-Computer Integrated Systems Design"
+      }
+    },
+    {
+      "ticker": "LEN",
+      "name": "Lennar",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Homebuilding"
+      },
+      "sic": {
+        "code": "1520",
+        "industry": "General Bldg Contractors - Residential Bldgs"
+      }
+    },
+    {
+      "ticker": "LH",
+      "name": "Labcorp",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Services"
+      },
+      "sic": {
+        "code": "8071",
+        "industry": "Services-Medical Laboratories"
+      }
+    },
+    {
+      "ticker": "LHX",
+      "name": "L3Harris",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3812",
+        "industry": "Search, Detection, Navigation, Guidance, Aeronautical Sys"
+      }
+    },
+    {
+      "ticker": "LI",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "LII",
+      "name": "Lennox International",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Building Products"
+      },
+      "sic": {
+        "code": "3585",
+        "industry": "Air-Cond & Warm Air Heatg Equip & Comm & Indl Refrig Equip"
+      }
+    },
+    {
+      "ticker": "LIN",
+      "name": "Linde plc Ordinary Shares",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Industrial Gases"
+      },
+      "sic": {
+        "code": "2810",
+        "industry": "Industrial Inorganic Chemicals"
+      }
+    },
+    {
+      "ticker": "LITE",
+      "name": "Lumentum Holdings Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Communications Equipment"
+      },
+      "sic": {
+        "code": "3669",
+        "industry": "Communications Equipment, NEC"
+      }
+    },
+    {
+      "ticker": "LLY",
+      "name": "Lilly (Eli)",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Pharmaceuticals"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "LMND",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "LMT",
+      "name": "Lockheed Martin",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3760",
+        "industry": "Guided Missiles & Space Vehicles & Parts"
+      }
+    },
+    {
+      "ticker": "LNT",
+      "name": "Alliant Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "LOW",
+      "name": "Lowe's",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Home Improvement Retail"
+      },
+      "sic": {
+        "code": "5211",
+        "industry": "Retail-Lumber & Other Building Materials Dealers"
+      }
+    },
+    {
+      "ticker": "LRCX",
+      "name": "Lam Research Corporation Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductor Materials & Equipment"
+      },
+      "sic": {
+        "code": "3559",
+        "industry": "Special Industry Machinery, NEC"
+      }
+    },
+    {
+      "ticker": "LULU",
+      "name": "Lululemon Athletica",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Apparel, Accessories & Luxury Goods"
+      },
+      "sic": {
+        "code": "2300",
+        "industry": "Apparel & Other Finishd Prods of  Fabrics & Similar Matl"
+      }
+    },
+    {
+      "ticker": "LUV",
+      "name": "Southwest Airlines",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Passenger Airlines"
+      },
+      "sic": {
+        "code": "4512",
+        "industry": "Air Transportation, Scheduled"
+      }
+    },
+    {
+      "ticker": "LVS",
+      "name": "Las Vegas Sands",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Casinos & Gaming"
+      },
+      "sic": {
+        "code": "7011",
+        "industry": "Hotels & Motels"
+      }
+    },
+    {
+      "ticker": "LYB",
+      "name": "LyondellBasell",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Specialty Chemicals"
+      },
+      "sic": {
+        "code": "2860",
+        "industry": "Industrial Organic Chemicals"
+      }
+    },
+    {
+      "ticker": "LYV",
+      "name": "Live Nation Entertainment",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Movies & Entertainment"
+      },
+      "sic": {
+        "code": "7900",
+        "industry": "Services-Amusement & Recreation Services"
+      }
+    },
+    {
+      "ticker": "MA",
+      "name": "Mastercard",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "MAA",
+      "name": "Mid-America Apartment Communities",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Multi-Family Residential REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "MAR",
+      "name": "Marriott International Class A Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Hotels, Resorts & Cruise Lines"
+      },
+      "sic": {
+        "code": "7011",
+        "industry": "Hotels & Motels"
+      }
+    },
+    {
+      "ticker": "MARA",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "MAS",
+      "name": "Masco",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Building Products"
+      },
+      "sic": {
+        "code": "3430",
+        "industry": "Heating Equip, Except Elec & Warm Air; & Plumbing Fixtures"
+      }
+    },
+    {
+      "ticker": "MCD",
+      "name": "McDonald's",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Restaurants"
+      },
+      "sic": {
+        "code": "5812",
+        "industry": "Retail-Eating  Places"
+      }
+    },
+    {
+      "ticker": "MCHP",
+      "name": "Microchip Technology Incorporated Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "MCK",
+      "name": "McKesson",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Distributors"
+      },
+      "sic": {
+        "code": "5122",
+        "industry": "Wholesale-Drugs, Proprietaries & Druggists' Sundries"
+      }
+    },
+    {
+      "ticker": "MCO",
+      "name": "Moody's Corporation",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "7320",
+        "industry": "Services-Consumer Credit Reporting, Collection Agencies"
+      }
+    },
+    {
+      "ticker": "MDLZ",
+      "name": "Mondelez International, Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Packaged Foods & Meats"
+      },
+      "sic": {
+        "code": "2000",
+        "industry": "Food and Kindred Products"
+      }
+    },
+    {
+      "ticker": "MDT",
+      "name": "Medtronic",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3845",
+        "industry": "Electromedical & Electrotherapeutic Apparatus"
+      }
+    },
+    {
+      "ticker": "MELI",
+      "name": "MercadoLibre, Inc. Common Stock",
+      "gics": null,
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "MET",
+      "name": "MetLife",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Life & Health Insurance"
+      },
+      "sic": {
+        "code": "6311",
+        "industry": "Life Insurance"
+      }
+    },
+    {
+      "ticker": "META",
+      "name": "Meta Platforms, Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Interactive Media & Services"
+      },
+      "sic": {
+        "code": "7370",
+        "industry": "Services-Computer Programming, Data Processing, Etc."
+      }
+    },
+    {
+      "ticker": "MGM",
+      "name": "MGM Resorts",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Casinos & Gaming"
+      },
+      "sic": {
+        "code": "7011",
+        "industry": "Hotels & Motels"
+      }
+    },
+    {
+      "ticker": "MKC",
+      "name": "McCormick & Company",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Packaged Foods & Meats"
+      },
+      "sic": {
+        "code": "2090",
+        "industry": "Miscellaneous Food Preparations & Kindred Products"
+      }
+    },
+    {
+      "ticker": "MLM",
+      "name": "Martin Marietta Materials",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Construction Materials"
+      },
+      "sic": {
+        "code": "1400",
+        "industry": "Mining & Quarrying of  Nonmetallic Minerals (No Fuels)"
+      }
+    },
+    {
+      "ticker": "MMM",
+      "name": "3M",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Conglomerates"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "MNST",
+      "name": "Monster Beverage Corporation",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Soft Drinks & Non-alcoholic Beverages"
+      },
+      "sic": {
+        "code": "2086",
+        "industry": "Bottled & Canned Soft Drinks & Carbonated Waters"
+      }
+    },
+    {
+      "ticker": "MO",
+      "name": "Altria",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Tobacco"
+      },
+      "sic": {
+        "code": "2111",
+        "industry": "Cigarettes"
+      }
+    },
+    {
+      "ticker": "MOS",
+      "name": "Mosaic Company (The)",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Fertilizers & Agricultural Chemicals"
+      },
+      "sic": {
+        "code": "2870",
+        "industry": "Agricultural Chemicals"
+      }
+    },
+    {
+      "ticker": "MPC",
+      "name": "Marathon Petroleum",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Refining & Marketing"
+      },
+      "sic": {
+        "code": "2911",
+        "industry": "Petroleum Refining"
+      }
+    },
+    {
+      "ticker": "MPWR",
+      "name": "Monolithic Power Systems, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "MRK",
+      "name": "Merck & Co.",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Pharmaceuticals"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "MRNA",
+      "name": "Moderna, Inc. Common Stock",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Biotechnology"
+      },
+      "sic": {
+        "code": "2836",
+        "industry": "Biological Products, (No Diagnostic Substances)"
+      }
+    },
+    {
+      "ticker": "MRSH",
+      "name": "Marsh McLennan",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Insurance Brokers"
+      },
+      "sic": {
+        "code": "6411",
+        "industry": "Insurance Agents, Brokers & Service"
+      }
+    },
+    {
+      "ticker": "MRVL",
+      "name": "Marvell Technology, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "MS",
+      "name": "Morgan Stanley",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Investment Banking & Brokerage"
+      },
+      "sic": {
+        "code": "6211",
+        "industry": "Security Brokers, Dealers & Flotation Companies"
+      }
+    },
+    {
+      "ticker": "MSCI",
+      "name": "MSCI",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "MSFT",
+      "name": "Microsoft Corporation Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Systems Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "MSI",
+      "name": "Motorola Solutions",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Communications Equipment"
+      },
+      "sic": {
+        "code": "3663",
+        "industry": "Radio & Tv Broadcasting & Communications Equipment"
+      }
+    },
+    {
+      "ticker": "MSTR",
+      "name": "Strategy Inc Common Stock Class A",
+      "gics": null,
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "MTB",
+      "name": "M&T Bank",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Regional Banks"
+      },
+      "sic": {
+        "code": "6022",
+        "industry": "State Commercial Banks"
+      }
+    },
+    {
+      "ticker": "MTD",
+      "name": "Mettler Toledo",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "3826",
+        "industry": "Laboratory Analytical Instruments"
+      }
+    },
+    {
+      "ticker": "MU",
+      "name": "Micron Technology, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "NBIS",
+      "name": "Nebius Group N.V. Class A Ordinary Shares",
+      "gics": null,
+      "sic": {
+        "code": "7370",
+        "industry": "Services-Computer Programming, Data Processing, Etc."
+      }
+    },
+    {
+      "ticker": "NCLH",
+      "name": "Norwegian Cruise Line Holdings",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Hotels, Resorts & Cruise Lines"
+      },
+      "sic": {
+        "code": "4400",
+        "industry": "Water Transportation"
+      }
+    },
+    {
+      "ticker": "NDAQ",
+      "name": "Nasdaq, Inc.",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "6200",
+        "industry": "Security & Commodity Brokers, Dealers, Exchanges & Services"
+      }
+    },
+    {
+      "ticker": "NDSN",
+      "name": "Nordson Corporation",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3569",
+        "industry": "General Industrial Machinery & Equipment, NEC"
+      }
+    },
+    {
+      "ticker": "NEE",
+      "name": "NextEra Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "NEM",
+      "name": "Newmont",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Gold"
+      },
+      "sic": {
+        "code": "1040",
+        "industry": "Gold and Silver Ores"
+      }
+    },
+    {
+      "ticker": "NET",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "NFLX",
+      "name": "Netflix, Inc. Common Stock",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Movies & Entertainment"
+      },
+      "sic": {
+        "code": "7841",
+        "industry": "Services-Video Tape Rental"
+      }
+    },
+    {
+      "ticker": "NI",
+      "name": "NiSource",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "NIO",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "NKE",
+      "name": "Nike, Inc.",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Apparel, Accessories & Luxury Goods"
+      },
+      "sic": {
+        "code": "3021",
+        "industry": "Rubber & Plastics Footwear"
+      }
+    },
+    {
+      "ticker": "NOC",
+      "name": "Northrop Grumman",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3812",
+        "industry": "Search, Detection, Navigation, Guidance, Aeronautical Sys"
+      }
+    },
+    {
+      "ticker": "NOW",
+      "name": "ServiceNow",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Systems Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "NRG",
+      "name": "NRG Energy",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Independent Power Producers & Energy Traders"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "NSC",
+      "name": "Norfolk Southern",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Rail Transportation"
+      },
+      "sic": {
+        "code": "4011",
+        "industry": "Railroads, Line-Haul Operating"
+      }
+    },
+    {
+      "ticker": "NTAP",
+      "name": "NetApp",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3572",
+        "industry": "Computer Storage Devices"
+      }
+    },
+    {
+      "ticker": "NTRS",
+      "name": "Northern Trust",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6022",
+        "industry": "State Commercial Banks"
+      }
+    },
+    {
+      "ticker": "NUE",
+      "name": "Nucor",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Steel"
+      },
+      "sic": {
+        "code": "3312",
+        "industry": "Steel Works, Blast Furnaces & Rolling Mills (Coke Ovens)"
+      }
+    },
+    {
+      "ticker": "NVDA",
+      "name": "NVIDIA Corporation Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "NVO",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "NVR",
+      "name": "NVR, Inc.",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Homebuilding"
+      },
+      "sic": {
+        "code": "1531",
+        "industry": "Operative Builders"
+      }
+    },
+    {
+      "ticker": "NWS",
+      "name": "News Corp (Class B)",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Publishing"
+      },
+      "sic": {
+        "code": "2711",
+        "industry": "Newspapers: Publishing or  Publishing & Printing"
+      }
+    },
+    {
+      "ticker": "NWSA",
+      "name": "News Corp (Class A)",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Publishing"
+      },
+      "sic": {
+        "code": "2711",
+        "industry": "Newspapers: Publishing or  Publishing & Printing"
+      }
+    },
+    {
+      "ticker": "NXPI",
+      "name": "NXP Semiconductors N.V. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "O",
+      "name": "Realty Income",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Retail REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "ODFL",
+      "name": "Old Dominion Freight Line, Inc. Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Cargo Ground Transportation"
+      },
+      "sic": {
+        "code": "4213",
+        "industry": "Trucking (No Local)"
+      }
+    },
+    {
+      "ticker": "OKE",
+      "name": "Oneok",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Storage & Transportation"
+      },
+      "sic": {
+        "code": "4923",
+        "industry": "Natural Gas Transmisison & Distribution"
+      }
+    },
+    {
+      "ticker": "OKLO",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "OKTA",
+      "name": "Okta, Inc.",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "OMC",
+      "name": "Omnicom Group",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Advertising"
+      },
+      "sic": {
+        "code": "7311",
+        "industry": "Services-Advertising Agencies"
+      }
+    },
+    {
+      "ticker": "ON",
+      "name": "ON Semiconductor",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "ORCL",
+      "name": "Oracle Corporation",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "ORLY",
+      "name": "O'Reilly Automotive, Inc. Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Automotive Retail"
+      },
+      "sic": {
+        "code": "5531",
+        "industry": "Retail-Auto & Home Supply Stores"
+      }
+    },
+    {
+      "ticker": "OTIS",
+      "name": "Otis Worldwide",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3600",
+        "industry": "Electronic & Other Electrical Equipment (No Computer Equip)"
+      }
+    },
+    {
+      "ticker": "OXY",
+      "name": "Occidental Petroleum",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "1311",
+        "industry": "Crude Petroleum & Natural Gas"
+      }
+    },
+    {
+      "ticker": "P",
+      "name": "Everpure",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3572",
+        "industry": "Computer Storage Devices"
+      }
+    },
+    {
+      "ticker": "PANW",
+      "name": "Palo Alto Networks, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Systems Software"
+      },
+      "sic": {
+        "code": "3577",
+        "industry": "Computer Peripheral Equipment, NEC"
+      }
+    },
+    {
+      "ticker": "PATH",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "PAYX",
+      "name": "Paychex, Inc. Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Human Resource & Employment Services"
+      },
+      "sic": {
+        "code": "8700",
+        "industry": "Services-Engineering, Accounting, Research, Management"
+      }
+    },
+    {
+      "ticker": "PCAR",
+      "name": "PACCAR Inc. Common Stock",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Construction Machinery & Heavy Transportation Equipment"
+      },
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "PCG",
+      "name": "PG&E Corporation",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "PDD",
+      "name": "PDD Holdings Inc. American Depositary Shares",
+      "gics": null,
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "PEG",
+      "name": "Public Service Enterprise Group",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "PEP",
+      "name": "PepsiCo, Inc. Common Stock",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Soft Drinks & Non-alcoholic Beverages"
+      },
+      "sic": {
+        "code": "2080",
+        "industry": "Beverages"
+      }
+    },
+    {
+      "ticker": "PFE",
+      "name": "Pfizer",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Pharmaceuticals"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "PFG",
+      "name": "Principal Financial Group",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Life & Health Insurance"
+      },
+      "sic": {
+        "code": "6321",
+        "industry": "Accident & Health Insurance"
+      }
+    },
+    {
+      "ticker": "PG",
+      "name": "Procter & Gamble",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Personal Care Products"
+      },
+      "sic": {
+        "code": "2840",
+        "industry": "Soap, Detergents, Cleang Preparations, Perfumes, Cosmetics"
+      }
+    },
+    {
+      "ticker": "PGR",
+      "name": "Progressive Corporation",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Property & Casualty Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "PH",
+      "name": "Parker Hannifin",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3490",
+        "industry": "Miscellaneous Fabricated Metal Products"
+      }
+    },
+    {
+      "ticker": "PHM",
+      "name": "PulteGroup",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Homebuilding"
+      },
+      "sic": {
+        "code": "1531",
+        "industry": "Operative Builders"
+      }
+    },
+    {
+      "ticker": "PKG",
+      "name": "Packaging Corporation of America",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Paper & Plastic Packaging Products & Materials"
+      },
+      "sic": {
+        "code": "2650",
+        "industry": "Paperboard Containers & Boxes"
+      }
+    },
+    {
+      "ticker": "PLD",
+      "name": "Prologis",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Industrial REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "PLTR",
+      "name": "Palantir Technologies Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "PLUG",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3620",
+        "industry": "Electrical Industrial Apparatus"
+      }
+    },
+    {
+      "ticker": "PM",
+      "name": "Philip Morris International",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Tobacco"
+      },
+      "sic": {
+        "code": "2111",
+        "industry": "Cigarettes"
+      }
+    },
+    {
+      "ticker": "PNC",
+      "name": "PNC Financial Services",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Diversified Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "PNR",
+      "name": "Pentair",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3550",
+        "industry": "Special Industry Machinery (No Metalworking Machinery)"
+      }
+    },
+    {
+      "ticker": "PNW",
+      "name": "Pinnacle West Capital",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "PODD",
+      "name": "Insulet Corporation",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "PPG",
+      "name": "PPG Industries",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Specialty Chemicals"
+      },
+      "sic": {
+        "code": "2851",
+        "industry": "Paints, Varnishes, Lacquers, Enamels & Allied Prods"
+      }
+    },
+    {
+      "ticker": "PPL",
+      "name": "PPL Corporation",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "PRU",
+      "name": "Prudential Financial",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Life & Health Insurance"
+      },
+      "sic": {
+        "code": "6311",
+        "industry": "Life Insurance"
+      }
+    },
+    {
+      "ticker": "PSA",
+      "name": "Public Storage",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Self-Storage REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "PSX",
+      "name": "Phillips 66",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Refining & Marketing"
+      },
+      "sic": {
+        "code": "2911",
+        "industry": "Petroleum Refining"
+      }
+    },
+    {
+      "ticker": "PTC",
+      "name": "PTC Inc.",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "PWR",
+      "name": "Quanta Services",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Construction & Engineering"
+      },
+      "sic": {
+        "code": "1731",
+        "industry": "Electrical Work"
+      }
+    },
+    {
+      "ticker": "PYPL",
+      "name": "PayPal Holdings, Inc. Common Stock",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "Q",
+      "name": "Qnity Electronics",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductor Materials & Equipment"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "QBTS",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7374",
+        "industry": "Services-Computer Processing & Data Preparation"
+      }
+    },
+    {
+      "ticker": "QCOM",
+      "name": "QUALCOMM Incorporated Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3663",
+        "industry": "Radio & Tv Broadcasting & Communications Equipment"
+      }
+    },
+    {
+      "ticker": "QQQ",
+      "name": null,
+      "gics": null,
+      "sic": null
+    },
+    {
+      "ticker": "RCL",
+      "name": "Royal Caribbean Group",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Hotels, Resorts & Cruise Lines"
+      },
+      "sic": {
+        "code": "4400",
+        "industry": "Water Transportation"
+      }
+    },
+    {
+      "ticker": "RDDT",
+      "name": "Reddit",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Interactive Media & Services"
+      },
+      "sic": {
+        "code": "7374",
+        "industry": "Services-Computer Processing & Data Preparation"
+      }
+    },
+    {
+      "ticker": "REG",
+      "name": "Regency Centers",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Retail REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "REGN",
+      "name": "Regeneron Pharmaceuticals, Inc. Common Stock",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Biotechnology"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "RF",
+      "name": "Regions Financial Corporation",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Regional Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "RGTI",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7371",
+        "industry": "Services-Computer Programming Services"
+      }
+    },
+    {
+      "ticker": "RIOT",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "RIVN",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "RJF",
+      "name": "Raymond James Financial",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Investment Banking & Brokerage"
+      },
+      "sic": {
+        "code": "6211",
+        "industry": "Security Brokers, Dealers & Flotation Companies"
+      }
+    },
+    {
+      "ticker": "RKLB",
+      "name": "Rocket Lab Corporation Common Stock",
+      "gics": null,
+      "sic": {
+        "code": "3760",
+        "industry": "Guided Missiles & Space Vehicles & Parts"
+      }
+    },
+    {
+      "ticker": "RL",
+      "name": "Ralph Lauren Corporation",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Apparel, Accessories & Luxury Goods"
+      },
+      "sic": {
+        "code": "2320",
+        "industry": "Men's & Boys' Furnishgs, Work Clothg, & Allied Garments"
+      }
+    },
+    {
+      "ticker": "RMD",
+      "name": "ResMed",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "ROK",
+      "name": "Rockwell Automation",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Electrical Components & Equipment"
+      },
+      "sic": {
+        "code": "3829",
+        "industry": "Measuring & Controlling Devices, NEC"
+      }
+    },
+    {
+      "ticker": "ROKU",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "4841",
+        "industry": "Cable & Other Pay Television Services"
+      }
+    },
+    {
+      "ticker": "ROL",
+      "name": "Rollins, Inc.",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Environmental & Facilities Services"
+      },
+      "sic": {
+        "code": "7340",
+        "industry": "Services-To Dwellings & Other Buildings"
+      }
+    },
+    {
+      "ticker": "ROP",
+      "name": "Roper Technologies, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Equipment & Instruments"
+      },
+      "sic": {
+        "code": "3823",
+        "industry": "Industrial Instruments For Measurement, Display, and Control"
+      }
+    },
+    {
+      "ticker": "ROST",
+      "name": "Ross Stores, Inc. Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Apparel Retail"
+      },
+      "sic": {
+        "code": "5651",
+        "industry": "Retail-Family Clothing Stores"
+      }
+    },
+    {
+      "ticker": "RSG",
+      "name": "Republic Services",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Environmental & Facilities Services"
+      },
+      "sic": {
+        "code": "4953",
+        "industry": "Refuse Systems"
+      }
+    },
+    {
+      "ticker": "RTX",
+      "name": "RTX Corporation",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3724",
+        "industry": "Aircraft Engines & Engine Parts"
+      }
+    },
+    {
+      "ticker": "RUN",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "1700",
+        "industry": "Construction - Special Trade Contractors"
+      }
+    },
+    {
+      "ticker": "RVTY",
+      "name": "Revvity",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3826",
+        "industry": "Laboratory Analytical Instruments"
+      }
+    },
+    {
+      "ticker": "SBAC",
+      "name": "SBA Communications",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Telecom Tower REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "SBUX",
+      "name": "Starbucks Corporation Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Restaurants"
+      },
+      "sic": {
+        "code": "5810",
+        "industry": "Retail-Eating & Drinking Places"
+      }
+    },
+    {
+      "ticker": "SCHW",
+      "name": "Charles Schwab Corporation",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Investment Banking & Brokerage"
+      },
+      "sic": {
+        "code": "6211",
+        "industry": "Security Brokers, Dealers & Flotation Companies"
+      }
+    },
+    {
+      "ticker": "SEDG",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "SHOP",
+      "name": "Shopify Inc. Class A Subordinate Voting Shares",
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "SHW",
+      "name": "Sherwin-Williams",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Specialty Chemicals"
+      },
+      "sic": {
+        "code": "5200",
+        "industry": "Retail-Building Materials, Hardware, Garden Supply"
+      }
+    },
+    {
+      "ticker": "SJM",
+      "name": "J.M. Smucker Company (The)",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Packaged Foods & Meats"
+      },
+      "sic": {
+        "code": "2033",
+        "industry": "Canned, Fruits, Veg, Preserves, Jams & Jellies"
+      }
+    },
+    {
+      "ticker": "SKYD",
+      "name": "Skydance",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Movies & Entertainment"
+      },
+      "sic": {
+        "code": "4833",
+        "industry": "Television Broadcasting Stations"
+      }
+    },
+    {
+      "ticker": "SLB",
+      "name": "Schlumberger",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Equipment & Services"
+      },
+      "sic": {
+        "code": "1389",
+        "industry": "Oil & Gas Field Services, NEC"
+      }
+    },
+    {
+      "ticker": "SMCI",
+      "name": "Supermicro",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3571",
+        "industry": "Electronic Computers"
+      }
+    },
+    {
+      "ticker": "SMR",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3443",
+        "industry": "Fabricated Plate Work (Boiler Shops)"
+      }
+    },
+    {
+      "ticker": "SNA",
+      "name": "Snap-on",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3420",
+        "industry": "Cutlery, Handtools & General Hardware"
+      }
+    },
+    {
+      "ticker": "SNAP",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7370",
+        "industry": "Services-Computer Programming, Data Processing, Etc."
+      }
+    },
+    {
+      "ticker": "SNDK",
+      "name": "Sandisk Corporation Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3572",
+        "industry": "Computer Storage Devices"
+      }
+    },
+    {
+      "ticker": "SNOW",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "SNPS",
+      "name": "Synopsys, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "SO",
+      "name": "Southern Company",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "SOFI",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "SOLV",
+      "name": "Solventum",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Technology"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "SOUN",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "SPCX",
+      "name": "Space Exploration Technologies Corp. Class A Common Stock",
+      "gics": null,
+      "sic": {
+        "code": "7370",
+        "industry": "Services-Computer Programming, Data Processing, Etc."
+      }
+    },
+    {
+      "ticker": "SPG",
+      "name": "Simon Property Group",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Retail REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "SPGI",
+      "name": "S&P Global",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Financial Exchanges & Data"
+      },
+      "sic": {
+        "code": "7320",
+        "industry": "Services-Consumer Credit Reporting, Collection Agencies"
+      }
+    },
+    {
+      "ticker": "SPY",
+      "name": null,
+      "gics": null,
+      "sic": null
+    },
+    {
+      "ticker": "SRE",
+      "name": "Sempra",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4932",
+        "industry": "Gas & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "STE",
+      "name": "Steris",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3842",
+        "industry": "Orthopedic, Prosthetic & Surgical Appliances & Supplies"
+      }
+    },
+    {
+      "ticker": "STLD",
+      "name": "Steel Dynamics",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Steel"
+      },
+      "sic": {
+        "code": "3312",
+        "industry": "Steel Works, Blast Furnaces & Rolling Mills (Coke Ovens)"
+      }
+    },
+    {
+      "ticker": "STT",
+      "name": "State Street Corporation",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6022",
+        "industry": "State Commercial Banks"
+      }
+    },
+    {
+      "ticker": "STX",
+      "name": "Seagate Technology Holdings PLC Ordinary Shares (Ireland)",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3572",
+        "industry": "Computer Storage Devices"
+      }
+    },
+    {
+      "ticker": "STZ",
+      "name": "Constellation Brands",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Distillers & Vintners"
+      },
+      "sic": {
+        "code": "2080",
+        "industry": "Beverages"
+      }
+    },
+    {
+      "ticker": "SW",
+      "name": "Smurfit Westrock",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Paper & Plastic Packaging Products & Materials"
+      },
+      "sic": {
+        "code": "2650",
+        "industry": "Paperboard Containers & Boxes"
+      }
+    },
+    {
+      "ticker": "SWK",
+      "name": "Stanley Black & Decker",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3420",
+        "industry": "Cutlery, Handtools & General Hardware"
+      }
+    },
+    {
+      "ticker": "SWKS",
+      "name": "Skyworks Solutions",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "SYF",
+      "name": "Synchrony Financial",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Consumer Finance"
+      },
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "SYK",
+      "name": "Stryker Corporation",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "SYY",
+      "name": "Sysco",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Food Distributors"
+      },
+      "sic": {
+        "code": "5140",
+        "industry": "Wholesale-Groceries & Related Products"
+      }
+    },
+    {
+      "ticker": "T",
+      "name": "AT&T",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Integrated Telecommunication Services"
+      },
+      "sic": {
+        "code": "4813",
+        "industry": "Telephone Communications (No Radiotelephone)"
+      }
+    },
+    {
+      "ticker": "TDG",
+      "name": "TransDigm Group",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3728",
+        "industry": "Aircraft Parts & Auxiliary Equipment, NEC"
+      }
+    },
+    {
+      "ticker": "TDY",
+      "name": "Teledyne Technologies",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Equipment & Instruments"
+      },
+      "sic": {
+        "code": "3812",
+        "industry": "Search, Detection, Navigation, Guidance, Aeronautical Sys"
+      }
+    },
+    {
+      "ticker": "TECH",
+      "name": "Bio-Techne",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "2836",
+        "industry": "Biological Products, (No Diagnostic Substances)"
+      }
+    },
+    {
+      "ticker": "TEL",
+      "name": "TE Connectivity",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Manufacturing Services"
+      },
+      "sic": {
+        "code": "5065",
+        "industry": "Wholesale-Electronic Parts & Equipment, NEC"
+      }
+    },
+    {
+      "ticker": "TER",
+      "name": "Teradyne, Inc. Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductor Materials & Equipment"
+      },
+      "sic": {
+        "code": "3825",
+        "industry": "Instruments For Meas & Testing of  Electricity & Elec Signals"
+      }
+    },
+    {
+      "ticker": "TFC",
+      "name": "Truist Financial",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Diversified Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "TGT",
+      "name": "Target Corporation",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Consumer Staples Merchandise Retail"
+      },
+      "sic": {
+        "code": "5331",
+        "industry": "Retail-Variety Stores"
+      }
+    },
+    {
+      "ticker": "TJX",
+      "name": "TJX Companies",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Apparel Retail"
+      },
+      "sic": {
+        "code": "5651",
+        "industry": "Retail-Family Clothing Stores"
+      }
+    },
+    {
+      "ticker": "TKO",
+      "name": "TKO Group Holdings",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Movies & Entertainment"
+      },
+      "sic": {
+        "code": "7900",
+        "industry": "Services-Amusement & Recreation Services"
+      }
+    },
+    {
+      "ticker": "TMO",
+      "name": "Thermo Fisher Scientific",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "3829",
+        "industry": "Measuring & Controlling Devices, NEC"
+      }
+    },
+    {
+      "ticker": "TMUS",
+      "name": "T-Mobile US, Inc. Common Stock",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Wireless Telecommunication Services"
+      },
+      "sic": {
+        "code": "4812",
+        "industry": "Radiotelephone Communications"
+      }
+    },
+    {
+      "ticker": "TPL",
+      "name": "Texas Pacific Land Corporation",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Exploration & Production"
+      },
+      "sic": {
+        "code": "6792",
+        "industry": "Oil Royalty Traders"
+      }
+    },
+    {
+      "ticker": "TPR",
+      "name": "Tapestry, Inc.",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Apparel, Accessories & Luxury Goods"
+      },
+      "sic": {
+        "code": "3100",
+        "industry": "Leather & Leather Products"
+      }
+    },
+    {
+      "ticker": "TRGP",
+      "name": "Targa Resources",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Storage & Transportation"
+      },
+      "sic": {
+        "code": "4922",
+        "industry": "Natural Gas Transmission"
+      }
+    },
+    {
+      "ticker": "TRI",
+      "name": "Thomson Reuters Corporation Common Shares",
+      "gics": null,
+      "sic": {
+        "code": "2741",
+        "industry": "Miscellaneous Publishing"
+      }
+    },
+    {
+      "ticker": "TRMB",
+      "name": "Trimble Inc.",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "3829",
+        "industry": "Measuring & Controlling Devices, NEC"
+      }
+    },
+    {
+      "ticker": "TROW",
+      "name": "T. Rowe Price",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Asset Management & Custody Banks"
+      },
+      "sic": {
+        "code": "6282",
+        "industry": "Investment Advice"
+      }
+    },
+    {
+      "ticker": "TRV",
+      "name": "Travelers Companies (The)",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Property & Casualty Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "TSCO",
+      "name": "Tractor Supply",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Other Specialty Retail"
+      },
+      "sic": {
+        "code": "5200",
+        "industry": "Retail-Building Materials, Hardware, Garden Supply"
+      }
+    },
+    {
+      "ticker": "TSLA",
+      "name": "Tesla, Inc. Common Stock",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Automobile Manufacturers"
+      },
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "TSN",
+      "name": "Tyson Foods",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Packaged Foods & Meats"
+      },
+      "sic": {
+        "code": "2015",
+        "industry": "Poultry Slaughtering and Processing"
+      }
+    },
+    {
+      "ticker": "TT",
+      "name": "Trane Technologies",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Building Products"
+      },
+      "sic": {
+        "code": "3822",
+        "industry": "Auto Controls For Regulating Residential & Comml Environments"
+      }
+    },
+    {
+      "ticker": "TTWO",
+      "name": "Take-Two Interactive Software, Inc. Common Stock",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Interactive Home Entertainment"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "TWLO",
+      "name": "Twilio",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Systems Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "TXN",
+      "name": "Texas Instruments Incorporated Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Semiconductors"
+      },
+      "sic": {
+        "code": "3674",
+        "industry": "Semiconductors & Related Devices"
+      }
+    },
+    {
+      "ticker": "TXT",
+      "name": "Textron",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Aerospace & Defense"
+      },
+      "sic": {
+        "code": "3720",
+        "industry": "Aircraft & Parts"
+      }
+    },
+    {
+      "ticker": "TYL",
+      "name": "Tyler Technologies",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "U",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "UAL",
+      "name": "United Airlines Holdings",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Passenger Airlines"
+      },
+      "sic": {
+        "code": "4512",
+        "industry": "Air Transportation, Scheduled"
+      }
+    },
+    {
+      "ticker": "UBER",
+      "name": "Uber",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Passenger Ground Transportation"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "UDR",
+      "name": "UDR, Inc.",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Multi-Family Residential REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "UHS",
+      "name": "Universal Health Services",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Facilities"
+      },
+      "sic": {
+        "code": "8062",
+        "industry": "Services-General Medical & Surgical Hospitals, NEC"
+      }
+    },
+    {
+      "ticker": "ULTA",
+      "name": "Ulta Beauty",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Other Specialty Retail"
+      },
+      "sic": {
+        "code": "5990",
+        "industry": "Retail-Retail Stores, NEC"
+      }
+    },
+    {
+      "ticker": "UNH",
+      "name": "UnitedHealth Group",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Managed Health Care"
+      },
+      "sic": {
+        "code": "6324",
+        "industry": "Hospital & Medical Service Plans"
+      }
+    },
+    {
+      "ticker": "UNP",
+      "name": "Union Pacific Corporation",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Rail Transportation"
+      },
+      "sic": {
+        "code": "4011",
+        "industry": "Railroads, Line-Haul Operating"
+      }
+    },
+    {
+      "ticker": "UPS",
+      "name": "United Parcel Service",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Air Freight & Logistics"
+      },
+      "sic": {
+        "code": "4210",
+        "industry": "Trucking & Courier Services (No Air)"
+      }
+    },
+    {
+      "ticker": "UPST",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "URI",
+      "name": "United Rentals",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Trading Companies & Distributors"
+      },
+      "sic": {
+        "code": "7359",
+        "industry": "Services-Equipment Rental & Leasing, NEC"
+      }
+    },
+    {
+      "ticker": "USB",
+      "name": "U.S. Bancorp",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Diversified Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "V",
+      "name": "Visa Inc.",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7389",
+        "industry": "Services-Business Services, NEC"
+      }
+    },
+    {
+      "ticker": "VEEV",
+      "name": "Veeva Systems",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Technology"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "VICI",
+      "name": "Vici Properties",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Hotel & Resort REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "VLO",
+      "name": "Valero Energy",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Refining & Marketing"
+      },
+      "sic": {
+        "code": "2911",
+        "industry": "Petroleum Refining"
+      }
+    },
+    {
+      "ticker": "VLTO",
+      "name": "Veralto",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Environmental & Facilities Services"
+      },
+      "sic": {
+        "code": "3825",
+        "industry": "Instruments For Meas & Testing of  Electricity & Elec Signals"
+      }
+    },
+    {
+      "ticker": "VMC",
+      "name": "Vulcan Materials Company",
+      "gics": {
+        "sector": "Materials",
+        "industry": "Construction Materials"
+      },
+      "sic": {
+        "code": "1400",
+        "industry": "Mining & Quarrying of  Nonmetallic Minerals (No Fuels)"
+      }
+    },
+    {
+      "ticker": "VMRK",
+      "name": "Vivmark Residential",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Multi-Family Residential REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "VRSK",
+      "name": "Verisk Analytics",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Research & Consulting Services"
+      },
+      "sic": {
+        "code": "7374",
+        "industry": "Services-Computer Processing & Data Preparation"
+      }
+    },
+    {
+      "ticker": "VRSN",
+      "name": "Verisign",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Internet Services & Infrastructure"
+      },
+      "sic": {
+        "code": "7371",
+        "industry": "Services-Computer Programming Services"
+      }
+    },
+    {
+      "ticker": "VRT",
+      "name": "Vertiv",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Electrical Components & Equipment"
+      },
+      "sic": {
+        "code": "3679",
+        "industry": "Electronic Components, NEC"
+      }
+    },
+    {
+      "ticker": "VRTX",
+      "name": "Vertex Pharmaceuticals Incorporated Common Stock",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Biotechnology"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "VST",
+      "name": "Vistra Corp.",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4911",
+        "industry": "Electric Services"
+      }
+    },
+    {
+      "ticker": "VTR",
+      "name": "Ventas",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Health Care REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "VTRS",
+      "name": "Viatris",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Pharmaceuticals"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    },
+    {
+      "ticker": "VYLR",
+      "name": "Vylor",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Agricultural Products & Services"
+      },
+      "sic": {
+        "code": "0100",
+        "industry": "Agricultural Production-Crops"
+      }
+    },
+    {
+      "ticker": "VZ",
+      "name": "Verizon",
+      "gics": {
+        "sector": "Communication Services",
+        "industry": "Integrated Telecommunication Services"
+      },
+      "sic": {
+        "code": "4813",
+        "industry": "Telephone Communications (No Radiotelephone)"
+      }
+    },
+    {
+      "ticker": "W",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "5961",
+        "industry": "Retail-Catalog & Mail-Order Houses"
+      }
+    },
+    {
+      "ticker": "WAB",
+      "name": "Wabtec",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Construction Machinery & Heavy Transportation Equipment"
+      },
+      "sic": {
+        "code": "3743",
+        "industry": "Railroad Equipment"
+      }
+    },
+    {
+      "ticker": "WAT",
+      "name": "Waters Corporation",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Life Sciences Tools & Services"
+      },
+      "sic": {
+        "code": "3826",
+        "industry": "Laboratory Analytical Instruments"
+      }
+    },
+    {
+      "ticker": "WDAY",
+      "name": "Workday, Inc. Class A Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Application Software"
+      },
+      "sic": {
+        "code": "7374",
+        "industry": "Services-Computer Processing & Data Preparation"
+      }
+    },
+    {
+      "ticker": "WDC",
+      "name": "Western Digital Corporation Common Stock",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Technology Hardware, Storage & Peripherals"
+      },
+      "sic": {
+        "code": "3572",
+        "industry": "Computer Storage Devices"
+      }
+    },
+    {
+      "ticker": "WEC",
+      "name": "WEC Energy Group",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Electric Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "WELL",
+      "name": "Welltower",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Health Care REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "WFC",
+      "name": "Wells Fargo",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Diversified Banks"
+      },
+      "sic": {
+        "code": "6021",
+        "industry": "National Commercial Banks"
+      }
+    },
+    {
+      "ticker": "WM",
+      "name": "Waste Management",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Environmental & Facilities Services"
+      },
+      "sic": {
+        "code": "4953",
+        "industry": "Refuse Systems"
+      }
+    },
+    {
+      "ticker": "WMB",
+      "name": "Williams Companies",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Oil & Gas Storage & Transportation"
+      },
+      "sic": {
+        "code": "4922",
+        "industry": "Natural Gas Transmission"
+      }
+    },
+    {
+      "ticker": "WMT",
+      "name": "Walmart Inc. Common Stock",
+      "gics": {
+        "sector": "Consumer Staples",
+        "industry": "Consumer Staples Merchandise Retail"
+      },
+      "sic": {
+        "code": "5331",
+        "industry": "Retail-Variety Stores"
+      }
+    },
+    {
+      "ticker": "WRB",
+      "name": "W. R. Berkley Corporation",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Property & Casualty Insurance"
+      },
+      "sic": {
+        "code": "6331",
+        "industry": "Fire, Marine & Casualty Insurance"
+      }
+    },
+    {
+      "ticker": "WSM",
+      "name": "Williams-Sonoma, Inc.",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Homefurnishing Retail"
+      },
+      "sic": {
+        "code": "5700",
+        "industry": "Retail-Home Furniture, Furnishings & Equipment Stores"
+      }
+    },
+    {
+      "ticker": "WST",
+      "name": "West Pharmaceutical Services",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Supplies"
+      },
+      "sic": {
+        "code": "3841",
+        "industry": "Surgical & Medical Instruments & Apparatus"
+      }
+    },
+    {
+      "ticker": "WTW",
+      "name": "Willis Towers Watson",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Insurance Brokers"
+      },
+      "sic": {
+        "code": "6411",
+        "industry": "Insurance Agents, Brokers & Service"
+      }
+    },
+    {
+      "ticker": "WULF",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "6199",
+        "industry": "Finance Services"
+      }
+    },
+    {
+      "ticker": "WY",
+      "name": "Weyerhaeuser",
+      "gics": {
+        "sector": "Real Estate",
+        "industry": "Timber REITs"
+      },
+      "sic": {
+        "code": "6798",
+        "industry": "Real Estate Investment Trusts"
+      }
+    },
+    {
+      "ticker": "WYNN",
+      "name": "Wynn Resorts",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Casinos & Gaming"
+      },
+      "sic": {
+        "code": "7011",
+        "industry": "Hotels & Motels"
+      }
+    },
+    {
+      "ticker": "XEL",
+      "name": "Xcel Energy Inc. Common Stock",
+      "gics": {
+        "sector": "Utilities",
+        "industry": "Multi-Utilities"
+      },
+      "sic": {
+        "code": "4931",
+        "industry": "Electric & Other Services Combined"
+      }
+    },
+    {
+      "ticker": "XOM",
+      "name": "ExxonMobil",
+      "gics": {
+        "sector": "Energy",
+        "industry": "Integrated Oil & Gas"
+      },
+      "sic": {
+        "code": "2911",
+        "industry": "Petroleum Refining"
+      }
+    },
+    {
+      "ticker": "XPEV",
+      "name": null,
+      "gics": null,
+      "sic": {
+        "code": "3711",
+        "industry": "Motor Vehicles & Passenger Car Bodies"
+      }
+    },
+    {
+      "ticker": "XYL",
+      "name": "Xylem Inc.",
+      "gics": {
+        "sector": "Industrials",
+        "industry": "Industrial Machinery & Supplies & Components"
+      },
+      "sic": {
+        "code": "3561",
+        "industry": "Pumps & Pumping Equipment"
+      }
+    },
+    {
+      "ticker": "XYZ",
+      "name": "Block, Inc.",
+      "gics": {
+        "sector": "Financials",
+        "industry": "Transaction & Payment Processing Services"
+      },
+      "sic": {
+        "code": "7372",
+        "industry": "Services-Prepackaged Software"
+      }
+    },
+    {
+      "ticker": "YUM",
+      "name": "Yum! Brands",
+      "gics": {
+        "sector": "Consumer Discretionary",
+        "industry": "Restaurants"
+      },
+      "sic": {
+        "code": "5812",
+        "industry": "Retail-Eating  Places"
+      }
+    },
+    {
+      "ticker": "ZBH",
+      "name": "Zimmer Biomet",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Health Care Equipment"
+      },
+      "sic": {
+        "code": "3842",
+        "industry": "Orthopedic, Prosthetic & Surgical Appliances & Supplies"
+      }
+    },
+    {
+      "ticker": "ZBRA",
+      "name": "Zebra Technologies",
+      "gics": {
+        "sector": "Information Technology",
+        "industry": "Electronic Equipment & Instruments"
+      },
+      "sic": {
+        "code": "3560",
+        "industry": "General Industrial Machinery & Equipment"
+      }
+    },
+    {
+      "ticker": "ZTS",
+      "name": "Zoetis",
+      "gics": {
+        "sector": "Health Care",
+        "industry": "Pharmaceuticals"
+      },
+      "sic": {
+        "code": "2834",
+        "industry": "Pharmaceutical Preparations"
+      }
+    }
+  ]
+}

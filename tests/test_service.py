@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -8,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tape.config import Settings
+from tape.engine.tables import FILLS, ORDERS, TRADES
 from tape.features.grid import FeatureGrid
 from tape.service.api import create_app
 from tests.test_engine_runs import make_store
@@ -20,8 +22,8 @@ RUN = {
     "ticker": "AAPL",
     "start": "2024-02-01",
     "end": "2024-06-28",
-    "strategy": "channel_breakout",
-    "params": {"timeframe": "1h", "entry_window": 10, "exit_window": 5},
+    "strategy": "high_breakout",
+    "params": {"timeframe": "1h", "stop_loss_pct": 1.0},
     "features": "compute",
 }
 
@@ -39,7 +41,7 @@ def test_catalog_and_strategies(client: TestClient) -> None:
     cat = client.get("/catalog").json()
     assert [t["ticker"] for t in cat["tickers"]] == ["AAPL", "SPY"]
     strategies = client.get("/strategies").json()
-    assert set(strategies) == {"sma_cross", "channel_breakout"}
+    assert set(strategies) == {"sma_cross", "high_breakout", "low_breakdown"}
     assert "fast" in strategies["sma_cross"]["config_schema"]["properties"]
 
 
@@ -72,7 +74,13 @@ def test_errors(client: TestClient) -> None:
 
 def test_precomputed_policy_rejects_missing_features(client: TestClient) -> None:
     r = client.post(
-        "/runs", json={**RUN, "features": "precomputed", "params": {"timeframe": "1d", "entry_window": 30}}
+        "/runs",
+        json={
+            **RUN,
+            "strategy": "sma_cross",
+            "features": "precomputed",
+            "params": {"timeframe": "1d", "fast": 5, "slow": 30},
+        },
     )
     assert r.status_code == 422
     assert "not precomputed" in r.json()["detail"]
@@ -82,3 +90,123 @@ def test_space_without_catalog_is_empty(client: TestClient) -> None:
     body = client.get("/strategies/sma_cross/space", params={"ticker": "AAPL"}).json()
     assert body["space"]["timeframes"] == []
     assert client.get("/strategies/nope/space", params={"ticker": "AAPL"}).status_code == 404
+
+
+def test_universes_split_members_by_catalog(client: TestClient) -> None:
+    universes = {u["membership"]["index"]: u for u in client.get("/universes").json()}
+    assert {"sp500", "ndx"} <= set(universes)
+    sp500 = universes["sp500"]
+    assert "AAPL" in sp500["in_catalog"]
+    assert "SPY" not in sp500["in_catalog"]
+    assert len(sp500["in_catalog"]) + len(sp500["missing"]) == len(sp500["membership"]["tickers"])
+    assert sp500["membership"]["point_in_time"] is False
+
+
+def test_universe_profiles(client: TestClient) -> None:
+    body = client.get("/universes/profiles", params={"before": "2024-06-03"}).json()
+    assert {p["ticker"] for p in body["profiles"]} == {"AAPL", "SPY"}
+    assert body["last"] < "2024-06-03"
+    assert all(p["sessions"] > 0 for p in body["profiles"])
+
+
+def test_classification_covers_every_catalog_ticker(client: TestClient) -> None:
+    entries = {e["ticker"]: e for e in client.get("/universes/classification").json()}
+    assert set(entries) == {"AAPL", "SPY"}
+
+
+def test_tables_can_be_read_in_a_time_window(client: TestClient) -> None:
+    key = client.post("/runs", json=RUN).json()["key"]
+    full = pd.read_parquet(io.BytesIO(client.get(f"/runs/{key}/bars").content))
+    response = client.get(f"/runs/{key}/bars", params={"start": "2024-03-01", "end": "2024-03-28"})
+    part = pd.read_parquet(io.BytesIO(response.content))
+    inside = full[(full["time"] >= "2024-03-01") & (full["time"] < "2024-03-29")]
+    assert len(part) == len(inside) > 0
+    assert response.headers["X-Tape-Bars-Per-Row"] == "1"
+    trades = pd.read_parquet(
+        io.BytesIO(client.get(f"/runs/{key}/trades", params={"start": "2024-04-01"}).content)
+    )
+    assert (trades["entry_time"] >= "2024-04-01").all()
+
+
+def test_wide_bar_windows_are_aggregated(client: TestClient) -> None:
+    key = client.post("/runs", json=RUN).json()["key"]
+    full = pd.read_parquet(io.BytesIO(client.get(f"/runs/{key}/bars").content))
+    response = client.get(
+        f"/runs/{key}/bars", params={"start": "2024-01-01", "end": "2024-12-31", "max_rows": 10}
+    )
+    thin = pd.read_parquet(io.BytesIO(response.content))
+    factor = int(response.headers["X-Tape-Bars-Per-Row"])
+    assert len(thin) <= 10 < len(full)
+    assert factor == -(-len(full) // 10)
+    assert thin["high"].max() == full["high"].max()
+    assert thin["low"].min() == full["low"].min()
+    assert thin["volume"].sum() == full["volume"].sum()
+    assert thin["open"].iloc[0] == full["open"].iloc[0]
+    assert thin["close"].iloc[-1] == full["close"].iloc[-1]
+
+
+def test_run_days_and_recent_window(client: TestClient) -> None:
+    key = client.post("/runs", json=RUN).json()["key"]
+    body = client.get(f"/runs/{key}/days", params={"recent": 10}).json()
+    full = pd.read_parquet(io.BytesIO(client.get(f"/runs/{key}/bars").content))
+    assert body["days"] == sorted({str(t.date()) for t in full["time"]})
+    assert body["recent"] == str(full["time"].iloc[-10].date())
+
+
+def test_results_from_an_older_engine_are_gone_not_errors(tmp_path: Path) -> None:
+    make_store(tmp_path)
+    settings = Settings(
+        source_dir=tmp_path / "source", store_dir=tmp_path / "store", results_dir=tmp_path / "results"
+    )
+    with TestClient(create_app(settings, workers=1, grid=FeatureGrid(timeframes=(), specs=()))) as c:
+        key = c.post("/runs", json=RUN).json()["key"]
+        spec = tmp_path / "results" / key / "spec.json"
+        legacy = json.loads(spec.read_text())
+        legacy["execution"]["fill"]["adaptive_high_low"] = True
+        spec.write_text(json.dumps(legacy))
+        for path in (f"/runs/{key}", f"/runs/{key}/comparison"):
+            r = c.get(path)
+            assert r.status_code == 410
+            assert "older engine version" in r.json()["detail"]
+        sweeps = tmp_path / "results" / "sweeps"
+        sweeps.mkdir(parents=True, exist_ok=True)
+        (sweeps / "ab12.json").write_text(json.dumps({"legacy": True}))
+        r = c.get("/sweeps/ab12/spec")
+        assert r.status_code == 410
+        assert "older engine version" in r.json()["detail"]
+
+
+def test_zero_trade_tables_read_typed_and_windowed(tmp_path: Path) -> None:
+    make_store(tmp_path)
+    settings = Settings(
+        source_dir=tmp_path / "source", store_dir=tmp_path / "store", results_dir=tmp_path / "results"
+    )
+    with TestClient(create_app(settings, workers=1, grid=FeatureGrid(timeframes=(), specs=()))) as c:
+        key = c.post("/runs", json=RUN).json()["key"]
+        for name in ("fills", "trades", "orders"):
+            pd.DataFrame().to_parquet(tmp_path / "results" / key / f"{name}.parquet")
+        window: dict[str, str | int] = {"start": "2024-03-01", "end": "2024-03-28", "max_rows": 100}
+        for name, schema in (("fills", FILLS), ("trades", TRADES), ("orders", ORDERS)):
+            r = c.get(f"/runs/{key}/{name}", params=window)
+            assert r.status_code == 200, r.text
+            frame = pd.read_parquet(io.BytesIO(r.content))
+            assert list(frame.columns) == schema.names
+            assert frame.empty
+
+
+def test_cold_runs_are_refused_with_a_reason(client: TestClient) -> None:
+    cold = {**RUN, "strategy": "sma_cross", "params": {"timeframe": "1d", "fast": 3, "slow": 200}}
+    r = client.post("/runs", json=cold)
+    assert r.status_code == 422
+    assert "sma_200 on 1d never has a value" in r.json()["detail"]
+
+
+def test_space_offers_only_windows_warm_by_the_end(client: TestClient) -> None:
+    full = client.get("/strategies/sma_cross/space", params={"ticker": "AAPL"}).json()["space"]
+    early = client.get("/strategies/sma_cross/space", params={"ticker": "AAPL", "end": "2024-01-20"}).json()[
+        "space"
+    ]
+    for tf, domain in early["choices"].items():
+        for name, windows in domain.items():
+            assert set(windows) <= set(full["choices"][tf][name])
+            assert all(early["ready"][tf][name][str(w)] <= "2024-01-20" for w in windows)

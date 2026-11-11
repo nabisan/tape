@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
+
+from tape.core.types import DATE, Timeframe
+from tape.engine.parameters import ResolvedSpace
+
+if TYPE_CHECKING:
+    from datetime import date
 
 
 def label(value: object) -> str:
@@ -17,19 +23,8 @@ def resolve(prop: dict[str, Any], defs: dict[str, Any]) -> dict[str, Any]:
     return {**defs[ref.rsplit("/", 1)[-1]], **{k: v for k, v in prop.items() if k not in {"$ref", "allOf"}}}
 
 
-def _holds(rule: dict[str, Any], lower: int, upper: int) -> bool:
-    return lower < upper if rule["strict"] else lower <= upper
-
-
-def _window_options(
-    name: str, options: list[int], chosen: dict[str, Any], ordered: list[dict[str, Any]]
-) -> list[int]:
-    for rule in ordered:
-        if rule["upper"] == name and rule["lower"] in chosen:
-            options = [w for w in options if _holds(rule, chosen[rule["lower"]], w)]
-        if rule["lower"] == name and rule["upper"] in chosen:
-            options = [w for w in options if _holds(rule, w, chosen[rule["upper"]])]
-    return options
+def fixed(prop: dict[str, Any]) -> bool:
+    return "const" in prop
 
 
 def visible(prop: dict[str, Any], chosen: dict[str, Any]) -> bool:
@@ -68,10 +63,12 @@ def scalar(col: Any, name: str, prop: dict[str, Any], key: str) -> Any:
     )
 
 
-def strategy(schema: dict[str, Any], space: dict[str, Any], key: str) -> dict[str, Any] | None:
+def strategy(
+    schema: dict[str, Any], space: dict[str, Any], key: str, start: date | None = None
+) -> dict[str, Any] | None:
     timeframes: list[str] = space["timeframes"]
     if not timeframes:
-        st.warning("No precomputed features cover this strategy for this ticker.")
+        st.warning("No precomputed window for this ticker has enough history by the end date.")
         return None
     defs = schema.get("$defs", {})
     props = schema["properties"]
@@ -82,11 +79,12 @@ def strategy(schema: dict[str, Any], space: dict[str, Any], key: str) -> dict[st
         index=timeframes.index(default_tf) if default_tf in timeframes else len(timeframes) - 1,
         key=f"{key}:timeframe",
     )
-    choices: dict[str, list[int]] = space["choices"][tf]
+    resolved = ResolvedSpace.model_validate(space)
+    choices = resolved.choices[Timeframe(tf)]
     out: dict[str, Any] = {"timeframe": tf}
     cols = st.columns(2)
     for i, (name, domain) in enumerate(choices.items()):
-        options = _window_options(name, domain, out, space["ordered"])
+        options = resolved.options(name, domain, {k: [out[k]] for k in choices if k in out})
         if not options:
             st.warning(f"No precomputed {label(name).lower()} fits the other choices.")
             return None
@@ -95,8 +93,21 @@ def strategy(schema: dict[str, Any], space: dict[str, Any], key: str) -> dict[st
         out[name] = cols[i % 2].selectbox(
             props[name].get("title") or label(name), options, index=index, key=f"{key}:{tf}:{name}"
         )
+    for line in warmups(resolved, Timeframe(tf), {k: out[k] for k in choices}, start):
+        st.caption(line)
     out.update(fields(props, defs, f"{key}", skip={"timeframe", *choices}, chosen=out))
     return out
+
+
+def warmups(resolved: ResolvedSpace, tf: Timeframe, chosen: dict[str, int], start: date | None) -> list[str]:
+    if start is None:
+        return []
+    ready = resolved.ready.get(tf, {})
+    late = {n: ready[n][w] for n, w in chosen.items() if w in ready.get(n, {}) and ready[n][w] > start}
+    return [
+        f"{label(n)} {chosen[n]} has its first value on {day.strftime(DATE)}; no signals before then."
+        for n, day in late.items()
+    ]
 
 
 def fields(
@@ -114,6 +125,9 @@ def fields(
     for name in names:
         prop = resolve(props[name], defs)
         if not visible(prop, context):
+            continue
+        if fixed(prop):
+            out[name] = context[name] = prop["const"]
             continue
         out[name] = context[name] = scalar(cols[shown % 2], name, prop, f"{key}:{name}")
         shown += 1

@@ -4,18 +4,23 @@ import itertools
 from datetime import date
 from typing import TYPE_CHECKING, Final
 
-import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tape.core.hashing import Digest, Json, digest
 from tape.core.types import Ticker, Timeframe
+from tape.engine import tables
 from tape.engine.backtest import ExecutionSpec
+from tape.engine.parameters import admits
+from tape.engine.reports import Metrics
+from tape.features.catalog import FeatureCatalog
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
-from tape.runner import FeaturePolicy, RunSpec
+from tape.runner import FeaturePolicy, RunSpec, ready_on
 from tape.strategies.registry import STRATEGIES
 
 if TYPE_CHECKING:
-    from tape.features.catalog import FeatureCatalog
+    import pyarrow as pa
+
+    from tape.catalog.store import Store
     from tape.service.results import ResultStore
 
 SUMMARY: Final = (
@@ -71,7 +76,9 @@ def _window(value: Json) -> int:
     return value
 
 
-def expand(spec: SweepSpec, catalog: FeatureCatalog, grid: FeatureGrid = DEFAULT_GRID) -> Plan:
+def expand(spec: SweepSpec, store: Store, grid: FeatureGrid = DEFAULT_GRID) -> Plan:
+    catalog = FeatureCatalog(store)
+    sessions = store.sessions()
     if spec.strategy not in STRATEGIES:
         raise KeyError(f"unknown strategy {spec.strategy!r}")
     cls = STRATEGIES[spec.strategy]
@@ -88,14 +95,19 @@ def expand(spec: SweepSpec, catalog: FeatureCatalog, grid: FeatureGrid = DEFAULT
             for name, windows in resolved.choices[spec.timeframe].items():
                 allowed = tuple(windows)
                 domains[name] = tuple(w for w in domains.get(name, allowed) if w in allowed)
+        series = store.bars(ticker, spec.timeframe)
         names = list(domains)
+        cold = 0
         for combo in itertools.product(*(domains[n] for n in names)):
             values = dict(zip(names, combo, strict=True))
-            if not all(
-                o.holds(_window(values[o.lower]), _window(values[o.upper]))
-                for o in space.ordered
-                if o.lower in values and o.upper in values
+            chosen = {n: _window(values[n]) for n in space.windows if n in values}
+            if not admits(space.ordered, chosen):
+                continue
+            if any(
+                (day := ready_on(series, sessions, space.warmup(n, w))) is None or day > spec.end
+                for n, w in chosen.items()
             ):
+                cold += 1
                 continue
             params: dict[str, Json] = {**spec.params, **values, "timeframe": spec.timeframe.value}
             try:
@@ -113,14 +125,23 @@ def expand(spec: SweepSpec, catalog: FeatureCatalog, grid: FeatureGrid = DEFAULT
                     features=spec.features,
                 )
             )
-        if not any(r.ticker == ticker for r in runs):
+        if cold:
+            skipped.append(
+                Skipped(ticker=ticker, reason=f"{cold} combinations need more history than {ticker} has")
+            )
+        elif not any(r.ticker == ticker for r in runs):
             skipped.append(
                 Skipped(ticker=ticker, reason="no parameter combination satisfies the constraints")
             )
     return Plan(runs=tuple(runs), skipped=tuple(skipped))
 
 
-def summary(plan: Plan, keys: list[Digest], results: ResultStore) -> pd.DataFrame:
+METRIC_TYPES: Final = {
+    f: tables.I64 if Metrics.model_fields[f].annotation is int else tables.F64 for f in SUMMARY
+}
+
+
+def summary(plan: Plan, keys: list[Digest], results: ResultStore) -> pa.Table:
     rows: list[dict[str, object]] = []
     for run, key in zip(plan.runs, keys, strict=True):
         if not results.exists(key):
@@ -128,4 +149,5 @@ def summary(plan: Plan, keys: list[Digest], results: ResultStore) -> pd.DataFram
         m = results.metrics(key)
         swept = {k: v for k, v in run.params.items() if k != "timeframe"}
         rows.append({"ticker": run.ticker, **swept, "key": key, **{f: getattr(m, f) for f in SUMMARY}})
-    return pd.DataFrame(rows)
+    first = {k: v for k, v in plan.runs[0].params.items() if k != "timeframe"} if plan.runs else {}
+    return tables.arrow(rows, tables.summary(first, METRIC_TYPES))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,14 +16,21 @@ if TYPE_CHECKING:
 type OHLC = tuple[float, float, float, float]
 
 
+class BarPath(StrEnum):
+    ADVERSE_FIRST = "adverse_first"
+    LOW_FIRST = "low_first"
+    HIGH_FIRST = "high_first"
+    ADAPTIVE = "adaptive"
+
+
 class FillModel(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    commission_per_share: PerShare = 0.005
+    commission_per_share: PerShare = 0.0
     min_commission: float = Field(default=0.0, ge=0)
-    slippage_bps: Bps = 1.0
+    slippage_bps: Bps = 0.0
     prob_fill_on_limit: Probability = 1.0
-    adaptive_high_low: bool = True
+    path: BarPath = BarPath.ADVERSE_FIRST
     seed: int = 0
 
     def commission(self, quantity: int) -> float:
@@ -32,6 +40,12 @@ class FillModel(BaseModel):
         return price * (1 + side.sign * self.slippage_bps / 1e4)
 
 
+def _triggered(p: float, level: float, *, buy: bool, through: bool) -> bool:
+    if buy:
+        return p > level if through else p >= level
+    return p < level if through else p <= level
+
+
 class MatchingEngine:
     __slots__ = ("_rng", "model")
 
@@ -39,16 +53,24 @@ class MatchingEngine:
         self.model = model
         self._rng = np.random.default_rng(model.seed)
 
-    def path(self, bar: OHLC) -> OHLC:
+    def path(self, bar: OHLC, bias: int = 0) -> OHLC:
         o, h, lo, c = bar
-        high_first = not self.model.adaptive_high_low or abs(h - o) < abs(lo - o)
+        match self.model.path:
+            case BarPath.ADVERSE_FIRST:
+                high_first = bias < 0
+            case BarPath.LOW_FIRST:
+                high_first = False
+            case BarPath.HIGH_FIRST:
+                high_first = True
+            case BarPath.ADAPTIVE:
+                high_first = abs(h - o) < abs(lo - o)
         return (o, h, lo, c) if high_first else (o, lo, h, c)
 
     def market(self, order: Order, time_ns: int, price: float) -> Fill | None:
         return self._fill(order, time_ns, price, self.model.slipped(price, order.side))
 
-    def process(self, orders: list[Order], time_ns: int, bar: OHLC) -> Iterator[Fill]:
-        for i, p in enumerate(self.path(bar)):
+    def process(self, orders: list[Order], time_ns: int, bar: OHLC, bias: int = 0) -> Iterator[Fill]:
+        for i, p in enumerate(self.path(bar, bias)):
             for order in orders:
                 if not order.working:
                     continue
@@ -71,7 +93,7 @@ class MatchingEngine:
                 return None
             case OrderType.STOP_MARKET:
                 assert order.price is not None
-                if p >= order.price if buy else p <= order.price:
+                if _triggered(p, order.price, buy=buy, through=order.through):
                     level = p if gap else order.price
                     return level, self.model.slipped(level, order.side)
                 return None
@@ -94,4 +116,5 @@ class MatchingEngine:
             price=price,
             commission=self.model.commission(quantity),
             tag=order.tag,
+            reference=reference,
         )

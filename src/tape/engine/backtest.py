@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING, Annotated
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from tape.catalog.bars import last_minutes
-from tape.core.types import NS_PER_MINUTE, Minutes, Notional
+from tape.core.types import INTRADAY_MINUTES, NS_PER_MINUTE, Minutes, Notional
 from tape.engine.matching import FillModel, MatchingEngine
 from tape.engine.orders import Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce
 from tape.engine.portfolio import Portfolio, Trade
@@ -22,9 +23,14 @@ if TYPE_CHECKING:
     from tape.engine.strategy import Strategy, StrategyConfig
     from tape.features.kinds import FeatureSpec
 
-ENGINE_VERSION = 2
+ENGINE_VERSION = 3
 
 type Stored = Callable[[FeatureSpec], F64 | None]
+
+
+class FillOn(StrEnum):
+    BAR = "bar"
+    MINUTE = "minute"
 
 
 class ExecutionSpec(BaseModel):
@@ -32,6 +38,7 @@ class ExecutionSpec(BaseModel):
 
     initial_cash: Notional = 100_000.0
     fill: FillModel = FillModel()
+    fill_on: FillOn = FillOn.BAR
     intraday: bool = False
     entry_delay_minutes: Minutes = 0
     squareoff_minutes_before_close: Annotated[Minutes, Field(ge=1)] = 5
@@ -86,6 +93,8 @@ class Context:
         tif: TimeInForce = TimeInForce.GTC,
         tag: str = "",
         notional: float | None = None,
+        stop_loss: float | None = None,
+        through: bool = False,
     ) -> Order:
         order = Order(
             len(self.orders) + 1,
@@ -98,6 +107,8 @@ class Context:
             price,
             tag,
             notional=notional,
+            stop_loss=stop_loss,
+            through=through,
         )
         self.orders.append(order)
         held = self.portfolio.quantity
@@ -108,6 +119,24 @@ class Context:
             order.reason = "outside entry window"
         else:
             self.incoming.append(order)
+        return order
+
+    def protect(self, parent: Order, fill: Fill) -> Order:
+        assert parent.stop_loss is not None
+        price = fill.reference * (1 - parent.side.sign * parent.stop_loss)
+        order = Order(
+            len(self.orders) + 1,
+            OrderSide.of(-parent.side.sign),
+            OrderType.STOP_MARKET,
+            fill.quantity,
+            TimeInForce.GTC,
+            fill.time_ns,
+            self.session,
+            price,
+            "stop",
+        )
+        self.orders.append(order)
+        self.working.append(order)
         return order
 
     def cancel_all(self) -> None:
@@ -170,7 +199,10 @@ class BacktestEngine:
         fast_forward: bool = True,
         stored: Stored | None = None,
     ) -> None:
-        ends = last_minutes(m1, sessions, strategy.config.timeframe)
+        timeframe = strategy.config.timeframe
+        by_bar = execution.fill_on is FillOn.BAR
+        stream = decision if by_bar else m1
+        ends = np.arange(len(decision)) if by_bar else last_minutes(m1, sessions, timeframe)
         assert len(ends) == len(decision)
         self.strategy = strategy
         self.execution = execution
@@ -184,13 +216,25 @@ class BacktestEngine:
         self.bar_equity: list[float] = []
         self.squared = -1
 
-        self.time = m1.time_ns.tolist()
-        self.sess = m1.session.tolist()
+        self.time = stream.time_ns.tolist()
+        self.sess = stream.session.tolist()
         self.ohlc = list(
-            zip(m1.open.tolist(), m1.high.tolist(), m1.low.tolist(), m1.close.tolist(), strict=True)
+            zip(
+                stream.open.tolist(),
+                stream.high.tolist(),
+                stream.low.tolist(),
+                stream.close.tolist(),
+                strict=True,
+            )
         )
-        self.session_end = np.r_[m1.session[1:] != m1.session[:-1], True].tolist()
-        decision_end = np.zeros(len(m1), dtype=bool)
+        closes = sessions.close_ns[stream.session]
+        if by_bar and timeframe not in INTRADAY_MINUTES:
+            self.bar_end: list[int] = closes.tolist()
+        else:
+            span = INTRADAY_MINUTES[timeframe] if by_bar else 1
+            self.bar_end = np.minimum(stream.time_ns + span * NS_PER_MINUTE, closes).tolist()
+        self.session_end = np.r_[stream.session[1:] != stream.session[:-1], True].tolist()
+        decision_end = np.zeros(len(stream), dtype=bool)
         decision_end[ends] = True
         self.decision_end = decision_end.tolist()
         self.entry_from = (sessions.open_ns + execution.entry_delay_minutes * NS_PER_MINUTE).tolist()
@@ -198,14 +242,14 @@ class BacktestEngine:
         self.squareoff = squareoff_ns.tolist()
 
         self.fast_forward = fast_forward
-        self.high, self.low = m1.high, m1.low
-        boundary = decision_end | np.r_[m1.session[1:] != m1.session[:-1], True]
+        self.high, self.low = stream.high, stream.low
+        boundary = decision_end | np.r_[stream.session[1:] != stream.session[:-1], True]
         if execution.intraday:
-            late = m1.time_ns >= squareoff_ns[m1.session]
-            opening = np.r_[True, m1.session[1:] != m1.session[:-1]]
+            late = stream.time_ns >= squareoff_ns[stream.session]
+            opening = np.r_[True, stream.session[1:] != stream.session[:-1]]
             boundary |= late & (opening | ~np.r_[False, late[:-1]])
         marks = np.flatnonzero(boundary)
-        self.next_boundary: list[int] = marks[np.searchsorted(marks, np.arange(len(m1)))].tolist()
+        self.next_boundary: list[int] = marks[np.searchsorted(marks, np.arange(len(stream)))].tolist()
 
     def run(self, first_session: int, last_session: int) -> Run:
         k0, k1 = window(self.decision, first_session, last_session)
@@ -228,7 +272,7 @@ class BacktestEngine:
             if intraday and self.squared != s and t >= self.squareoff[s]:
                 self._square_off(s, t, self.ohlc[j][0])
             if ctx.working:
-                for f in self.matcher.process(ctx.working, t, self.ohlc[j]):
+                for f in self.matcher.process(ctx.working, t, self.ohlc[j], self._bias()):
                     self._book(f)
                 ctx.working = [w for w in ctx.working if w.working]
             if self.decision_end[j]:
@@ -254,9 +298,18 @@ class BacktestEngine:
                 hit = j + int(reached.argmax())
         return hit
 
+    def _bias(self) -> int:
+        held = self.ctx.portfolio.quantity
+        if held:
+            return 1 if held > 0 else -1
+        return self.ctx.working[0].side.sign if self.ctx.working else 0
+
     def _book(self, f: Fill) -> None:
         self.fills.append(f)
         self.ctx.portfolio.apply(f)
+        parent = self.ctx.orders[f.order_id - 1]
+        if parent.stop_loss is not None:
+            self.ctx.protect(parent, f)
         self.strategy.on_fill(f)
 
     def _square_off(self, s: int, t: int, price: float) -> None:
@@ -280,7 +333,7 @@ class BacktestEngine:
                 self._book(fill)
 
     def _decision_bar(self, k: int, j: int, t: int, s: int) -> None:
-        now = t + NS_PER_MINUTE
+        now = self.bar_end[j]
         ctx, d = self.ctx, self.decision
         ctx.index, ctx.now_ns = k, now
         ctx.allow_entries = not self.execution.intraday or self.entry_from[s] <= now < self.squareoff[s]
@@ -300,7 +353,7 @@ class BacktestEngine:
 
     def _session_end(self, j: int, t: int, s: int) -> None:
         close = self.ohlc[j][3]
-        self.ctx.now_ns = t + NS_PER_MINUTE
+        self.ctx.now_ns = self.bar_end[j]
         self.ctx.expire_day_orders()
         if self.execution.intraday and self.squared != s:
             self._square_off(s, t, close)

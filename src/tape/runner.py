@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from tape.core.hashing import Digest, Json, digest
-from tape.core.types import Ticker, Timeframe
+from tape.core.types import DATE, Ticker, Timeframe
 from tape.engine import reports
 from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec
 from tape.features.build import materialize
@@ -19,9 +19,13 @@ from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.strategies.registry import STRATEGIES, create
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from tape.calendar import Sessions
+    from tape.catalog.bars import Bars
     from tape.catalog.store import Store
     from tape.core.types import F64
+    from tape.engine.parameters import ParameterSpace, ResolvedSpace
     from tape.features.kinds import FeatureSpec
 
 
@@ -65,6 +69,13 @@ class RunSpec(BaseModel):
     execution: ExecutionSpec = ExecutionSpec()
     features: FeaturePolicy = FeaturePolicy.MATERIALIZE
 
+    @model_validator(mode="after")
+    def _holding(self) -> Self:
+        cls = STRATEGIES.get(self.strategy)
+        if cls is not None and self.execution.intraday and not cls.intraday:
+            raise ValueError(f"{cls.title} holds overnight; intraday runs are not supported")
+        return self
+
     def key(self, data_version: Digest) -> Digest:
         cls = STRATEGIES[self.strategy]
         config = cls.config_type.model_validate(self.params)
@@ -91,6 +102,62 @@ class Result:
     bars: pd.DataFrame
 
 
+class ColdFeaturesError(ValueError):
+    pass
+
+
+def ready_on(bars: Bars, sessions: Sessions, warmup: int) -> date | None:
+    if warmup >= len(bars):
+        return None
+    day: date = sessions.day[bars.session[warmup]].astype(date)
+    return day
+
+
+def cold(store: Store, spec: RunSpec) -> list[str]:
+    strategy = create(spec.strategy, spec.params)
+    timeframe = strategy.config.timeframe
+    required = type(strategy).parameters.requires(strategy.config)
+    if not required:
+        return []
+    bars = store.bars(spec.ticker, timeframe)
+    sessions = store.sessions()
+    out = []
+    for feature in required:
+        day = ready_on(bars, sessions, feature.warmup())
+        if day is None or day > spec.end:
+            when = "never has a value" if day is None else f"has its first value on {day.strftime(DATE)}"
+            out.append(
+                f"{feature.name} on {timeframe} {when}, after the run ends ({spec.end.strftime(DATE)})"
+            )
+    return out
+
+
+def warm(
+    resolved: ResolvedSpace,
+    space: ParameterSpace,
+    bars: Callable[[Timeframe], Bars],
+    sessions: Sessions,
+    end: date,
+) -> ResolvedSpace:
+    choices: dict[Timeframe, dict[str, list[int]]] = {}
+    ready: dict[Timeframe, dict[str, dict[int, date]]] = {}
+    for tf, domain in resolved.choices.items():
+        series = bars(tf)
+        usable: dict[str, dict[int, date]] = {}
+        for name, windows in domain.items():
+            usable[name] = {}
+            for w in windows:
+                day = ready_on(series, sessions, space.warmup(name, w))
+                if day is not None and day <= end:
+                    usable[name][w] = day
+        lists = {name: list(days) for name, days in usable.items()}
+        if domain and not resolved.count(lists):
+            continue
+        choices[tf] = lists
+        ready[tf] = usable
+    return resolved.model_copy(update={"timeframes": list(choices), "choices": choices, "ready": ready})
+
+
 def session_range(sessions: Sessions, start: date, end: date) -> tuple[int, int]:
     lo = int(np.searchsorted(sessions.day, np.datetime64(start, "D"), side="left"))
     hi = int(np.searchsorted(sessions.day, np.datetime64(end, "D"), side="right")) - 1
@@ -100,6 +167,8 @@ def session_range(sessions: Sessions, start: date, end: date) -> tuple[int, int]
 
 
 def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Result:
+    if reasons := cold(store, spec):
+        raise ColdFeaturesError(f"{spec.ticker}: {'; '.join(reasons)}")
     strategy = create(spec.strategy, spec.params)
     timeframe = strategy.config.timeframe
     sessions = store.sessions()

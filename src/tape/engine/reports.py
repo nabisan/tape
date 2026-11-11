@@ -4,8 +4,11 @@ import math
 from typing import TYPE_CHECKING, Annotated
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
+
+from tape.engine import tables
 
 if TYPE_CHECKING:
     from tape.calendar import Sessions
@@ -20,7 +23,7 @@ def _ts(ns: int | None) -> pd.Timestamp | None:
 
 
 def orders(run: Run) -> pd.DataFrame:
-    return pd.DataFrame(
+    return tables.build(
         [
             {
                 "order_id": o.id,
@@ -37,12 +40,13 @@ def orders(run: Run) -> pd.DataFrame:
                 "reason": o.reason,
             }
             for o in run.orders
-        ]
+        ],
+        tables.ORDERS,
     )
 
 
 def fills(run: Run) -> pd.DataFrame:
-    return pd.DataFrame(
+    return tables.build(
         [
             {
                 "order_id": f.order_id,
@@ -54,7 +58,8 @@ def fills(run: Run) -> pd.DataFrame:
                 "tag": f.tag,
             }
             for f in run.fills
-        ]
+        ],
+        tables.FILLS,
     )
 
 
@@ -94,14 +99,14 @@ def trades(run: Run, m1: Bars) -> pd.DataFrame:
                 "open": not t.closed,
             }
         )
-    return pd.DataFrame(rows)
+    return tables.build(rows, tables.TRADES)
 
 
 def equity(run: Run, sessions: Sessions, initial_cash: float) -> pd.DataFrame:
     marks = run.sessions
     eq = pd.Series(marks.equity, dtype=float)
     peak = np.maximum.accumulate(np.r_[initial_cash, marks.equity])[1:]
-    return pd.DataFrame(
+    frame = pd.DataFrame(
         {
             "date": pd.to_datetime(sessions.day[marks.session]),
             "equity": eq,
@@ -113,6 +118,7 @@ def equity(run: Run, sessions: Sessions, initial_cash: float) -> pd.DataFrame:
             "close": marks.close,
         }
     )
+    return tables.table(frame, tables.EQUITY).to_pandas()
 
 
 def _from_wire(v: object) -> object:
@@ -161,11 +167,18 @@ def _ratio(a: float, b: float) -> float:
     return a / b if b else math.nan
 
 
+def annualized(r: npt.NDArray[np.float64], growth: float) -> tuple[float, float, float]:
+    years = len(r) / TRADING_DAYS
+    vol = float(r.std(ddof=1) * math.sqrt(TRADING_DAYS)) if len(r) > 1 else math.nan
+    cagr = growth ** (1 / years) - 1 if years > 0 and growth > 0 else math.nan
+    sharpe = _ratio(float(r.mean()) * TRADING_DAYS, vol) if len(r) > 1 else math.nan
+    return vol, cagr, sharpe
+
+
 def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float) -> Metrics:
     r = eq["return"].to_numpy(dtype=float)
     values = eq["equity"].to_numpy(dtype=float)
     final = float(values[-1]) if len(values) else initial_cash
-    years = len(r) / TRADING_DAYS
     downside = r[r < 0]
     under = eq["drawdown"].to_numpy() < 0
     longest = run_length = 0
@@ -175,8 +188,7 @@ def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float) -> Metrics:
     closed = tr[~tr["open"]] if len(tr) else tr
     pnl = closed["net_pnl"].to_numpy(dtype=float) if len(closed) else np.empty(0)
     wins, losses = pnl[pnl > 0], pnl[pnl <= 0]
-    vol = float(r.std(ddof=1) * math.sqrt(TRADING_DAYS)) if len(r) > 1 else math.nan
-    cagr = (final / initial_cash) ** (1 / years) - 1 if years > 0 and final > 0 else math.nan
+    vol, cagr, sharpe = annualized(r, final / initial_cash)
     max_dd = float(eq["drawdown_pct"].min()) if len(eq) else 0.0
     closes = eq["close"].to_numpy(dtype=float)
     return Metrics(
@@ -189,7 +201,7 @@ def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float) -> Metrics:
         total_return_pct=100 * (final / initial_cash - 1),
         cagr_pct=100 * cagr,
         volatility_pct=100 * vol,
-        sharpe=_ratio(float(r.mean()) * TRADING_DAYS, vol) if len(r) > 1 else math.nan,
+        sharpe=sharpe,
         sortino=_ratio(
             float(r.mean()) * TRADING_DAYS,
             float(np.sqrt((downside**2).sum() / len(r)) * math.sqrt(TRADING_DAYS)),

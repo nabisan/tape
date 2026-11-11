@@ -5,6 +5,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -29,12 +30,11 @@ CUT = date(2024, 4, 1)
 
 SMA_D1 = ("sma_cross", {"timeframe": "1d", "fast": 3, "slow": 8})
 SMA_H1 = ("sma_cross", {"timeframe": "1h", "fast": 4, "slow": 12})
-CHANNEL_STOP = ("channel_breakout", {"timeframe": "1h", "entry_window": 10, "exit_window": 5})
-CHANNEL_CLOSE = (
-    "channel_breakout",
-    {"timeframe": "15m", "entry_window": 20, "exit_window": 10, "trigger": "close"},
-)
-ALL = [SMA_D1, SMA_H1, CHANNEL_STOP, CHANNEL_CLOSE]
+HB_5M = ("high_breakout", {"timeframe": "5m", "stop_loss_pct": 0.25})
+HB_1H = ("high_breakout", {"timeframe": "1h", "stop_loss_pct": 1.0})
+LB_5M = ("low_breakdown", {"timeframe": "5m", "stop_loss_pct": 0.25})
+LB_1H = ("low_breakdown", {"timeframe": "1h", "stop_loss_pct": 1.0})
+ALL = [SMA_D1, SMA_H1, HB_5M, HB_1H, LB_5M, LB_1H]
 
 
 def make_store(root: Path, perturb_after: date | None = None) -> Store:
@@ -76,11 +76,13 @@ def spec(strategy: tuple[str, dict[str, object]], **execution: object) -> RunSpe
     )
 
 
-@pytest.mark.parametrize("intraday", [False, True])
-@pytest.mark.parametrize("strategy", ALL, ids=lambda s: f"{s[0]}-{s[1]['timeframe']}")
+LEDGER = [(s, False) for s in ALL] + [(SMA_H1, True)]
+
+
+@pytest.mark.parametrize(
+    ("strategy", "intraday"), LEDGER, ids=lambda v: str(v[0]) if isinstance(v, tuple) else str(v)
+)
 def test_ledger_reconciles(store: Store, strategy: tuple[str, dict[str, object]], intraday: bool) -> None:
-    if intraday and strategy is SMA_D1:
-        pytest.skip("daily decisions cannot trade intraday")
     r = execute(store, spec(strategy, intraday=intraday))
     assert len(r.fills) > 0
     assert r.metrics.final_equity - r.metrics.initial_cash == pytest.approx(
@@ -100,9 +102,9 @@ def test_no_look_ahead(store: Store, tmp_path: Path, strategy: tuple[str, dict[s
     pd.testing.assert_frame_equal(before_a, before_b)
 
 
-@pytest.mark.parametrize("strategy", [SMA_H1, CHANNEL_STOP, CHANNEL_CLOSE], ids=lambda s: s[0])
+@pytest.mark.parametrize("strategy", [SMA_H1], ids=lambda s: s[0])
 def test_intraday_is_flat_every_close(store: Store, strategy: tuple[str, dict[str, object]]) -> None:
-    r = execute(store, spec(strategy, intraday=True))
+    r = execute(store, spec(strategy, intraday=True, fill_on="minute"))
     assert bool((r.equity["position"] == 0).all())
     squares = r.fills[r.fills["tag"] == "squareoff"]
     assert len(squares) > 0
@@ -122,10 +124,9 @@ def test_entry_delay_blocks_early_entries(store: Store) -> None:
 
 def test_daily_signal_fills_at_next_session_open(store: Store) -> None:
     r = execute(store, spec(SMA_D1))
-    m1 = store.bars(Ticker("AAPL"), Timeframe.M1)
-    first_minutes = set(m1.time_ns[np.r_[True, m1.session[1:] != m1.session[:-1]]].tolist())
+    daily = set(store.bars(Ticker("AAPL"), Timeframe.D1).time_ns.tolist())
     fill_ns = r.fills["time"].astype("int64").tolist()
-    assert all(t in first_minutes for t in fill_ns)
+    assert all(t in daily for t in fill_ns)
     assert bool(
         (
             r.fills["time"].dt.date
@@ -136,28 +137,31 @@ def test_daily_signal_fills_at_next_session_open(store: Store) -> None:
 
 def test_stop_orders_fill_at_level_or_gap(store: Store) -> None:
     free = FillModel(slippage_bps=0.0, commission_per_share=0.0)
-    r = execute(store, spec(CHANNEL_STOP, fill=free.model_dump()))
+    r = execute(store, spec(HB_5M, fill=free.model_dump()))
     stops = r.orders[(r.orders["type"] == "stop_market") & (r.orders["status"] == "filled")]
     assert len(stops) > 0
-    m1 = store.bars(Ticker("AAPL"), Timeframe.M1)
-    opens = dict(zip(m1.time_ns.tolist(), m1.open.tolist(), strict=True))
+    bars = store.bars(Ticker("AAPL"), Timeframe.M5)
+    opens = dict(zip(bars.time_ns.tolist(), bars.open.tolist(), strict=True))
     for _, o in stops.iterrows():
         at = opens[int(o["closed"].value)]
         assert o["fill_price"] == pytest.approx(o["price"]) or o["fill_price"] == pytest.approx(at)
 
 
 def test_deterministic(store: Store) -> None:
-    a: Result = execute(store, spec(CHANNEL_STOP))
-    b: Result = execute(store, spec(CHANNEL_STOP))
+    a: Result = execute(store, spec(HB_5M))
+    b: Result = execute(store, spec(HB_5M))
     pd.testing.assert_frame_equal(a.fills, b.fills)
     assert a.key == b.key
     assert a.metrics == b.metrics
 
 
-@pytest.mark.parametrize("intraday", [False, True])
-@pytest.mark.parametrize("strategy", [CHANNEL_STOP, SMA_H1], ids=lambda s: s[0])
+@pytest.mark.parametrize(
+    ("strategy", "intraday"),
+    [(HB_1H, False), (SMA_H1, False), (SMA_H1, True)],
+    ids=["hb", "sma", "sma-intraday"],
+)
 def test_fast_forward_is_exact(store: Store, strategy: tuple[str, dict[str, object]], intraday: bool) -> None:
-    s = spec(strategy, intraday=intraday)
+    s = spec(strategy, intraday=intraday, fill_on="minute")
     sessions_ = store.sessions()
     first, last = session_range(sessions_, s.start, s.end)
     runs = []
@@ -210,3 +214,139 @@ def test_sma_tie_within_rounding_has_no_direction() -> None:
     assert direction_of(216.78699999999998, 216.787) == 0
     assert direction_of(216.79, 216.787) == 1
     assert direction_of(216.70, 216.787) == -1
+
+
+def reference_high_breakout(
+    o: npt.NDArray[np.float64],
+    h: npt.NDArray[np.float64],
+    lo: npt.NDArray[np.float64],
+    c: npt.NDArray[np.float64],
+    stop_pct: float,
+) -> list[tuple[int, float, int | None, float | None]]:
+    trades: list[tuple[int, float, int | None, float | None]] = []
+    e, entry, intrabar, n = 0, float(o[0]), False, len(o)
+    while True:
+        stop = entry * (1 - stop_pct / 100)
+        exit_at: tuple[int, float] | None = None
+        for i in range(e, n):
+            if i == e:
+                if (c[i] if intrabar else lo[i]) <= stop:
+                    exit_at = (i, stop)
+            elif o[i] <= stop:
+                exit_at = (i, float(o[i]))
+            elif lo[i] <= stop:
+                exit_at = (i, stop)
+            if exit_at is not None:
+                break
+        if exit_at is None:
+            trades.append((e, entry, None, None))
+            return trades
+        x, price = exit_at
+        trades.append((e, entry, x, price))
+        level = max(entry, float(h[e : x + 1].max()))
+        for i in range(x + 1, n):
+            if o[i] > level:
+                e, entry, intrabar = i, float(o[i]), False
+                break
+            if h[i] > level:
+                e, entry, intrabar = i, level, True
+                break
+        else:
+            return trades
+
+
+@pytest.mark.parametrize("strategy", [HB_5M, HB_1H], ids=["5m", "1h"])
+def test_high_breakout_matches_the_rule(store: Store, strategy: tuple[str, dict[str, object]]) -> None:
+    free = FillModel(slippage_bps=0.0, commission_per_share=0.0)
+    s = spec(strategy, fill=free.model_dump()).model_copy(update={"ticker": Ticker("SPY")})
+    r = execute(store, s)
+    tf = Timeframe(str(strategy[1]["timeframe"]))
+    bars = store.bars(Ticker("SPY"), tf)
+    first, last = session_range(store.sessions(), s.start, s.end)
+    k0 = int(np.searchsorted(bars.session, first, side="left"))
+    k1 = int(np.searchsorted(bars.session, last, side="right"))
+    o, h, lo, c = (a[k0:k1] for a in (bars.open, bars.high, bars.low, bars.close))
+    expected = reference_high_breakout(o, h, lo, c, float(str(strategy[1]["stop_loss_pct"])))
+    at = {t: i - k0 for i, t in enumerate(bars.time_ns.tolist())}
+    fills = r.fills.assign(bar=[at[int(t.value)] for t in r.fills["time"]])
+    buys, sells = fills[fills["side"] == "buy"], fills[fills["side"] == "sell"]
+    assert len(expected) > 3
+    assert buys["bar"].tolist() == [e for e, _, _, _ in expected]
+    assert buys["price"].to_numpy() == pytest.approx([p for _, p, _, _ in expected])
+    closed = [(x, p) for _, _, x, p in expected if x is not None]
+    assert sells["bar"].tolist() == [x for x, _ in closed]
+    assert sells["price"].to_numpy() == pytest.approx([p for _, p in closed])
+
+
+@pytest.mark.parametrize("strategy", [HB_5M, LB_5M], ids=["high", "low"])
+def test_breakouts_refuse_intraday(strategy: tuple[str, dict[str, object]]) -> None:
+    with pytest.raises(ValueError, match="holds overnight"):
+        spec(strategy, intraday=True)
+
+
+def reference_low_breakdown(
+    o: npt.NDArray[np.float64],
+    h: npt.NDArray[np.float64],
+    lo: npt.NDArray[np.float64],
+    c: npt.NDArray[np.float64],
+    stop_pct: float,
+) -> list[tuple[int, float, int | None, float | None]]:
+    trades: list[tuple[int, float, int | None, float | None]] = []
+    e, entry, intrabar, n = 0, float(o[0]), False, len(o)
+    while True:
+        stop = entry * (1 + stop_pct / 100)
+        exit_at: tuple[int, float] | None = None
+        for i in range(e, n):
+            if i == e:
+                if (c[i] if intrabar else h[i]) >= stop:
+                    exit_at = (i, stop)
+            elif o[i] >= stop:
+                exit_at = (i, float(o[i]))
+            elif h[i] >= stop:
+                exit_at = (i, stop)
+            if exit_at is not None:
+                break
+        if exit_at is None:
+            trades.append((e, entry, None, None))
+            return trades
+        x, price = exit_at
+        trades.append((e, entry, x, price))
+        level = min(entry, float(lo[e : x + 1].min()))
+        for i in range(x + 1, n):
+            if o[i] < level:
+                e, entry, intrabar = i, float(o[i]), False
+                break
+            if lo[i] < level:
+                e, entry, intrabar = i, level, True
+                break
+        else:
+            return trades
+
+
+TIGHT = [
+    ("low_breakdown", {"timeframe": "5m", "stop_loss_pct": 0.1}),
+    ("low_breakdown", {"timeframe": "1h", "stop_loss_pct": 0.1}),
+]
+
+
+@pytest.mark.parametrize("strategy", TIGHT, ids=["5m", "1h"])
+def test_low_breakdown_matches_the_rule(store: Store, strategy: tuple[str, dict[str, object]]) -> None:
+    free = FillModel(slippage_bps=0.0, commission_per_share=0.0)
+    s = spec(strategy, fill=free.model_dump()).model_copy(update={"ticker": Ticker("SPY")})
+    r = execute(store, s)
+    tf = Timeframe(str(strategy[1]["timeframe"]))
+    bars = store.bars(Ticker("SPY"), tf)
+    first, last = session_range(store.sessions(), s.start, s.end)
+    k0 = int(np.searchsorted(bars.session, first, side="left"))
+    k1 = int(np.searchsorted(bars.session, last, side="right"))
+    o, h, lo, c = (a[k0:k1] for a in (bars.open, bars.high, bars.low, bars.close))
+    expected = reference_low_breakdown(o, h, lo, c, float(str(strategy[1]["stop_loss_pct"])))
+    at = {t: i - k0 for i, t in enumerate(bars.time_ns.tolist())}
+    fills = r.fills.assign(bar=[at[int(t.value)] for t in r.fills["time"]])
+    sells, buys = fills[fills["side"] == "sell"], fills[fills["side"] == "buy"]
+    assert len(expected) > 3
+    assert sells["bar"].tolist() == [e for e, _, _, _ in expected]
+    assert sells["price"].to_numpy() == pytest.approx([p for _, p, _, _ in expected])
+    closed = [(x, p) for _, _, x, p in expected if x is not None]
+    assert buys["bar"].tolist() == [x for x, _ in closed]
+    assert buys["price"].to_numpy() == pytest.approx([p for _, p in closed])

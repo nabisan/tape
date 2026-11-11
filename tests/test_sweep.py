@@ -13,7 +13,6 @@ from tape.catalog.store import Store
 from tape.config import Settings
 from tape.core.types import Ticker, Timeframe
 from tape.features.build import build
-from tape.features.catalog import FeatureCatalog
 from tape.features.grid import FeatureGrid
 from tape.features.kinds import ChannelHigh, ChannelLow, Sma
 from tape.runner import FeaturePolicy
@@ -52,7 +51,7 @@ def sma(**kw: object) -> SweepSpec:
 
 
 def test_expansion_uses_catalog_domains_and_constraints(root: Path) -> None:
-    plan = expand(sma(), FeatureCatalog(Store.open(root / "store")), GRID)
+    plan = expand(sma(), Store.open(root / "store"), GRID)
     pairs = sorted({(r.params["fast"], r.params["slow"]) for r in plan.runs})
     assert pairs == [(5, 10), (5, 20), (10, 20)]
     assert len(plan.runs) == 6
@@ -60,14 +59,12 @@ def test_expansion_uses_catalog_domains_and_constraints(root: Path) -> None:
 
 
 def test_explicit_grid_is_intersected_with_the_catalog(root: Path) -> None:
-    plan = expand(
-        sma(grid={"fast": [5, 7], "slow": [20, 200]}), FeatureCatalog(Store.open(root / "store")), GRID
-    )
+    plan = expand(sma(grid={"fast": [5, 7], "slow": [20, 200]}), Store.open(root / "store"), GRID)
     assert sorted({(r.params["fast"], r.params["slow"]) for r in plan.runs}) == [(5, 20)]
 
 
 def test_tickers_without_features_are_skipped(root: Path) -> None:
-    plan = expand(sma(timeframe="4h"), FeatureCatalog(Store.open(root / "store")), GRID)
+    plan = expand(sma(timeframe="4h"), Store.open(root / "store"), GRID)
     assert plan.runs == ()
     assert {s.ticker for s in plan.skipped} == {AAPL, SPY}
 
@@ -76,7 +73,7 @@ def test_compute_policy_takes_the_grid_as_given(root: Path) -> None:
     spec = sma(
         timeframe="4h", tickers=["AAPL"], grid={"fast": [3], "slow": [8]}, features=FeaturePolicy.COMPUTE
     )
-    plan = expand(spec, FeatureCatalog(Store.open(root / "store")), GRID)
+    plan = expand(spec, Store.open(root / "store"), GRID)
     assert [(r.params["fast"], r.params["slow"]) for r in plan.runs] == [(3, 8)]
 
 
@@ -111,8 +108,8 @@ def test_sweep_end_to_end_through_the_api(client: TestClient) -> None:
     assert (again["state"], again["done"]) == ("done", 6)
 
 
-def test_channel_sweep_runs(client: TestClient) -> None:
-    body = sma(strategy="channel_breakout", tickers=["AAPL"]).model_dump(mode="json")
+def test_breakout_sweep_runs(client: TestClient) -> None:
+    body = sma(strategy="high_breakout", tickers=["AAPL"]).model_dump(mode="json")
     started = client.post("/sweeps", json=body).json()
     assert started["total"] == 1
     assert wait(client, started["key"])["state"] == "done"
@@ -120,3 +117,28 @@ def test_channel_sweep_runs(client: TestClient) -> None:
 
 def test_unknown_strategy_is_422(client: TestClient) -> None:
     assert client.post("/sweeps", json=sma(strategy="nope").model_dump(mode="json")).status_code == 422
+
+
+def test_sweep_paths_are_cumulative_returns_per_run(client: TestClient) -> None:
+    spec = sma()
+    started = client.post("/sweeps", json=spec.model_dump(mode="json")).json()
+    wait(client, started["key"])
+    summary = pd.read_parquet(io.BytesIO(client.get(f"/sweeps/{started['key']}/summary").content))
+    response = client.get(f"/sweeps/{started['key']}/paths")
+    assert response.status_code == 200
+    paths = pd.read_parquet(io.BytesIO(response.content))
+    assert set(paths.columns) == {"date", *summary["key"]}
+    key = str(summary["key"].iloc[0])
+    eq = pd.read_parquet(io.BytesIO(client.get(f"/runs/{key}/equity").content))
+    expected = 100 * (eq["equity"].to_numpy() / spec.execution.initial_cash - 1)
+    assert paths[key].to_numpy() == pytest.approx(expected, rel=1e-5, abs=1e-3)
+    assert client.get("/sweeps/0123/paths").status_code == 404
+    assert client.get(f"/sweeps/{started['key']}/spec").json()["strategy"] == spec.strategy
+
+
+def test_combinations_that_cannot_warm_up_are_skipped(root: Path) -> None:
+    spec = sma(timeframe="1d", features="compute", grid={"fast": [3], "slow": [8, 300]})
+    plan = expand(spec, Store.open(root / "store"), GRID)
+    assert {r.params["slow"] for r in plan.runs} == {8}
+    assert len(plan.skipped) == 2
+    assert all("need more history" in s.reason for s in plan.skipped)

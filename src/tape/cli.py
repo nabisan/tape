@@ -13,6 +13,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Final
 
+import httpx2
 import numpy as np
 import numpy.typing as npt
 import uvicorn
@@ -22,15 +23,27 @@ from tape.catalog.build import REFERENCE, CatalogError, build
 from tape.catalog.store import Status, Store
 from tape.config import Settings
 from tape.core.hashing import Digest, Json
-from tape.core.types import Timeframe, ticker
+from tape.core.types import Ticker, Timeframe, ticker
 from tape.features.adopt import AdoptionError, adopt
 from tape.features.build import build as build_features
-from tape.features.catalog import FeatureCatalog
 from tape.service.api import create_app
 from tape.service.results import ResultStore
 from tape.service.worker import execute_run, init_worker
 from tape.sweep import SUMMARY, SweepSpec, expand, summary
 from tape.ui.theme import STREAMLIT as THEME
+from tape.universe import (
+    CONTACT,
+    SEC_TICKERS,
+    SOURCES,
+    Classifications,
+    Index,
+    classify,
+    listing,
+    membership,
+    save,
+    save_classifications,
+    sic,
+)
 
 PACKAGES = ("tape", "numpy", "pandas", "pyarrow", "numba", "ta-lib", "pydantic", "exchange-calendars")
 
@@ -177,7 +190,7 @@ def sweep(settings: Settings, args: argparse.Namespace) -> int:
         grid=_assignments(args.grid),
         params={k: v[0] for k, v in _assignments(args.param).items()},
     )
-    plan = expand(spec, FeatureCatalog(store))
+    plan = expand(spec, store)
     for s in plan.skipped:
         out.warn("skipped", ticker=s.ticker, reason=s.reason)
     results = ResultStore(settings.results_dir)
@@ -191,8 +204,9 @@ def sweep(settings: Settings, args: argparse.Namespace) -> int:
         for i, _ in enumerate(pool.map(execute_run, pending), 1):
             if i % 50 == 0 or i == len(pending):
                 out.info("progress", done=i, of=len(pending))
-    frame = summary(plan, keys, results)
-    results.save_sweep(spec.key, spec, frame)
+    typed = summary(plan, keys, results)
+    results.save_sweep(spec.key, spec, typed)
+    frame = typed.to_pandas()
     out.info("summary", path=results.sweep_summary(spec.key), rows=len(frame))
     for _, row in frame.sort_values("sharpe", ascending=False).head(args.top).iterrows():
         swept = {
@@ -206,6 +220,59 @@ def sweep(settings: Settings, args: argparse.Namespace) -> int:
             maxdd=round(row["max_drawdown_pct"], 2),
             trades=row["trades"],
         )
+    return 0
+
+
+def catalog_tickers(settings: Settings, api: str | None) -> set[Ticker]:
+    if api is not None:
+        response = httpx2.get(f"{api.rstrip('/')}/catalog", timeout=30)
+        response.raise_for_status()
+        return {ticker(t["ticker"]) for t in response.json()["tickers"]}
+    if settings.store_dir.is_dir():
+        return set(Store.open(settings.store_dir).manifest.available)
+    return set()
+
+
+def universes_fetch(settings: Settings, args: argparse.Namespace) -> int:
+    out = log.Log("Universe")
+    available = catalog_tickers(settings, args.api)
+    today = date.today()
+    listings = {index: listing(index, today) for index in Index}
+    for index, found in listings.items():
+        target = save(membership(index, found))
+        out.info(
+            "membership",
+            index=index.value,
+            members=len(found.tickers),
+            in_catalog=len(available & set(found.tickers)),
+            as_of=found.as_of,
+            path=target,
+        )
+    tickers = available.union(*(found.tickers for found in listings.values()))
+    names = {t: n for found in listings.values() for t, n in found.names.items()}
+    gics = {t: g for found in listings.values() for t, g in found.gics.items()}
+    contact = os.environ.get(CONTACT, "")
+    if contact:
+        sics = sic(sorted(tickers), contact)
+    else:
+        out.warn("sic skipped", reason=f"set {CONTACT} to the contact SEC EDGAR requires")
+        sics = {}
+    entries = classify(tickers, names, gics, sics)
+    target = save_classifications(
+        Classifications(
+            as_of=today,
+            sources={"gics": SOURCES[Index.SP500], "sic": SEC_TICKERS if sics else ""},
+            entries=entries,
+        )
+    )
+    out.info(
+        "classification",
+        tickers=len(entries),
+        gics=sum(e.gics is not None for e in entries),
+        sic=sum(e.sic is not None for e in entries),
+        neither=sum(e.gics is None and e.sic is None for e in entries),
+        path=target,
+    )
     return 0
 
 
@@ -247,6 +314,7 @@ COMMANDS: Final[dict[tuple[str, str | None], Handler]] = {
     ("features", "adopt"): features_adopt,
     ("features", "build"): features_build,
     ("sweep", None): sweep,
+    ("universes", "fetch"): universes_fetch,
     ("serve", "api"): serve_api,
     ("serve", "ui"): lambda _, a: serve_ui(a),
 }
@@ -286,6 +354,11 @@ def main(argv: list[str] | None = None) -> int:
     sw.add_argument("--param", action="append", default=[], help="name=value held fixed")
     sw.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     sw.add_argument("--top", type=int, default=10)
+    universes = commands.add_parser("universes", help="index membership reference data").add_subparsers(
+        dest="action", required=True
+    )
+    uf = universes.add_parser("fetch", help="fetch index constituents and sector classifications")
+    uf.add_argument("--api", help="read the catalog tickers from a running tape API instead of the store")
     serve = commands.add_parser("serve", help="run the API or the web UI").add_subparsers(
         dest="action", required=True
     )

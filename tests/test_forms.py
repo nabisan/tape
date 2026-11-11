@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from tape.strategies.breakout import HighBreakoutConfig
 from tape.strategies.sma_cross import SmaCrossConfig
-from tape.ui.forms import visible
+from tape.ui.forms import fixed, visible
 
 PROPS = SmaCrossConfig.model_json_schema()["properties"]
 
@@ -16,3 +17,11 @@ def test_sizing_shows_only_its_own_field() -> None:
 
 def test_amounts_step_in_round_numbers() -> None:
     assert (PROPS["notional"]["step"], PROPS["shares"]["step"]) == (10_000, 10)
+
+
+def test_fixed_values_are_not_inputs() -> None:
+    props = HighBreakoutConfig.model_json_schema()["properties"]
+    assert fixed(props["direction"])
+    assert props["direction"]["const"] == "long_only"
+    assert not fixed(props["stop_loss_pct"])
+    assert not fixed(PROPS["direction"])

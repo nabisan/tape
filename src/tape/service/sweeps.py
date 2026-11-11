@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Final, Literal
 
 import pandas as pd
 from pydantic import BaseModel
 
-from tape.features.catalog import FeatureCatalog
+from tape.benchmarks import REFERENCE, closes
 from tape.log import Log
+from tape.service.results import Table
 from tape.sweep import Plan, Skipped, SweepSpec, expand, summary
 
 if TYPE_CHECKING:
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
     from tape.service.results import ResultStore
 
 type State = Literal["running", "done", "failed"]
+
+WEEKLY_ABOVE: Final = 2_000_000
 
 
 class SweepStatus(BaseModel):
@@ -82,7 +85,7 @@ class SweepManager:
         current = self._sweeps.get(key)
         if current is not None and current.state == "running":
             return current.status()
-        plan = expand(spec, FeatureCatalog(self._store), self._grid)
+        plan = expand(spec, self._store, self._grid)
         progress = _Progress(key=key, total=len(plan.runs), skipped=list(plan.skipped))
         self._sweeps[key] = progress
         if self._results.sweep_summary(key).is_file():
@@ -127,3 +130,18 @@ class SweepManager:
                     self._log.warn("sweep run failed", sweep=progress.key[:12], ticker=run.ticker, reason=e)
                     return
         progress.done += 1
+
+
+def paths(store: Store, results: ResultStore, key: Digest) -> pd.DataFrame:
+    summary = results.sweep_summary(key)
+    spec = SweepSpec.model_validate_json(summary.with_suffix(".json").read_text())
+    keys = pd.read_parquet(summary, columns=["key"])["key"].tolist()
+    cash = spec.execution.initial_cash
+    frame = pd.DataFrame({k: results.frame(k, Table.EQUITY).set_index("date")["equity"] for k in keys})
+    frame = 100 * (frame / cash - 1)
+    if REFERENCE in store.manifest.available:
+        ref = closes(store, REFERENCE, pd.DatetimeIndex(frame.index))
+        frame[REFERENCE] = 100 * (ref / ref[0] - 1)
+    if frame.size > WEEKLY_ABOVE:
+        frame = frame.resample("W-FRI").last()
+    return frame.astype("float32").rename_axis("date").reset_index()

@@ -17,7 +17,7 @@ from tape.features.catalog import FeatureCatalog, Origin
 from tape.features.grid import FeatureGrid
 from tape.features.kinds import ChannelHigh, FeatureSpec, Sma, Source
 from tape.runner import FeaturePolicy, MissingFeaturesError, RunSpec, execute
-from tape.strategies.channel_breakout import ChannelBreakout
+from tape.strategies.breakout import HighBreakout
 from tape.strategies.sma_cross import SmaCross
 from tests.test_engine_runs import make_store
 
@@ -159,8 +159,8 @@ def test_space_resolves_from_the_catalog(store: Store, tmp_path: Path) -> None:
     sma = SmaCross.parameters.resolve(catalog, AAPL, EMPTY)
     assert sma.timeframes == [Timeframe.H1, Timeframe.D1]
     assert sma.choices[Timeframe.D1] == {"fast": [4, 12], "slow": [4, 12]}
-    channel = ChannelBreakout.parameters.resolve(catalog, AAPL, EMPTY)
-    assert channel.timeframes == []
+    breakout = HighBreakout.parameters.resolve(catalog, AAPL, EMPTY)
+    assert all(domain == {} for domain in breakout.choices.values())
 
 
 def test_precomputed_policy_refuses_missing(store: Store, tmp_path: Path) -> None:

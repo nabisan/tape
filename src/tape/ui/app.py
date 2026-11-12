@@ -4,7 +4,9 @@ import hashlib
 import html
 import math
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final
 
 import httpx2
@@ -14,10 +16,14 @@ import pandas as pd
 import streamlit as st
 from pydantic import ValidationError
 
+from tape import log
 from tape.benchmarks import REFERENCE
+from tape.config import Settings
 from tape.core.types import DATE, STAMP, Ticker, Timeframe
 from tape.engine.backtest import ExecutionSpec
+from tape.engine.exits import Exit, applies
 from tape.engine.matching import FillModel
+from tape.log import Log
 from tape.runner import RunSpec
 from tape.service.ledgers import MEDIA, LedgerState, filename
 from tape.service.results import Table
@@ -50,8 +56,19 @@ if TYPE_CHECKING:
     from tape.engine.reports import Metrics
     from tape.fundamentals import Snapshot, Valuation
     from tape.service.models import Catalog, StrategyInfo, StrategySpace
+    from tape.service.sweeps import SweepStatus
 
 type Row = tuple[str, Callable[[Metrics], float], str]
+
+
+@dataclass(frozen=True, slots=True)
+class Line:
+    label: str
+    get: Callable[[Metrics], float]
+    fmt: str
+    metric: str = ""
+
+
 type Moment = tuple[str, Callable[[Metrics], datetime | None]]
 
 API_URL: Final = os.environ.get("TAPE_API_URL", "http://127.0.0.1:8000")
@@ -59,46 +76,55 @@ LABELS: Final = ("A", "B")
 LINKS: Final = dict(zip(LABELS, ("run", "b"), strict=True))
 SWEEP_LINK: Final = "sweep"
 MODE: Final = "mode"
-GROUPS: Final[list[list[Row]]] = [
+GROUPS: Final[list[list[Line]]] = [
     [
-        ("Net P&L $", lambda m: m.net_pnl, "{:,.0f}"),
-        ("Total return %", lambda m: m.total_return_pct, "{:.2f}"),
-        ("CAGR %", lambda m: m.cagr_pct, "{:.2f}"),
+        Line("Net P&L $", lambda m: m.net_pnl, "{:,.0f}"),
+        Line("Total return %", lambda m: m.total_return_pct, "{:.2f}"),
+        Line("CAGR %", lambda m: m.cagr_pct, "{:.2f}"),
     ],
     [
-        ("Volatility, ann. %", lambda m: m.volatility_pct, "{:.2f}"),
-        ("Sharpe, ann.", lambda m: m.sharpe, "{:.2f}"),
-        ("Sortino, ann.", lambda m: m.sortino, "{:.2f}"),
-        ("Max drawdown %", lambda m: m.max_drawdown_pct, "{:.2f}"),
-        ("Longest DD, sessions", lambda m: m.max_drawdown_sessions, "{:,.0f}"),
-        ("Calmar", lambda m: m.calmar, "{:.2f}"),
-        ("Exposure %", lambda m: m.exposure_pct, "{:.1f}"),
+        Line("Volatility, ann. %", lambda m: m.volatility_pct, "{:.2f}"),
+        Line("Sharpe, ann.", lambda m: m.sharpe, "{:.2f}"),
+        Line("Sortino, ann.", lambda m: m.sortino, "{:.2f}"),
+        Line("Max drawdown %", lambda m: m.max_drawdown_pct, "{:.2f}"),
+        Line("Longest DD, sessions", lambda m: m.max_drawdown_sessions, "{:,.0f}"),
+        Line("Calmar", lambda m: m.calmar, "{:.2f}"),
+        Line("Exposure %", lambda m: m.exposure_pct, "{:.1f}"),
     ],
     [
-        ("Trades", lambda m: m.trades, "{:,.0f}"),
-        ("Win rate %", lambda m: m.win_rate_pct, "{:.1f}"),
-        ("Profit factor", lambda m: m.profit_factor, "{:.2f}"),
-        ("Payoff ratio", lambda m: m.payoff_ratio, "{:.2f}"),
-        ("Expectancy $", lambda m: m.expectancy, "{:,.2f}"),
-        ("Average win $", lambda m: m.avg_win, "{:,.2f}"),
-        ("Average loss $", lambda m: m.avg_loss, "{:,.2f}"),
-        ("Average hold, h", lambda m: m.avg_duration_hours, "{:,.1f}"),
+        Line("Trades", lambda m: m.trades, "{:,.0f}"),
+        Line("Win rate %", lambda m: m.win_rate_pct, "{:.1f}", "win_rate_pct"),
+        Line("Profit factor", lambda m: m.profit_factor, "{:.2f}"),
+        Line("Payoff ratio", lambda m: m.payoff_ratio, "{:.2f}"),
+        Line("Expectancy $", lambda m: m.expectancy, "{:,.2f}"),
+        Line("Average win $", lambda m: m.avg_win, "{:,.2f}"),
+        Line("Average loss $", lambda m: m.avg_loss, "{:,.2f}"),
+        Line("Average hold, h", lambda m: m.avg_duration_hours, "{:,.1f}"),
     ],
     [
-        ("Commission $", lambda m: m.total_commission, "{:,.0f}"),
-        ("Final equity $", lambda m: m.final_equity, "{:,.0f}"),
+        Line("Commission $", lambda m: m.total_commission, "{:,.0f}"),
+        Line("Final equity $", lambda m: m.final_equity, "{:,.0f}"),
     ],
 ]
 LEDGER_POLL: Final = 3.0
+SLOW_SECTION: Final = 2.0
+UI: Final = Log("Ui")
 SWEEP_POLL: Final = 2.0
-BACKGROUND_POLL: Final = 3.0
+BACKGROUND_POLL: Final = 5.0
 MOMENTS: Final[dict[str, tuple[Moment, ...]]] = {
     "Trades": (("First signal", lambda m: m.first_signal), ("Last signal", lambda m: m.last_signal))
 }
 
 
 @st.cache_resource
+def logging_ready() -> bool:
+    log.setup(Settings.from_env().log_level)
+    return True
+
+
+@st.cache_resource
 def client() -> Client:
+    logging_ready()
     return Client(API_URL)
 
 
@@ -187,6 +213,24 @@ def key_marker(name: str, glyph: str) -> str:
 
 def notice(message: str) -> None:
     st.html(f'<div class="t-notice">{html.escape(message)}</div>')
+
+
+def guarded(label: str, key: str, render: Callable[[], None]) -> None:
+    started = time.perf_counter()
+    try:
+        with st.spinner(f"Loading {label}"):
+            render()
+    except GoneError:
+        raise
+    except ApiError as e:
+        UI.warn("section failed", section=label, reason=e)
+        notice(f"The {label} could not load: {e}")
+        if st.button("Retry", key=f"retry:{key}"):
+            st.rerun()
+        return
+    elapsed = time.perf_counter() - started
+    if elapsed > SLOW_SECTION:
+        UI.warn("slow section", section=label, ms=round(1000 * elapsed))
 
 
 def execution_line(execution: ExecutionSpec) -> str:
@@ -283,7 +327,9 @@ def comparison(
     )
 
 
-def _group(heading: str, group: list[Row], results: dict[str, tuple[str, Metrics]]) -> str:
+def _group(
+    heading: str, group: list[Line], results: dict[str, tuple[str, Metrics]], exits: frozenset[Exit]
+) -> str:
     labels = list(results)
     compare = len(labels) == 2
     head = ""
@@ -294,7 +340,10 @@ def _group(heading: str, group: list[Row], results: dict[str, tuple[str, Metrics
             + "<th>B &minus; A</th></tr></thead>"
         )
     rows = []
-    for text, get, fmt in group:
+    for line in group:
+        if not applies(line.metric, exits):
+            continue
+        text, get, fmt = line.label, line.get, line.fmt
         values = [float(get(results[lb][1])) for lb in labels]
         cells = "".join(f"<td>{_fmt(v, fmt)}</td>" for v in values)
         if compare:
@@ -357,8 +406,8 @@ def valuation(v: Valuation) -> str:
     )
 
 
-def performance(results: dict[str, tuple[str, Metrics]], value: Valuation) -> str:
-    groups = [_group(h, g, results) for h, g in zip(GROUP_TITLES, GROUPS, strict=True)]
+def performance(results: dict[str, tuple[str, Metrics]], value: Valuation, exits: frozenset[Exit]) -> str:
+    groups = [_group(h, g, results, exits) for h, g in zip(GROUP_TITLES, GROUPS, strict=True)]
     block = valuation(value)
     if len(results) == 2:
         body = f'<div class="t-perf compare">{"".join(groups)}{block}</div>'
@@ -649,7 +698,8 @@ def equity_block(results: dict[str, tuple[str, Metrics]]) -> None:
 
 @st.cache_data(max_entries=64, show_spinner=False)
 def run_days(key: str) -> tuple[list[date], date | None]:
-    return client().days(key)
+    found = client().days(key)
+    return found.days, found.recent
 
 
 @st.cache_data(max_entries=32, show_spinner=False)
@@ -711,29 +761,39 @@ def ledger_link(label: str, key: str, spec: RunSpec) -> None:
     if status.state is LedgerState.ABSENT:
         status = client().build_ledger(key)
     if status.state is LedgerState.BUILDING:
-        ledger_wait(key)
+        ledger_wait(label, key, spec)
     elif status.state is LedgerState.FAILED:
         st.caption(f"MTM ledger failed: {status.detail}")
         if st.button("Retry MTM ledger", key=f"mtm:retry:{label}"):
             client().build_ledger(key)
             st.rerun()
     else:
-        size = (status.size or 0) / 1e6
-        st.download_button(
-            f"MTM ledger · {size:,.1f} MB",
-            lambda: client().ledger_file(key),
-            filename(spec),
-            mime=MEDIA,
-            key=f"mtm:{label}",
-        )
+        ledger_button(label, key, spec, status.size)
+
+
+def ledger_button(label: str, key: str, spec: RunSpec, size: int | None) -> None:
+    st.download_button(
+        f"MTM ledger · {(size or 0) / 1e6:,.1f} MB",
+        lambda: client().ledger_file(key),
+        filename(spec),
+        mime=MEDIA,
+        key=f"mtm:{label}",
+    )
 
 
 @st.fragment(run_every=LEDGER_POLL)
-def ledger_wait(key: str) -> None:
-    if client().ledger(key).state is LedgerState.BUILDING:
+def ledger_wait(label: str, key: str, spec: RunSpec) -> None:
+    try:
+        status = client().ledger(key)
+    except ApiError:
+        st.caption("MTM ledger status unavailable; retrying.")
+        return
+    if status.state is LedgerState.BUILDING:
         st.caption("Building MTM ledger…")
+    elif status.state is LedgerState.READY:
+        ledger_button(label, key, spec, status.size)
     else:
-        st.rerun()
+        st.caption(f"MTM ledger failed: {status.detail}")
 
 
 def strategy_view(label: str, key: str, spec: RunSpec) -> None:
@@ -799,14 +859,23 @@ def show_runs(
     strats: dict[str, StrategyInfo],
 ) -> None:
     names = {label: f"{strats[s.strategy].title} · {s.timeframe}" for label, s in specs.items()}
-    markets = {label: market(key) for label, (key, _) in results.items()}
-    st.html(header(specs, results, names, cat.data_version, markets))
+    tag = next(iter(results.values()))[0][:8]
+
+    def top() -> None:
+        markets = {label: market(key) for label, (key, _) in results.items()}
+        st.html(header(specs, results, names, cat.data_version, markets))
+
+    def panel() -> None:
+        exits = frozenset(e for s in specs.values() for e in strats[s.strategy].exits)
+        st.html(performance(results, worth(next(iter(results.values()))[0]), exits))
+
+    guarded("summary", f"top:{tag}", top)
     left, right = st.columns([7, 5])
     with left:
-        equity_block(results)
+        guarded("equity chart", f"equity:{tag}", lambda: equity_block(results))
     with right:
-        st.html(performance(results, worth(next(iter(results.values()))[0])))
-    detail(results, specs, names)
+        guarded("performance", f"perf:{tag}", panel)
+    guarded("run detail", f"detail:{tag}", lambda: detail(results, specs, names))
 
 
 SWEEP_COLUMNS: Final = {
@@ -814,13 +883,16 @@ SWEEP_COLUMNS: Final = {
     "net_pnl": st.column_config.NumberColumn("Net P&L $", format="%,.0f"),
     "total_return_pct": st.column_config.NumberColumn("Return %", format="%.2f"),
     "cagr_pct": st.column_config.NumberColumn("CAGR %", format="%.2f"),
+    "volatility_pct": st.column_config.NumberColumn("Ann. vol %", format="%.2f"),
     "sharpe": st.column_config.NumberColumn("Sharpe", format="%.2f"),
-    "sortino": st.column_config.NumberColumn("Sortino", format="%.2f"),
+    "sortino": None,
     "max_drawdown_pct": st.column_config.NumberColumn("Max DD %", format="%.2f"),
-    "calmar": st.column_config.NumberColumn("Calmar", format="%.2f"),
+    "calmar": None,
     "trades": st.column_config.NumberColumn("Trades", format="%,d"),
+    "first_signal": st.column_config.DatetimeColumn("First signal", format=GRID_STAMP),
+    "last_signal": st.column_config.DatetimeColumn("Last signal", format=GRID_STAMP),
     "win_rate_pct": st.column_config.NumberColumn("Win %", format="%.1f"),
-    "profit_factor": st.column_config.NumberColumn("PF", format="%.2f"),
+    "profit_factor": None,
     "exposure_pct": st.column_config.NumberColumn("Exposure %", format="%.1f"),
     "buy_hold_return_pct": st.column_config.NumberColumn("Buy & hold %", format="%.1f"),
 }
@@ -836,7 +908,11 @@ def start_sweep(spec: SweepSpec) -> str | None:
 
 @st.fragment(run_every=SWEEP_POLL)
 def sweep_progress(key: str) -> None:
-    status = client().sweep(key)
+    try:
+        status = client().sweep(key)
+    except ApiError:
+        st.caption(f"Sweep {key[:8]} status unavailable; retrying.")
+        return
     if status.state != "running":
         st.rerun()
     total = max(1, status.total)
@@ -884,7 +960,9 @@ def show_sweep(key: str, spec: SweepSpec, cat: Catalog, strats: dict[str, Strate
     fixed = [
         c for c in frame.columns if c not in {"ticker", "key", *swept, *measures} and frame[c].nunique() == 1
     ]
-    shown = [c for c in frame.columns if c not in fixed]
+    exits = strats[spec.strategy].exits
+    columns = {c: (cfg if applies(c, exits) else None) for c, cfg in SWEEP_COLUMNS.items()}
+    shown = [c for c in frame.columns if c not in fixed and columns.get(c, True) is not None]
     strategy_title = strats[spec.strategy].title
     best = frame.sort_values("sharpe", ascending=False, na_position="last").reset_index(drop=True)
     count = len(spec.tickers)
@@ -948,7 +1026,7 @@ def show_sweep(key: str, spec: SweepSpec, cat: Catalog, strats: dict[str, Strate
                 height=_height(TABLE_ROWS - 3),
                 row_height=CELL,
                 hide_index=True,
-                column_config=SWEEP_COLUMNS,
+                column_config=columns,
             )
     st.html(title("Runs", f"{len(best):,} &middot; by Sharpe"))
     st.dataframe(
@@ -957,7 +1035,7 @@ def show_sweep(key: str, spec: SweepSpec, cat: Catalog, strats: dict[str, Strate
         height=_height(len(best)),
         row_height=CELL,
         hide_index=True,
-        column_config=SWEEP_COLUMNS,
+        column_config=columns,
     )
     st.download_button("Sweep CSV", best.drop(columns=["key"]).to_csv(index=False), f"sweep_{key[:8]}.csv")
     labels = [
@@ -1037,7 +1115,7 @@ def sweep_page(sweep_spec: SweepSpec | None, cat: Catalog, strats: dict[str, Str
         return
     for skipped in status.skipped:
         st.warning(f"{skipped.ticker} skipped: {skipped.reason}")
-    show_sweep(key, spec, cat, strats)
+    guarded("sweep results", f"sweep:{key[:8]}", lambda: show_sweep(key, spec, cat, strats))
 
 
 def backtest_page(specs: dict[str, RunSpec] | None, cat: Catalog, strats: dict[str, StrategyInfo]) -> None:
@@ -1070,12 +1148,21 @@ def backtest_page(specs: dict[str, RunSpec] | None, cat: Catalog, strats: dict[s
     show_runs(results, st.session_state["specs"], cat, strats)
 
 
-@st.fragment(run_every=BACKGROUND_POLL)
-def background() -> None:
+def activity() -> tuple[list[SweepStatus], list[str]]:
     try:
-        sweeps, ledgers = client().running_sweeps(), client().building_ledgers()
+        return client().running_sweeps(), client().building_ledgers()
     except ApiError:
-        return
+        return [], []
+
+
+def background() -> None:
+    if any(activity()):
+        background_live()
+
+
+@st.fragment(run_every=BACKGROUND_POLL)
+def background_live() -> None:
+    sweeps, ledgers = activity()
     if not sweeps and not ledgers:
         return
     st.html(title("Background"))
@@ -1087,20 +1174,29 @@ def background() -> None:
             f"Sweep {s.key[:8]} · {name} {s.timeframe} · {s.tickers:,} tickers · {s.done:,}/{total:,}",
         )
         if st.button("Stop", key=f"stop:{s.key}", width="stretch"):
-            client().stop_sweep(s.key)
-            st.rerun()
+            try:
+                client().stop_sweep(s.key)
+            except ApiError as e:
+                st.caption(f"Could not stop: {e}")
+            st.rerun(scope="fragment")
     for key in ledgers:
         st.caption(f"MTM ledger · run {key[:8]} · building")
 
 
 def main() -> None:
+    started = time.perf_counter()
+    mode = render()
+    UI.info("render", mode=mode, ms=round(1000 * (time.perf_counter() - started)))
+
+
+def render() -> str:
     st.set_page_config(page_title="tape", layout="wide", initial_sidebar_state=SIDEBAR)
     st.markdown(CSS, unsafe_allow_html=True)
     try:
         cat, strats = catalog(), strategies()
     except (ApiError, OSError, httpx2.HTTPError) as e:
         st.error(f"API unavailable at {API_URL}: {e}")
-        return
+        return "unavailable"
     with st.sidebar:
         st.html(
             '<div class="t-brand"><div class="word">tape</div>'
@@ -1116,6 +1212,7 @@ def main() -> None:
         sweep_page(sweep, cat, strats)
     else:
         backtest_page(runs, cat, strats)
+    return str(mode)
 
 
 main()

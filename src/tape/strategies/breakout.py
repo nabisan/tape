@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
 from pydantic import Field
 
 from tape.core.types import Timeframe
+from tape.engine.exits import Exit
 from tape.engine.orders import OrderSide, OrderType
 from tape.engine.strategy import Direction, Strategy, StrategyConfig
 
@@ -32,6 +33,7 @@ class LowBreakdownConfig(BreakoutConfig):
 class Breakout[C: BreakoutConfig](Strategy[C]):
     side: ClassVar[OrderSide]
     intraday: ClassVar[bool] = False
+    exits: ClassVar[frozenset[Exit]] = frozenset({Exit.STOP_LOSS})
 
     extreme: float
     stopped: bool

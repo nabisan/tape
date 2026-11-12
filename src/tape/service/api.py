@@ -9,6 +9,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
+import pyarrow.parquet as pq
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
@@ -39,6 +40,7 @@ from tape.service.sweeps import SweepManager, SweepStatus, paths
 from tape.service.worker import build_ledger, execute_run, init_ledger_worker, init_worker
 from tape.strategies.registry import STRATEGIES
 from tape.sweep import SweepSpec
+from tape.sweep import upgrade as upgrade_summary
 from tape.universe import Classification, Profiles, classifications, memberships, profiles
 
 if TYPE_CHECKING:
@@ -81,6 +83,7 @@ def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
                 title=cls.title,
                 version=cls.version,
                 intraday=cls.intraday,
+                exits=sorted(cls.exits),
                 config_schema=cls.config_type.model_json_schema(),
             )
             for name, cls in STRATEGIES.items()
@@ -258,9 +261,14 @@ def _sweep_routes(store: Store, results: ResultStore, sweeps: SweepManager) -> A
 
     @router.get("/sweeps/{key}/summary")
     def sweep_table(key: str) -> Response:
-        path = results.sweep_summary(Digest(key))
+        k = Digest(key)
+        path = results.sweep_summary(k)
         if not path.is_file():
             raise HTTPException(404, f"sweep {key} has no summary yet")
+        stored = pq.read_table(path)
+        current = upgrade_summary(stored, results)
+        if current is not stored:
+            results.replace_summary(k, current)
         return Response(path.read_bytes(), media_type=PARQUET)
 
     @router.get("/sweeps/{key}/spec")

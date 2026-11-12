@@ -269,3 +269,9 @@ def test_ledger_builds_in_the_background_and_downloads(tmp_path: Path) -> None:
         assert sheet is not None and str(sheet.cell(1, 1).value).startswith("AAPL · High")
         assert c.post(f"/runs/{key}/ledger").json()["state"] == "ready"
         assert c.get("/runs/feedface/ledger").status_code == 404
+
+
+def test_strategies_report_their_exits(client: TestClient) -> None:
+    body = client.get("/strategies").json()
+    assert body["sma_cross"]["exits"] == ["signal"]
+    assert body["high_breakout"]["exits"] == ["stop_loss"]

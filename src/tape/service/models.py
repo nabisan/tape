@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from tape.engine.exits import Exit
 from tape.engine.parameters import ResolvedSpace
 from tape.engine.reports import Metrics
 from tape.runner import RunSpec
@@ -34,6 +35,7 @@ class StrategyInfo(BaseModel):
     title: str
     version: int
     intraday: bool
+    exits: list[Exit]
     config_schema: dict[str, Any]
 
 

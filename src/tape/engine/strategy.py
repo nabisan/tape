@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from tape.core.types import Notional, Quantity, Timeframe
+from tape.engine.exits import Exit
 from tape.engine.orders import Order, OrderSide, OrderType, TimeInForce
 from tape.engine.parameters import ParameterSpace
 
@@ -91,6 +92,7 @@ class Strategy[C: StrategyConfig]:
     config_type: ClassVar[type[StrategyConfig]]
     parameters: ClassVar[ParameterSpace] = ParameterSpace()
     intraday: ClassVar[bool] = True
+    exits: ClassVar[frozenset[Exit]] = frozenset({Exit.SIGNAL})
 
     def __init__(self, config: C) -> None:
         self.config = config

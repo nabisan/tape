@@ -167,6 +167,12 @@ class ResultStore:
         pq.write_table(arrow, tmp, compression="zstd")
         tmp.replace(path)
 
+    def replace_summary(self, key: Digest, summary: pa.Table) -> None:
+        path = self.sweep_summary(key)
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        pq.write_table(summary, tmp, compression="zstd")
+        tmp.replace(path)
+
     def save_sweep(self, key: Digest, spec: BaseModel, summary: pa.Table) -> None:
         path = self.sweep_summary(key)
         path.parent.mkdir(parents=True, exist_ok=True)

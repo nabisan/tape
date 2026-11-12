@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import itertools
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Final
 
+import pyarrow as pa
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tape.core.hashing import Digest, Json, digest
@@ -18,8 +19,6 @@ from tape.runner import FeaturePolicy, RunSpec, ready_on
 from tape.strategies.registry import STRATEGIES
 
 if TYPE_CHECKING:
-    import pyarrow as pa
-
     from tape.catalog.store import Store
     from tape.service.results import ResultStore
 
@@ -27,11 +26,14 @@ SUMMARY: Final = (
     "net_pnl",
     "total_return_pct",
     "cagr_pct",
+    "volatility_pct",
     "sharpe",
     "sortino",
     "max_drawdown_pct",
     "calmar",
     "trades",
+    "first_signal",
+    "last_signal",
     "win_rate_pct",
     "profit_factor",
     "exposure_pct",
@@ -136,9 +138,16 @@ def expand(spec: SweepSpec, store: Store, grid: FeatureGrid = DEFAULT_GRID) -> P
     return Plan(runs=tuple(runs), skipped=tuple(skipped))
 
 
-METRIC_TYPES: Final = {
-    f: tables.I64 if Metrics.model_fields[f].annotation is int else tables.F64 for f in SUMMARY
-}
+def metric_type(name: str) -> pa.DataType:
+    annotation = Metrics.model_fields[name].annotation
+    if annotation is int:
+        return tables.I64
+    if annotation == (datetime | None):
+        return tables.TIME
+    return tables.F64
+
+
+METRIC_TYPES: Final = {f: metric_type(f) for f in SUMMARY}
 
 
 def summary(plan: Plan, keys: list[Digest], results: ResultStore) -> pa.Table:
@@ -151,3 +160,15 @@ def summary(plan: Plan, keys: list[Digest], results: ResultStore) -> pa.Table:
         rows.append({"ticker": run.ticker, **swept, "key": key, **{f: getattr(m, f) for f in SUMMARY}})
     first = {k: v for k, v in plan.runs[0].params.items() if k != "timeframe"} if plan.runs else {}
     return tables.arrow(rows, tables.summary(first, METRIC_TYPES))
+
+
+def upgrade(found: pa.Table, results: ResultStore) -> pa.Table:
+    missing = [f for f in SUMMARY if f not in found.schema.names]
+    if not missing or found.num_rows == 0:
+        return found
+    metrics = [results.metrics(Digest(str(k))) for k in found["key"].to_pylist()]
+    for name in missing:
+        values = [getattr(m, name) for m in metrics]
+        found = found.append_column(pa.field(name, METRIC_TYPES[name]), pa.array(values, METRIC_TYPES[name]))
+    order = [n for n in found.schema.names if n not in SUMMARY] + list(SUMMARY)
+    return found.select(order)

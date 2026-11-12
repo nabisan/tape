@@ -9,6 +9,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 import pandas as pd
+import pyarrow.parquet as pq
 import pytest
 from fastapi.testclient import TestClient
 
@@ -23,7 +24,7 @@ from tape.runner import FeaturePolicy
 from tape.service.api import create_app
 from tape.service.results import ResultStore
 from tape.service.sweeps import SweepManager, SweepStatus
-from tape.sweep import SweepSpec, expand
+from tape.sweep import SUMMARY, SweepSpec, expand
 from tests.test_engine_runs import make_store
 
 if TYPE_CHECKING:
@@ -107,7 +108,9 @@ def test_sweep_end_to_end_through_the_api(client: TestClient) -> None:
     assert (status["state"], status["done"], status["failed"]) == ("done", 6, 0)
     frame = pd.read_parquet(io.BytesIO(client.get(f"/sweeps/{started['key']}/summary").content))
     assert len(frame) == 6
-    assert {"ticker", "fast", "slow", "sharpe", "key"} <= set(frame.columns)
+    assert {"ticker", "fast", "slow", "sharpe", "key", "volatility_pct"} <= set(frame.columns)
+    assert pd.api.types.is_datetime64_any_dtype(frame["first_signal"])
+    assert (frame["first_signal"].dropna() <= frame["last_signal"].dropna()).all()
     for key in frame["key"]:
         assert client.get(f"/runs/{key}").status_code == 200
     again = client.post("/sweeps", json=body).json()
@@ -192,3 +195,17 @@ def test_running_sweeps_are_listed_and_can_be_stopped(root: Path, tmp_path: Path
 def test_stopping_an_unknown_sweep_is_404(client: TestClient) -> None:
     assert client.post("/sweeps/feedface/stop").status_code == 404
     assert client.get("/sweeps").json() == []
+
+
+def test_stored_summaries_gain_newly_declared_columns(client: TestClient, root: Path) -> None:
+    body = sma(tickers=["AAPL"]).model_dump(mode="json")
+    key = client.post("/sweeps", json=body).json()["key"]
+    wait(client, key)
+    path = root / "results" / "sweeps" / f"{key}.parquet"
+    legacy = pq.read_table(path).drop_columns(["volatility_pct", "first_signal", "last_signal"])
+    pq.write_table(legacy, path)
+    frame = pd.read_parquet(io.BytesIO(client.get(f"/sweeps/{key}/summary").content))
+    assert list(frame.columns[-len(SUMMARY) :]) == list(SUMMARY)
+    assert frame["volatility_pct"].notna().all()
+    assert pd.api.types.is_datetime64_any_dtype(frame["first_signal"])
+    assert set(SUMMARY) <= set(pq.read_schema(path).names)

@@ -196,7 +196,9 @@ def annualized(r: npt.NDArray[np.float64], growth: float) -> tuple[float, float,
     return vol, cagr, sharpe
 
 
-def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float, orders: Sequence[Order]) -> Metrics:
+def metrics(
+    eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float, orders: Sequence[Order], first_open: float
+) -> Metrics:
     signals = sorted(ns for o in orders if (ns := o.signal_ns) is not None)
     r = eq["return"].to_numpy(dtype=float)
     values = eq["equity"].to_numpy(dtype=float)
@@ -246,7 +248,7 @@ def metrics(eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float, orders: Seq
         avg_trade_return_pct=float(closed["return_pct"].mean()) if len(closed) else 0.0,
         avg_duration_hours=float(closed["duration"].dt.total_seconds().mean() / 3600) if len(closed) else 0.0,
         total_commission=float(tr["commission"].sum()) if len(tr) else 0.0,
-        buy_hold_return_pct=100 * (closes[-1] / closes[0] - 1) if len(closes) else math.nan,
+        buy_hold_return_pct=100 * (closes[-1] / first_open - 1) if len(closes) else math.nan,
         first_signal=_moment(signals[0]) if signals else None,
         last_signal=_moment(signals[-1]) if signals else None,
     )

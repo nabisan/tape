@@ -259,7 +259,9 @@ def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Re
     return Result(
         key=spec.key(store.manifest.data_version),
         spec=spec,
-        metrics=reports.metrics(equity, trades, spec.execution.initial_cash, run.orders),
+        metrics=reports.metrics(
+            equity, trades, spec.execution.initial_cash, run.orders, float(decision.open[run.first_bar])
+        ),
         equity=equity,
         trades=trades,
         orders=reports.orders(run),

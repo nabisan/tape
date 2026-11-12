@@ -11,6 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from tape.benchmarks import compare
 from tape.calendar import sessions
 from tape.catalog.build import build
 from tape.catalog.store import Store
@@ -375,3 +376,13 @@ def test_orders_record_their_origin(store: Store) -> None:
     by_tag = r.orders.groupby("tag")["origin"].unique().to_dict()
     assert list(by_tag["stop"]) == ["stop_loss"]
     assert set(by_tag["breakout"]) == {"strategy"} and set(by_tag["initial"]) == {"strategy"}
+
+
+def test_buy_and_hold_enters_at_the_first_open_and_matches_the_benchmark(store: Store) -> None:
+    s = spec(SMA_D1).model_copy(update={"ticker": Ticker("SPY")})
+    r = execute(store, s)
+    first_open = float(r.bars["open"].iloc[0])
+    last_close = float(r.bars["close"].iloc[-1])
+    assert r.metrics.buy_hold_return_pct == pytest.approx(100 * (last_close / first_open - 1))
+    held = next(b for b in compare(store, Ticker("SPY"), r.equity).benchmarks if b.ticker == "SPY")
+    assert held.total_return_pct == pytest.approx(r.metrics.buy_hold_return_pct)

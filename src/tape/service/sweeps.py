@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Final, Literal
 import pandas as pd
 from pydantic import BaseModel
 
-from tape.benchmarks import REFERENCE, closes
+from tape.benchmarks import REFERENCE, prices
 from tape.log import Log
 from tape.service.results import Table
 from tape.sweep import Plan, Skipped, SweepSpec, expand, summary
@@ -140,8 +140,8 @@ def paths(store: Store, results: ResultStore, key: Digest) -> pd.DataFrame:
     frame = pd.DataFrame({k: results.frame(k, Table.EQUITY).set_index("date")["equity"] for k in keys})
     frame = 100 * (frame / cash - 1)
     if REFERENCE in store.manifest.available:
-        ref = closes(store, REFERENCE, pd.DatetimeIndex(frame.index))
-        frame[REFERENCE] = 100 * (ref / ref[0] - 1)
+        ref = prices(store, REFERENCE, pd.DatetimeIndex(frame.index))
+        frame[REFERENCE] = 100 * (ref.close / ref.open - 1)
     if frame.size > WEEKLY_ABOVE:
         frame = frame.resample("W-FRI").last()
     return frame.astype("float32").rename_axis("date").reset_index()

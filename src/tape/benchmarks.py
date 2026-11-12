@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
 import numpy as np
@@ -47,14 +48,26 @@ class Comparison(BaseModel):
     benchmarks: list[Benchmark]
 
 
-def closes(store: Store, ticker: Ticker, days: pd.DatetimeIndex) -> F64:
+@dataclass(frozen=True, slots=True)
+class Prices:
+    open: float
+    close: F64
+
+    def returns(self) -> F64:
+        c = self.close
+        return np.r_[c[0] / self.open - 1, c[1:] / c[:-1] - 1] if len(c) else c
+
+
+def prices(store: Store, ticker: Ticker, days: pd.DatetimeIndex) -> Prices:
     bars = store.bars(ticker, Timeframe.D1)
     dates = pd.to_datetime(store.sessions().day[bars.session])
-    return np.asarray(pd.Series(bars.close, index=dates).reindex(days).ffill(), dtype=np.float64)
+    close = np.asarray(pd.Series(bars.close, index=dates).reindex(days).ffill(), dtype=np.float64)
+    first = pd.Series(bars.open, index=dates).reindex(days[:1])
+    return Prices(open=float(first.iloc[0]) if len(first) else math.nan, close=close)
 
 
 def exposure(r: F64, reference: F64) -> Exposure:
-    x, y = r[1:], reference[1:]
+    x, y = r, reference
     ok = np.isfinite(x) & np.isfinite(y)
     x, y = x[ok], y[ok]
     if len(x) < 3 or float(y.var()) == 0.0:
@@ -65,9 +78,10 @@ def exposure(r: F64, reference: F64) -> Exposure:
     )
 
 
-def hold(ticker: Ticker, close: F64, reference: F64) -> Benchmark:
-    r = np.r_[0.0, close[1:] / close[:-1] - 1]
-    growth = float(close[-1] / close[0])
+def hold(ticker: Ticker, p: Prices, reference: F64) -> Benchmark:
+    r = p.returns()
+    path = np.r_[p.open, p.close]
+    growth = float(path[-1] / path[0])
     vol, cagr, sharpe = annualized(r, growth)
     return Benchmark(
         ticker=ticker,
@@ -75,7 +89,7 @@ def hold(ticker: Ticker, close: F64, reference: F64) -> Benchmark:
         cagr_pct=100 * cagr,
         volatility_pct=100 * vol,
         sharpe=sharpe,
-        max_drawdown_pct=float(100 * (close / np.maximum.accumulate(close) - 1).min()),
+        max_drawdown_pct=float(100 * (path / np.maximum.accumulate(path) - 1).min()),
         exposure=exposure(r, reference),
     )
 
@@ -83,11 +97,10 @@ def hold(ticker: Ticker, close: F64, reference: F64) -> Benchmark:
 def compare(store: Store, ticker: Ticker, eq: pd.DataFrame) -> Comparison:
     days = pd.DatetimeIndex(eq["date"])
     names = list(dict.fromkeys([ticker, *MARKET]))
-    series = {t: closes(store, t, days) for t in names if t in store.manifest.available}
-    ref = series[REFERENCE]
-    ref_r = np.r_[0.0, ref[1:] / ref[:-1] - 1]
+    series = {t: prices(store, t, days) for t in names if t in store.manifest.available}
+    ref_r = series[REFERENCE].returns() if REFERENCE in series else np.full(len(days), math.nan)
     return Comparison(
         reference=REFERENCE,
         run=exposure(eq["return"].to_numpy(dtype=float), ref_r),
-        benchmarks=[hold(t, c, ref_r) for t, c in series.items()],
+        benchmarks=[hold(t, p, ref_r) for t, p in series.items()],
     )

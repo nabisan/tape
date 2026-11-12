@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from tape.engine.strategy import Strategy, StrategyConfig
     from tape.features.kinds import FeatureSpec
 
-ENGINE_VERSION = 4
+ENGINE_VERSION = 5
 
 type Stored = Callable[[FeatureSpec], F64 | None]
 

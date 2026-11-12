@@ -36,9 +36,10 @@ SUMMARY: Final = (
     "last_signal",
     "win_rate_pct",
     "profit_factor",
-    "exposure_pct",
+    "time_in_market_pct",
     "buy_hold_return_pct",
 )
+RETIRED: Final = frozenset({"exposure_pct"})
 
 
 class SweepSpec(BaseModel):
@@ -163,6 +164,8 @@ def summary(plan: Plan, keys: list[Digest], results: ResultStore) -> pa.Table:
 
 
 def upgrade(found: pa.Table, results: ResultStore) -> pa.Table:
+    if retired := [n for n in found.schema.names if n in RETIRED]:
+        found = found.drop_columns(retired)
     missing = [f for f in SUMMARY if f not in found.schema.names]
     if not missing or found.num_rows == 0:
         return found

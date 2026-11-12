@@ -167,8 +167,9 @@ class Metrics(BaseModel):
     sortino: Measure
     max_drawdown_pct: Measure
     max_drawdown_sessions: int
+    max_capital_loss_pct: Measure
     calmar: Measure
-    exposure_pct: Measure
+    time_in_market_pct: Measure
     trades: int
     win_rate_pct: Measure
     avg_win: Measure
@@ -188,6 +189,30 @@ def _ratio(a: float, b: float) -> float:
     return a / b if b else math.nan
 
 
+def capital_loss_pct(equity: npt.NDArray[np.float64], initial_cash: float) -> float:
+    if not initial_cash > 0:
+        return math.nan
+    if not len(equity):
+        return 0.0
+    return 100 * min(0.0, float(equity.min()) / initial_cash - 1)
+
+
+def time_in_market_pct(bar_ns: npt.NDArray[np.int64], tr: pd.DataFrame) -> float:
+    if not len(bar_ns):
+        return math.nan
+    held = np.zeros(len(bar_ns) + 1, dtype=np.int64)
+    if len(tr):
+        entry = tr["entry_time"].to_numpy(dtype="datetime64[ns]").view(np.int64)
+        closed = tr["exit_time"].to_numpy(dtype="datetime64[ns]").view(np.int64)
+        exit_ = np.where(tr["open"].to_numpy(dtype=bool), np.iinfo(np.int64).max, closed)
+        lo = np.maximum(np.searchsorted(bar_ns, entry, side="right") - 1, 0)
+        hi = np.searchsorted(bar_ns, exit_, side="left") - 1
+        live = hi >= lo
+        np.add.at(held, lo[live], 1)
+        np.add.at(held, hi[live] + 1, -1)
+    return 100 * float((np.cumsum(held[:-1]) > 0).mean())
+
+
 def annualized(r: npt.NDArray[np.float64], growth: float) -> tuple[float, float, float]:
     years = len(r) / TRADING_DAYS
     vol = float(r.std(ddof=1) * math.sqrt(TRADING_DAYS)) if len(r) > 1 else math.nan
@@ -197,7 +222,13 @@ def annualized(r: npt.NDArray[np.float64], growth: float) -> tuple[float, float,
 
 
 def metrics(
-    eq: pd.DataFrame, tr: pd.DataFrame, initial_cash: float, orders: Sequence[Order], first_open: float
+    eq: pd.DataFrame,
+    tr: pd.DataFrame,
+    initial_cash: float,
+    orders: Sequence[Order],
+    first_open: float,
+    *,
+    bar_ns: npt.NDArray[np.int64],
 ) -> Metrics:
     signals = sorted(ns for o in orders if (ns := o.signal_ns) is not None)
     r = eq["return"].to_numpy(dtype=float)
@@ -234,8 +265,9 @@ def metrics(
         else math.nan,
         max_drawdown_pct=max_dd,
         max_drawdown_sessions=longest,
+        max_capital_loss_pct=capital_loss_pct(values, initial_cash),
         calmar=_ratio(100 * cagr, -max_dd),
-        exposure_pct=100 * float((eq["position"] != 0).mean()) if len(eq) else 0.0,
+        time_in_market_pct=time_in_market_pct(bar_ns, tr),
         trades=len(pnl),
         win_rate_pct=100 * _ratio(len(wins), len(pnl)),
         avg_win=float(wins.mean()) if len(wins) else 0.0,

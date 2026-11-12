@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import os
 import shutil
@@ -14,7 +15,7 @@ from pydantic import ValidationError
 
 from tape.engine import tables
 from tape.engine.orders import OrderOrigin
-from tape.engine.reports import Metrics
+from tape.engine.reports import Metrics, capital_loss_pct, time_in_market_pct
 from tape.runner import RunSpec
 
 if TYPE_CHECKING:
@@ -53,6 +54,8 @@ SCHEMAS: Final = {
 }
 
 
+CAPITAL_LOSS: Final = "max_capital_loss_pct"
+TIME_IN_MARKET: Final = "time_in_market_pct"
 LEGACY_ORIGIN: Final = {"stop": OrderOrigin.STOP_LOSS, "squareoff": OrderOrigin.SQUARE_OFF}
 
 
@@ -127,7 +130,33 @@ class ResultStore:
                 raise
 
     def metrics(self, key: Digest) -> Metrics:
-        return Metrics.model_validate_json((self.root / key / "metrics.json").read_bytes())
+        path = self.root / key / "metrics.json"
+        found = json.loads(path.read_bytes())
+        derive = {CAPITAL_LOSS: self._capital_loss, TIME_IN_MARKET: self._time_in_market}
+        missing = [name for name in derive if name not in found]
+        for name in missing:
+            found[name] = derive[name](key, found)
+        metrics = Metrics.model_validate(found)
+        if missing:
+            tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+            tmp.write_text(metrics.model_dump_json(indent=2))
+            tmp.replace(path)
+        return metrics
+
+    def _capital_loss(self, key: Digest, found: dict[str, object]) -> float:
+        equity = self._load(key, Table.EQUITY)["equity"].to_numpy().astype(np.float64)
+        cash = found.get("initial_cash")
+        return capital_loss_pct(equity, cash if isinstance(cash, int | float) else math.nan)
+
+    def _time_in_market(self, key: Digest, found: dict[str, object]) -> float:
+        bars = self.root / key / f"{Table.BARS}.parquet"
+        times = (
+            pq.read_table(bars, columns=["time"])["time"] if "time" in pq.read_schema(bars).names else None
+        )
+        if times is None:
+            return math.nan
+        bar_ns = times.cast(tables.TIME).cast(tables.I64).to_numpy(zero_copy_only=False).astype(np.int64)
+        return time_in_market_pct(bar_ns, self._load(key, Table.TRADES).to_pandas())
 
     def spec(self, key: Digest) -> RunSpec:
         try:

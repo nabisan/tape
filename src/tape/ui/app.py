@@ -81,6 +81,7 @@ GROUPS: Final[list[list[Line]]] = [
         Line("Net P&L $", lambda m: m.net_pnl, "{:,.0f}"),
         Line("Total return %", lambda m: m.total_return_pct, "{:.2f}"),
         Line("CAGR %", lambda m: m.cagr_pct, "{:.2f}"),
+        Line("Max loss on capital %", lambda m: m.max_capital_loss_pct, "{:.2f}"),
     ],
     [
         Line("Volatility, ann. %", lambda m: m.volatility_pct, "{:.2f}"),
@@ -89,7 +90,7 @@ GROUPS: Final[list[list[Line]]] = [
         Line("Max drawdown %", lambda m: m.max_drawdown_pct, "{:.2f}"),
         Line("Longest DD, sessions", lambda m: m.max_drawdown_sessions, "{:,.0f}"),
         Line("Calmar", lambda m: m.calmar, "{:.2f}"),
-        Line("Exposure %", lambda m: m.exposure_pct, "{:.1f}"),
+        Line("Time in market %", lambda m: m.time_in_market_pct, "{:.1f}"),
     ],
     [
         Line("Trades", lambda m: m.trades, "{:,.0f}"),
@@ -898,7 +899,7 @@ SWEEP_COLUMNS: Final = {
     "last_signal": st.column_config.DatetimeColumn("Last signal", format=GRID_STAMP),
     "win_rate_pct": st.column_config.NumberColumn("Win %", format="%.1f"),
     "profit_factor": None,
-    "exposure_pct": st.column_config.NumberColumn("Exposure %", format="%.1f"),
+    "time_in_market_pct": st.column_config.NumberColumn("Time in market %", format="%.1f"),
     "buy_hold_return_pct": st.column_config.NumberColumn("Buy & hold %", format="%.1f"),
 }
 

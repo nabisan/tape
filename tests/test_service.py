@@ -180,6 +180,25 @@ def test_results_from_an_older_engine_are_gone_not_errors(tmp_path: Path) -> Non
         assert "older engine version" in r.json()["detail"]
 
 
+def test_runs_stored_before_new_metrics_gain_them_from_their_tables(tmp_path: Path) -> None:
+    make_store(tmp_path)
+    settings = Settings(
+        source_dir=tmp_path / "source", store_dir=tmp_path / "store", results_dir=tmp_path / "results"
+    )
+    with TestClient(create_app(settings, workers=1, grid=FeatureGrid(timeframes=(), specs=()))) as c:
+        run = c.post("/runs", json=RUN).json()
+        fresh = run["metrics"]
+        stored = tmp_path / "results" / run["key"] / "metrics.json"
+        legacy = json.loads(stored.read_text())
+        del legacy["max_capital_loss_pct"], legacy["time_in_market_pct"]
+        stored.write_text(json.dumps({**legacy, "exposure_pct": 12.5}))
+        upgraded = c.get(f"/runs/{run['key']}").json()["metrics"]
+        for name in ("max_capital_loss_pct", "time_in_market_pct"):
+            assert upgraded[name] == fresh[name]
+            assert name in json.loads(stored.read_text())
+        assert fresh["max_capital_loss_pct"] <= 0 < fresh["time_in_market_pct"]
+
+
 def test_zero_trade_tables_read_typed_and_windowed(tmp_path: Path) -> None:
     make_store(tmp_path)
     settings = Settings(

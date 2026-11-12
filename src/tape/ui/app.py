@@ -107,6 +107,7 @@ GROUPS: Final[list[list[Line]]] = [
     ],
 ]
 LEDGER_POLL: Final = 3.0
+CLIP_DAYS: Final = 7
 SLOW_SECTION: Final = 2.0
 UI: Final = Log("Ui")
 SWEEP_POLL: Final = 2.0
@@ -276,10 +277,14 @@ def header(
     keys = " &middot; ".join(
         f"run {label.lower() + ' ' if compare else ''}{key[:8]}" for label, (key, _) in results.items()
     )
+    traded = next(iter(results.values()))[1]
+    start, end = traded.start or spec.start, traded.end or spec.end
+    clipped = (start - spec.start).days > CLIP_DAYS or (spec.end - end).days > CLIP_DAYS
+    requested = f" &middot; requested {_day(spec.start)} &ndash; {_day(spec.end)}" if clipped else ""
     left = (
         f'<div><div class="t-ticker">{html.escape(spec.ticker)}</div>'
-        f'<div class="t-meta">{_day(spec.start)} &ndash; {_day(spec.end)}'
-        f" &middot; {sessions:,} sessions</div>"
+        f'<div class="t-meta">{_day(start)} &ndash; {_day(end)}'
+        f" &middot; {sessions:,} sessions{requested}</div>"
         f"{''.join(legs)}"
         f'<div class="t-meta">{execution_line(spec.execution)}</div>'
         f'<div class="t-ids">{keys} &middot; data {version[:8]}</div></div>'

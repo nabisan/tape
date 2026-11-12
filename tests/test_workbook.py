@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import TYPE_CHECKING
 
 import pytest
 from openpyxl import load_workbook
 
 from tape.core.types import Ticker
-from tape.runner import record
+from tape.runner import RunSpec, record
+from tape.service.ledgers import heading
 from tape.workbook import FIRST_DATA_ROW, FONT, LedgerTooLargeError, band_text, ledger, title
 from tests.test_engine_runs import HB_5M, SMA_D1, spec, store
 
@@ -56,3 +58,18 @@ def test_workbook_refuses_more_rows_than_excel(
     with pytest.raises(LedgerTooLargeError, match="exceed Excel"):
         ledger(tmp_path / "x.xlsx", rec.table, rec.trades, "h", "s")
     assert not (tmp_path / "x.xlsx").exists()
+
+
+def test_ledger_heading_shows_the_traded_range_not_the_request() -> None:
+    spec = RunSpec.model_validate(
+        {
+            "ticker": "NBIS",
+            "start": "2018-05-01",
+            "end": "2026-04-30",
+            "strategy": "high_breakout",
+            "params": {"timeframe": "5m"},
+        }
+    )
+    title = heading(spec, date(2024, 10, 21), date(2026, 4, 30))
+    assert title.endswith("21 Oct 2024 \u2013 30 Apr 2026")
+    assert "2018" not in title

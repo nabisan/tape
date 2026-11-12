@@ -15,6 +15,7 @@ from tape.workbook import ledger
 if TYPE_CHECKING:
     from collections.abc import Callable
     from concurrent.futures import Executor, Future
+    from datetime import date
     from pathlib import Path
 
     from pydantic.fields import FieldInfo
@@ -70,7 +71,7 @@ def _shown(field: FieldInfo, values: dict[str, object]) -> bool:
     return not isinstance(when, dict) or all(values.get(k) == v for k, v in when.items())
 
 
-def heading(spec: RunSpec) -> str:
+def heading(spec: RunSpec, first: date, last: date) -> str:
     cls = STRATEGIES[spec.strategy]
     fields = cls.config_type.model_fields
     values = cls.config_type.model_validate(spec.params).model_dump(mode="json")
@@ -80,7 +81,7 @@ def heading(spec: RunSpec) -> str:
         if k != "timeframe" and _shown(fields[k], values)
     )
     tf = values.get("timeframe", "1d")
-    return f"{spec.ticker} · {cls.title} · {tf} · {params} · {spec.start:{DATE}} {DASH} {spec.end:{DATE}}"
+    return f"{spec.ticker} · {cls.title} · {tf} · {params} · {first:{DATE}} {DASH} {last:{DATE}}"
 
 
 def build(store: Store, results: ResultStore, grid: FeatureGrid, key: Digest) -> int:
@@ -101,7 +102,10 @@ def build(store: Store, results: ResultStore, grid: FeatureGrid, key: Digest) ->
             f"net P&L ${expected:,.2f} · run {key[:8]} · engine v{ENGINE_VERSION}"
         )
         partial = folder / f"{FILE}.partial"
-        rows = ledger(partial, rec.table, rec.trades, heading(spec), subtitle)
+        times = rec.table["time"]
+        first = times[0].as_py().date() if len(times) else spec.start
+        last = times[-1].as_py().date() if len(times) else spec.end
+        rows = ledger(partial, rec.table, rec.trades, heading(spec, first, last), subtitle)
         partial.replace(folder / FILE)
     except (ValueError, OSError) as e:
         failure.write_text(str(e))

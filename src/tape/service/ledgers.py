@@ -121,6 +121,9 @@ class Ledgers:
     def path(self, key: Digest) -> Path:
         return self.results.root / key / FILE
 
+    def building(self) -> list[str]:
+        return [k for k, job in self.jobs.items() if not job.done()]
+
     def status(self, key: Digest) -> LedgerStatus:
         path = self.path(key)
         if path.is_file():

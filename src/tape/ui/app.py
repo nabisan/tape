@@ -4,7 +4,6 @@ import hashlib
 import html
 import math
 import os
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Final
 
@@ -22,6 +21,7 @@ from tape.engine.matching import FillModel
 from tape.runner import RunSpec
 from tape.service.ledgers import MEDIA, LedgerState, filename
 from tape.service.results import Table
+from tape.strategies.registry import STRATEGIES
 from tape.sweep import SweepSpec
 from tape.ui import basket, charts, forms
 from tape.ui.client import ApiError, Client, GoneError
@@ -90,6 +90,8 @@ GROUPS: Final[list[list[Row]]] = [
     ],
 ]
 LEDGER_POLL: Final = 3.0
+SWEEP_POLL: Final = 2.0
+BACKGROUND_POLL: Final = 3.0
 MOMENTS: Final[dict[str, tuple[Moment, ...]]] = {
     "Trades": (("First signal", lambda m: m.first_signal), ("Last signal", lambda m: m.last_signal))
 }
@@ -456,9 +458,6 @@ def space(strategy: str, ticker: str, end: date | None) -> StrategySpace:
 
 def execution_form(intraday_allowed: bool = True) -> ExecutionSpec:
     with st.expander("Execution", expanded=False):
-        cash = st.number_input(
-            "Initial cash ($)", min_value=1_000.0, value=100_000.0, step=10_000.0, format="%.0f"
-        )
         commission = 0.0
         if st.toggle("Commission", value=False):
             commission = st.number_input("Commission ($/share)", 0.0, 1.0, 0.005, 0.001, format="%.4f")
@@ -472,7 +471,6 @@ def execution_form(intraday_allowed: bool = True) -> ExecutionSpec:
             delay = st.number_input("Entry delay after open (min)", 0, 390, 0, 5)
             squareoff = st.number_input("Square-off before close (min)", 1, 390, 5, 1)
     return ExecutionSpec(
-        initial_cash=cash,
         fill=FillModel(commission_per_share=commission, slippage_bps=slippage, prob_fill_on_limit=prob_limit),
         intraday=intraday,
         entry_delay_minutes=int(delay),
@@ -545,7 +543,7 @@ def backtest_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> dict[str, Ru
                 end=span[1],
                 strategy=name,
                 params=params or {},
-                execution=execution,
+                execution=forms.capital(name, params or {}, execution),
             )
             for label, (name, params) in runs.items()
         }
@@ -620,7 +618,7 @@ def sweep_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> SweepSpec | Non
             timeframe=tf,
             grid={k: tuple(v) for k, v in grid.items()},
             params=fixed,
-            execution=execution,
+            execution=forms.capital(name, fixed, execution),
         )
     except ValidationError as e:
         st.error("; ".join(str(err["msg"]) for err in e.errors()))
@@ -828,26 +826,21 @@ SWEEP_COLUMNS: Final = {
 }
 
 
-def run_sweep(spec: SweepSpec) -> str | None:
+def start_sweep(spec: SweepSpec) -> str | None:
     try:
-        status = client().start_sweep(spec)
+        return client().start_sweep(spec).key
     except ApiError as e:
         st.error(str(e))
         return None
-    key = status.key
-    bar = st.progress(0.0, "Starting sweep")
-    while status.state == "running":
-        total = max(1, status.total)
-        bar.progress(status.done / total, f"{status.done:,} of {total:,} runs")
-        time.sleep(1.0)
-        status = client().sweep(key)
-    bar.empty()
-    if status.state == "failed":
-        st.error(f"Sweep failed: {status.error}")
-        return None
-    for s in status.skipped:
-        st.warning(f"{s.ticker} skipped: {s.reason}")
-    return key
+
+
+@st.fragment(run_every=SWEEP_POLL)
+def sweep_progress(key: str) -> None:
+    status = client().sweep(key)
+    if status.state != "running":
+        st.rerun()
+    total = max(1, status.total)
+    st.progress(status.done / total, f"Sweep {key[:8]} · {status.done:,} of {total:,} runs")
 
 
 SWEEP_STATS: Final[tuple[tuple[str, Callable[[pd.DataFrame], float], str], ...]] = (
@@ -1010,7 +1003,7 @@ def restore() -> tuple[dict[str, tuple[str, Metrics]], dict[str, RunSpec]] | Non
 
 
 def sweep_page(sweep_spec: SweepSpec | None, cat: Catalog, strats: dict[str, StrategyInfo]) -> None:
-    if sweep_spec is not None and (key := run_sweep(sweep_spec)) is not None:
+    if sweep_spec is not None and (key := start_sweep(sweep_spec)) is not None:
         st.session_state["sweep"] = (key, sweep_spec)
         st.query_params.from_dict({SWEEP_LINK: key})
     if "sweep" not in st.session_state and SWEEP_LINK in st.query_params:
@@ -1027,7 +1020,24 @@ def sweep_page(sweep_spec: SweepSpec | None, cat: Catalog, strats: dict[str, Str
     if current is None:
         notice("Choose tickers, a strategy and the parameter values to sweep, then run the sweep.")
         return
-    show_sweep(current[0], current[1], cat, strats)
+    key, spec = current
+    try:
+        status = client().sweep(key)
+    except ApiError:
+        notice(f"Sweep {key[:8]} is no longer known to the server; run it again.")
+        return
+    if status.state == "running":
+        sweep_progress(key)
+        return
+    if status.state == "stopped":
+        notice(f"Sweep {key[:8]} was stopped after {status.done:,} of {status.total:,} runs.")
+        return
+    if status.state == "failed":
+        st.error(f"Sweep failed: {status.error}")
+        return
+    for skipped in status.skipped:
+        st.warning(f"{skipped.ticker} skipped: {skipped.reason}")
+    show_sweep(key, spec, cat, strats)
 
 
 def backtest_page(specs: dict[str, RunSpec] | None, cat: Catalog, strats: dict[str, StrategyInfo]) -> None:
@@ -1060,6 +1070,29 @@ def backtest_page(specs: dict[str, RunSpec] | None, cat: Catalog, strats: dict[s
     show_runs(results, st.session_state["specs"], cat, strats)
 
 
+@st.fragment(run_every=BACKGROUND_POLL)
+def background() -> None:
+    try:
+        sweeps, ledgers = client().running_sweeps(), client().building_ledgers()
+    except ApiError:
+        return
+    if not sweeps and not ledgers:
+        return
+    st.html(title("Background"))
+    for s in sweeps:
+        total = max(1, s.total)
+        name = STRATEGIES[s.strategy].title if s.strategy in STRATEGIES else s.strategy
+        st.progress(
+            s.done / total,
+            f"Sweep {s.key[:8]} · {name} {s.timeframe} · {s.tickers:,} tickers · {s.done:,}/{total:,}",
+        )
+        if st.button("Stop", key=f"stop:{s.key}", width="stretch"):
+            client().stop_sweep(s.key)
+            st.rerun()
+    for key in ledgers:
+        st.caption(f"MTM ledger · run {key[:8]} · building")
+
+
 def main() -> None:
     st.set_page_config(page_title="tape", layout="wide", initial_sidebar_state=SIDEBAR)
     st.markdown(CSS, unsafe_allow_html=True)
@@ -1078,6 +1111,7 @@ def main() -> None:
         mode = st.segmented_control("Mode", ["Backtest", "Sweep"], key=MODE, label_visibility="collapsed")
         sweep = sweep_form(cat, strats) if mode == "Sweep" else None
         runs = backtest_form(cat, strats) if mode != "Sweep" else None
+        background()
     if mode == "Sweep":
         sweep_page(sweep, cat, strats)
     else:

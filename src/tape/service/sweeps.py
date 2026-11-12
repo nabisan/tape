@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from tape.runner import RunSpec
     from tape.service.results import ResultStore
 
-type State = Literal["running", "done", "failed"]
+type State = Literal["running", "done", "failed", "stopped"]
 
 WEEKLY_ABOVE: Final = 2_000_000
 
@@ -35,6 +35,9 @@ class SweepStatus(BaseModel):
     failed: int
     skipped: list[Skipped]
     error: str | None = None
+    strategy: str = ""
+    timeframe: str = ""
+    tickers: int = 0
 
 
 @dataclass(slots=True)
@@ -42,6 +45,7 @@ class _Progress:
     key: Digest
     total: int
     skipped: list[Skipped]
+    spec: SweepSpec
     state: State = "running"
     done: int = 0
     failed: int = 0
@@ -57,6 +61,9 @@ class _Progress:
             failed=self.failed,
             skipped=self.skipped,
             error=self.error,
+            strategy=self.spec.strategy,
+            timeframe=self.spec.timeframe.value,
+            tickers=len(self.spec.tickers),
         )
 
 
@@ -86,7 +93,7 @@ class SweepManager:
         if current is not None and current.state == "running":
             return current.status()
         plan = expand(spec, self._store, self._grid)
-        progress = _Progress(key=key, total=len(plan.runs), skipped=list(plan.skipped))
+        progress = _Progress(key=key, total=len(plan.runs), skipped=list(plan.skipped), spec=spec)
         self._sweeps[key] = progress
         if self._results.sweep_summary(key).is_file():
             progress.state, progress.done = "done", progress.total
@@ -95,6 +102,19 @@ class SweepManager:
             "sweep", sweep=key[:12], strategy=spec.strategy, runs=progress.total, tickers=len(spec.tickers)
         )
         progress.task = asyncio.create_task(self._run(spec, plan, progress))
+        return progress.status()
+
+    def running(self) -> list[SweepStatus]:
+        return [p.status() for p in self._sweeps.values() if p.state == "running"]
+
+    def stop(self, key: Digest) -> SweepStatus | None:
+        progress = self._sweeps.get(key)
+        if progress is None:
+            return None
+        if progress.state == "running" and progress.task is not None:
+            progress.state = "stopped"
+            progress.task.cancel()
+            self._log.info("sweep stopped", sweep=key[:12], done=progress.done, runs=progress.total)
         return progress.status()
 
     def status(self, key: Digest) -> SweepStatus | None:

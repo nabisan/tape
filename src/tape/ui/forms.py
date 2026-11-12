@@ -4,9 +4,13 @@ from typing import TYPE_CHECKING, Any, Final
 
 import streamlit as st
 
+from tape.engine.strategy import Sizing
+from tape.strategies.registry import STRATEGIES
+
 if TYPE_CHECKING:
     from datetime import date
 
+    from tape.engine.backtest import ExecutionSpec
     from tape.engine.parameters import ResolvedSpace
 
 
@@ -134,3 +138,10 @@ def presets(first: date, last: date) -> list[str]:
 def preset_span(name: str, first: date, last: date) -> tuple[date, date]:
     years = PRESETS[name]
     return (first if years is None else max(first, years_before(last, years))), last
+
+
+def capital(strategy: str, params: dict[str, Any], execution: ExecutionSpec) -> ExecutionSpec:
+    config = STRATEGIES[strategy].config_type.model_validate(params)
+    if config.sizing is not Sizing.NOTIONAL:
+        return execution
+    return execution.model_copy(update={"initial_cash": config.notional})

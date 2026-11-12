@@ -231,6 +231,17 @@ def _run_routes(
 def _sweep_routes(store: Store, results: ResultStore, sweeps: SweepManager) -> APIRouter:
     router = APIRouter()
 
+    @router.get("/sweeps")
+    def running_sweeps() -> list[SweepStatus]:
+        return sweeps.running()
+
+    @router.post("/sweeps/{key}/stop")
+    def stop_sweep(key: str) -> SweepStatus:
+        status = sweeps.stop(Digest(key))
+        if status is None:
+            raise HTTPException(404, f"no running sweep {key}")
+        return status
+
     @router.post("/sweeps")
     async def start_sweep(spec: SweepSpec) -> SweepStatus:
         try:
@@ -343,6 +354,10 @@ def _valuation_routes(results: ResultStore, fundamentals: Fundamentals | None) -
 
 def _ledger_routes(results: ResultStore, ledgers: Ledgers) -> APIRouter:
     router = APIRouter()
+
+    @router.get("/ledgers")
+    def building() -> list[str]:
+        return ledgers.building()
 
     @router.get("/runs/{key}/ledger")
     def ledger_status(key: str) -> LedgerStatus:

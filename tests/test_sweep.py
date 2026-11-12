@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import io
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -11,12 +14,15 @@ from fastapi.testclient import TestClient
 
 from tape.catalog.store import Store
 from tape.config import Settings
+from tape.core.hashing import Digest
 from tape.core.types import Ticker, Timeframe
 from tape.features.build import build
 from tape.features.grid import FeatureGrid
 from tape.features.kinds import ChannelHigh, ChannelLow, Sma
 from tape.runner import FeaturePolicy
 from tape.service.api import create_app
+from tape.service.results import ResultStore
+from tape.service.sweeps import SweepManager, SweepStatus
 from tape.sweep import SweepSpec, expand
 from tests.test_engine_runs import make_store
 
@@ -142,3 +148,47 @@ def test_combinations_that_cannot_warm_up_are_skipped(root: Path) -> None:
     assert {r.params["slow"] for r in plan.runs} == {8}
     assert len(plan.skipped) == 2
     assert all("need more history" in s.reason for s in plan.skipped)
+
+
+def test_running_sweeps_are_listed_and_can_be_stopped(root: Path, tmp_path: Path) -> None:
+    release = threading.Event()
+    started: list[str] = []
+
+    def execute(payload: str) -> Digest:
+        started.append(payload)
+        release.wait(30)
+        return Digest("x")
+
+    async def scenario() -> tuple[
+        list[SweepStatus], SweepStatus | None, list[SweepStatus], SweepStatus | None
+    ]:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            manager = SweepManager(
+                Store.open(root / "store"),
+                ResultStore(tmp_path / "results"),
+                pool=lambda: pool,
+                execute=execute,
+                concurrency=1,
+                grid=GRID,
+            )
+            status = manager.start(sma())
+            await asyncio.sleep(0.2)
+            running = manager.running()
+            stopped = manager.stop(Digest(status.key))
+            await asyncio.sleep(0.1)
+            after = manager.running()
+            release.set()
+            return running, stopped, after, manager.status(Digest(status.key))
+
+    running, stopped, after, final = asyncio.run(scenario())
+    assert [s.state for s in running] == ["running"]
+    assert running[0].strategy == "sma_cross" and running[0].tickers == 2 and running[0].total == 6
+    assert stopped is not None and stopped.state == "stopped"
+    assert after == []
+    assert final is not None and final.state == "stopped" and final.done < final.total
+    assert len(started) == 1
+
+
+def test_stopping_an_unknown_sweep_is_404(client: TestClient) -> None:
+    assert client.post("/sweeps/feedface/stop").status_code == 404
+    assert client.get("/sweeps").json() == []

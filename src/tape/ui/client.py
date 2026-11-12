@@ -32,6 +32,8 @@ if TYPE_CHECKING:
 JSON: Final = {"content-type": "application/json"}
 STRATEGIES: Final = TypeAdapter(dict[str, StrategyInfo])
 UNIVERSES: Final = TypeAdapter(list[UniverseInfo])
+SWEEPS: Final = TypeAdapter(list[SweepStatus])
+KEYS: Final = TypeAdapter(list[str])
 
 
 class ApiError(Exception):
@@ -87,6 +89,18 @@ class Client:
         if r.status_code != 200:
             raise ApiError(f"{r.status_code}: {_detail(r)}")
         return SweepStatus.model_validate(r.json())
+
+    def running_sweeps(self) -> list[SweepStatus]:
+        return SWEEPS.validate_python(self._get("/sweeps").json())
+
+    def stop_sweep(self, key: str) -> SweepStatus:
+        r = self._http.post(f"/sweeps/{key}/stop")
+        if r.status_code != 200:
+            raise ApiError(f"POST /sweeps/{key}/stop: {r.status_code} {_detail(r)}")
+        return SweepStatus.model_validate(r.json())
+
+    def building_ledgers(self) -> list[str]:
+        return KEYS.validate_python(self._get("/ledgers").json())
 
     def sweep(self, key: str) -> SweepStatus:
         return SweepStatus.model_validate(self._get(f"/sweeps/{key}").json())

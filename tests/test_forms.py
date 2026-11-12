@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from tape.engine.backtest import ExecutionSpec
 from tape.strategies.breakout import HighBreakoutConfig
 from tape.strategies.sma_cross import SmaCrossConfig
 from tape.ui import forms
@@ -39,3 +40,12 @@ def test_presets_only_offer_ranges_inside_the_history() -> None:
     assert forms.preset_span("3Y", date(2018, 5, 1), last) == (date(2023, 4, 30), last)
     assert forms.preset_span("Max", date(2024, 1, 2), last) == (date(2024, 1, 2), last)
     assert forms.years_before(date(2024, 2, 29), 1) == date(2023, 2, 28)
+
+
+def test_capital_follows_the_notional_for_notional_sizing() -> None:
+    base = ExecutionSpec()
+    sized = forms.capital("high_breakout", {"timeframe": "5m", "notional": 10_000.0}, base)
+    assert sized.initial_cash == 10_000.0
+    assert forms.capital("sma_cross", {}, base).initial_cash == SmaCrossConfig().notional
+    shares = forms.capital("sma_cross", {"sizing": "shares", "shares": 250}, base)
+    assert shares.initial_cash == base.initial_cash

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from tape import log
 from tape.core.types import DATE
 from tape.engine.backtest import ENGINE_VERSION
+from tape.engine.costs import charged
 from tape.runner import record
 from tape.strategies.registry import STRATEGIES
 from tape.workbook import ledger
@@ -105,7 +106,9 @@ def build(store: Store, results: ResultStore, grid: FeatureGrid, key: Digest) ->
         times = rec.table["time"]
         first = times[0].as_py().date() if len(times) else spec.start
         last = times[-1].as_py().date() if len(times) else spec.end
-        rows = ledger(partial, rec.table, rec.trades, heading(spec, first, last), subtitle)
+        costs = spec.execution.fill.costs
+        shown = rec.table.select([n for n in rec.table.schema.names if charged(n, costs)])
+        rows = ledger(partial, shown, rec.trades, heading(spec, first, last), subtitle)
         partial.replace(folder / FILE)
     except (ValueError, OSError) as e:
         failure.write_text(str(e))

@@ -30,6 +30,7 @@ SUMMARY: Final = (
     "sharpe",
     "sortino",
     "max_drawdown_pct",
+    "max_capital_loss_pct",
     "calmar",
     "trades",
     "first_signal",

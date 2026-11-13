@@ -286,8 +286,17 @@ def test_ledger_builds_in_the_background_and_downloads(tmp_path: Path) -> None:
         assert len(r.content) == status["size"]
         sheet = load_workbook(io.BytesIO(r.content)).active
         assert sheet is not None and str(sheet.cell(1, 1).value).startswith("AAPL · High")
+        assert "Commission" not in [cell.value for cell in sheet[4]]
         assert c.post(f"/runs/{key}/ledger").json()["state"] == "ready"
         assert c.get("/runs/feedface/ledger").status_code == 404
+        charged = {**RUN, "execution": {"fill": {"commission_per_share": 0.005}}}
+        paid = c.post("/runs", json=charged).json()["key"]
+        c.post(f"/runs/{paid}/ledger")
+        while c.get(f"/runs/{paid}/ledger").json()["state"] == "building":
+            assert time.monotonic() < deadline
+            time.sleep(0.2)
+        book = load_workbook(io.BytesIO(c.get(f"/runs/{paid}/ledger.xlsx").content)).active
+        assert book is not None and "Commission" in [cell.value for cell in book[4]]
 
 
 def test_strategies_report_their_exits(client: TestClient) -> None:

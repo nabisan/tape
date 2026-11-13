@@ -21,6 +21,7 @@ from tape.benchmarks import REFERENCE
 from tape.config import Settings
 from tape.core.types import DATE, STAMP, Ticker, Timeframe
 from tape.engine.backtest import ExecutionSpec
+from tape.engine.costs import Cost, charged
 from tape.engine.exits import Exit, applies
 from tape.engine.matching import FillModel
 from tape.log import Log
@@ -103,7 +104,7 @@ GROUPS: Final[list[list[Line]]] = [
         Line("Average hold, h", lambda m: m.avg_duration_hours, "{:,.1f}"),
     ],
     [
-        Line("Commission $", lambda m: m.total_commission, "{:,.0f}"),
+        Line("Commission $", lambda m: m.total_commission, "{:,.0f}", "total_commission"),
         Line("Final equity $", lambda m: m.final_equity, "{:,.0f}"),
     ],
 ]
@@ -334,7 +335,11 @@ def comparison(
 
 
 def _group(
-    heading: str, group: list[Line], results: dict[str, tuple[str, Metrics]], exits: frozenset[Exit]
+    heading: str,
+    group: list[Line],
+    results: dict[str, tuple[str, Metrics]],
+    exits: frozenset[Exit],
+    costs: frozenset[Cost],
 ) -> str:
     labels = list(results)
     compare = len(labels) == 2
@@ -347,7 +352,7 @@ def _group(
         )
     rows = []
     for line in group:
-        if not applies(line.metric, exits):
+        if not (applies(line.metric, exits) and charged(line.metric, costs)):
             continue
         text, get, fmt = line.label, line.get, line.fmt
         values = [float(get(results[lb][1])) for lb in labels]
@@ -412,8 +417,10 @@ def valuation(v: Valuation) -> str:
     )
 
 
-def performance(results: dict[str, tuple[str, Metrics]], value: Valuation, exits: frozenset[Exit]) -> str:
-    groups = [_group(h, g, results, exits) for h, g in zip(GROUP_TITLES, GROUPS, strict=True)]
+def performance(
+    results: dict[str, tuple[str, Metrics]], value: Valuation, exits: frozenset[Exit], costs: frozenset[Cost]
+) -> str:
+    groups = [_group(h, g, results, exits, costs) for h, g in zip(GROUP_TITLES, GROUPS, strict=True)]
     block = valuation(value)
     if len(results) == 2:
         body = f'<div class="t-perf compare">{"".join(groups)}{block}</div>'
@@ -722,8 +729,9 @@ def blotter_frame(key: str) -> pd.DataFrame:
 
 
 @st.cache_data(max_entries=16, show_spinner=False)
-def trades_csv(key: str) -> str:
+def trades_csv(key: str, costs: frozenset[Cost]) -> str:
     trades = table(key, Table.TRADES)
+    trades = trades[[c for c in trades.columns if charged(c, costs)]]
     stamped = {c: trades[c].dt.strftime(STAMP) for c in trades.select_dtypes("datetime").columns}
     return trades.assign(**stamped).to_csv(index=False)
 
@@ -803,6 +811,7 @@ def ledger_wait(label: str, key: str, spec: RunSpec) -> None:
 
 
 def strategy_view(label: str, key: str, spec: RunSpec) -> None:
+    costs = spec.execution.fill.costs
     price_view(label, key, spec)
     trades = blotter_frame(key)
     orders = table(key, Table.ORDERS)
@@ -815,12 +824,12 @@ def strategy_view(label: str, key: str, spec: RunSpec) -> None:
             height=_height(len(trades)),
             row_height=CELL,
             hide_index=True,
-            column_config=TRADE_COLUMNS,
+            column_config={c: (cfg if charged(c, costs) else None) for c, cfg in TRADE_COLUMNS.items()},
         )
         csv, mtm = st.columns([1, 6])
         csv.download_button(
             "Trades CSV",
-            trades_csv(key),
+            trades_csv(key, costs),
             f"trades_{label}_{key[:8]}.csv",
             key=f"dl:{label}",
         )
@@ -873,7 +882,8 @@ def show_runs(
 
     def panel() -> None:
         exits = frozenset(e for s in specs.values() for e in strats[s.strategy].exits)
-        st.html(performance(results, worth(next(iter(results.values()))[0]), exits))
+        costs = frozenset(c for s in specs.values() for c in s.execution.fill.costs)
+        st.html(performance(results, worth(next(iter(results.values()))[0]), exits, costs))
 
     guarded("summary", f"top:{tag}", top)
     left, right = st.columns([7, 5])
@@ -893,6 +903,7 @@ SWEEP_COLUMNS: Final = {
     "sharpe": st.column_config.NumberColumn("Sharpe", format="%.2f"),
     "sortino": None,
     "max_drawdown_pct": st.column_config.NumberColumn("Max DD %", format="%.2f"),
+    "max_capital_loss_pct": st.column_config.NumberColumn("Max loss on capital %", format="%.2f"),
     "calmar": None,
     "trades": st.column_config.NumberColumn("Trades", format="%,d"),
     "first_signal": st.column_config.DatetimeColumn("First signal", format=GRID_STAMP),

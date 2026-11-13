@@ -7,6 +7,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from tape.core.types import Bps, PerShare, Probability
+from tape.engine.costs import Cost
 from tape.engine.orders import Fill, Order, OrderSide, OrderStatus, OrderType
 
 if TYPE_CHECKING:
@@ -32,6 +33,11 @@ class FillModel(BaseModel):
     prob_fill_on_limit: Probability = 1.0
     path: BarPath = BarPath.ADVERSE_FIRST
     seed: int = 0
+
+    @property
+    def costs(self) -> frozenset[Cost]:
+        commission = self.commission_per_share > 0 or self.min_commission > 0
+        return frozenset({Cost.COMMISSION}) if commission else frozenset()
 
     def commission(self, quantity: int) -> float:
         return max(self.min_commission, self.commission_per_share * quantity)

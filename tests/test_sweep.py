@@ -9,6 +9,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 import pandas as pd
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from fastapi.testclient import TestClient
@@ -202,10 +203,13 @@ def test_stored_summaries_gain_newly_declared_columns(client: TestClient, root: 
     key = client.post("/sweeps", json=body).json()["key"]
     wait(client, key)
     path = root / "results" / "sweeps" / f"{key}.parquet"
-    legacy = pq.read_table(path).drop_columns(["volatility_pct", "first_signal", "last_signal"])
-    pq.write_table(legacy, path)
+    dropped = ["volatility_pct", "first_signal", "last_signal", "max_capital_loss_pct", "time_in_market_pct"]
+    legacy = pq.read_table(path).drop_columns(dropped)
+    pq.write_table(legacy.append_column("exposure_pct", pa.array([1.0] * legacy.num_rows)), path)
     frame = pd.read_parquet(io.BytesIO(client.get(f"/sweeps/{key}/summary").content))
     assert list(frame.columns[-len(SUMMARY) :]) == list(SUMMARY)
     assert frame["volatility_pct"].notna().all()
+    assert (frame["max_capital_loss_pct"] <= 0).all()
+    assert "exposure_pct" not in frame.columns
     assert pd.api.types.is_datetime64_any_dtype(frame["first_signal"])
     assert set(SUMMARY) <= set(pq.read_schema(path).names)

@@ -7,6 +7,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final
 
 import httpx2
@@ -77,6 +78,13 @@ LABELS: Final = ("A", "B")
 LINKS: Final = dict(zip(LABELS, ("run", "b"), strict=True))
 SWEEP_LINK: Final = "sweep"
 MODE: Final = "mode"
+
+
+class Mode(StrEnum):
+    SINGLE_LINE = "Single line"
+    SIMULATION = "Simulation"
+
+
 GROUPS: Final[list[list[Line]]] = [
     [
         Line("Net P&L $", lambda m: m.net_pnl, "{:,.0f}"),
@@ -594,7 +602,7 @@ def backtest_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> dict[str, Ru
         runs[label] = (name, params)
     execution = execution_form(all(strats[name].intraday for name, _ in runs.values()))
     ready = all(params is not None for _, params in runs.values())
-    label_text = "Run comparison" if compare else "Run backtest"
+    label_text = "Run comparison" if compare else "Run single line"
     if not st.button(label_text, type="primary", width="stretch", disabled=not ready):
         return None
     try:
@@ -669,7 +677,7 @@ def sweep_form(cat: Catalog, strats: dict[str, StrategyInfo]) -> SweepSpec | Non
     )
     execution = execution_form(strats[name].intraday)
     ready = combos > 0
-    if not st.button("Run sweep", type="primary", width="stretch", disabled=not ready):
+    if not st.button("Run simulation", type="primary", width="stretch", disabled=not ready):
         return None
     try:
         return SweepSpec(
@@ -928,12 +936,12 @@ def sweep_progress(key: str) -> None:
     try:
         status = client().sweep(key)
     except ApiError:
-        st.caption(f"Sweep {key[:8]} status unavailable; retrying.")
+        st.caption(f"Simulation {key[:8]} status unavailable; retrying.")
         return
     if status.state != "running":
         st.rerun()
     total = max(1, status.total)
-    st.progress(status.done / total, f"Sweep {key[:8]} · {status.done:,} of {total:,} runs")
+    st.progress(status.done / total, f"Simulation {key[:8]} · {status.done:,} of {total:,} runs")
 
 
 SWEEP_STATS: Final[tuple[tuple[str, Callable[[pd.DataFrame], float], str], ...]] = (
@@ -970,7 +978,7 @@ def sweep_paths(key: str) -> pd.DataFrame:
 def show_sweep(key: str, spec: SweepSpec, cat: Catalog, strats: dict[str, StrategyInfo]) -> None:
     frame = client().sweep_summary(key)
     if frame.empty:
-        notice("The sweep produced no runs.")
+        notice("The simulation produced no runs.")
         return
     swept = [c for c in frame.columns if c in spec.grid]
     measures = [c for c in SWEEP_COLUMNS if c in frame.columns and c != "key"]
@@ -990,11 +998,11 @@ def show_sweep(key: str, spec: SweepSpec, cat: Catalog, strats: dict[str, Strate
     )
     st.html(
         '<div class="t-head"><div>'
-        f'<div class="t-ticker">{html.escape(strategy_title)} sweep</div>'
+        f'<div class="t-ticker">{html.escape(strategy_title)} simulation</div>'
         f'<div class="t-meta">{_day(spec.start)} &ndash; {_day(spec.end)} &middot; '
         f"{spec.timeframe} &middot; {runs}</div>"
         f"{fixed_line}"
-        f'<div class="t-ids">sweep {key[:8]}</div></div>{sweep_stats(frame)}</div>'
+        f'<div class="t-ids">simulation {key[:8]}</div></div>{sweep_stats(frame)}</div>'
     )
     multi = count > 1
     leaders = {str(r["key"]): run_label(r, swept, multi) for _, r in best.head(3).iterrows()}
@@ -1054,7 +1062,9 @@ def show_sweep(key: str, spec: SweepSpec, cat: Catalog, strats: dict[str, Strate
         hide_index=True,
         column_config=columns,
     )
-    st.download_button("Sweep CSV", best.drop(columns=["key"]).to_csv(index=False), f"sweep_{key[:8]}.csv")
+    st.download_button(
+        "Simulation CSV", best.drop(columns=["key"]).to_csv(index=False), f"simulation_{key[:8]}.csv"
+    )
     labels = [
         " · ".join(
             part
@@ -1113,22 +1123,22 @@ def sweep_page(sweep_spec: SweepSpec | None, cat: Catalog, strats: dict[str, Str
             st.query_params.clear()
     current = st.session_state.get("sweep")
     if current is None:
-        notice("Choose tickers, a strategy and the parameter values to sweep, then run the sweep.")
+        notice("Choose tickers, a strategy and the parameter values to test, then run the simulation.")
         return
     key, spec = current
     try:
         status = client().sweep(key)
     except ApiError:
-        notice(f"Sweep {key[:8]} is no longer known to the server; run it again.")
+        notice(f"Simulation {key[:8]} is no longer known to the server; run it again.")
         return
     if status.state == "running":
         sweep_progress(key)
         return
     if status.state == "stopped":
-        notice(f"Sweep {key[:8]} was stopped after {status.done:,} of {status.total:,} runs.")
+        notice(f"Simulation {key[:8]} was stopped after {status.done:,} of {status.total:,} runs.")
         return
     if status.state == "failed":
-        st.error(f"Sweep failed: {status.error}")
+        st.error(f"Simulation failed: {status.error}")
         return
     for skipped in status.skipped:
         st.warning(f"{skipped.ticker} skipped: {skipped.reason}")
@@ -1160,7 +1170,7 @@ def backtest_page(specs: dict[str, RunSpec] | None, cat: Catalog, strats: dict[s
             st.session_state["results"], st.session_state["specs"] = linked
     results: dict[str, tuple[str, Metrics]] | None = st.session_state.get("results")
     if not results:
-        notice("Choose a ticker, a date range and a strategy in the sidebar, then run the backtest.")
+        notice("Choose a ticker, a date range and a strategy in the sidebar, then run the single line.")
         return
     show_runs(results, st.session_state["specs"], cat, strats)
 
@@ -1188,7 +1198,7 @@ def background_live() -> None:
         name = STRATEGIES[s.strategy].title if s.strategy in STRATEGIES else s.strategy
         st.progress(
             s.done / total,
-            f"Sweep {s.key[:8]} · {name} {s.timeframe} · {s.tickers:,} tickers · {s.done:,}/{total:,}",
+            f"Simulation {s.key[:8]} · {name} {s.timeframe} · {s.tickers:,} tickers · {s.done:,}/{total:,}",
         )
         if st.button("Stop", key=f"stop:{s.key}", width="stretch"):
             try:
@@ -1220,12 +1230,12 @@ def render() -> str:
             '<div class="tag">US equity backtests</div></div>'
         )
         if MODE not in st.session_state:
-            st.session_state[MODE] = "Sweep" if SWEEP_LINK in st.query_params else "Backtest"
-        mode = st.segmented_control("Mode", ["Backtest", "Sweep"], key=MODE, label_visibility="collapsed")
-        sweep = sweep_form(cat, strats) if mode == "Sweep" else None
-        runs = backtest_form(cat, strats) if mode != "Sweep" else None
+            st.session_state[MODE] = Mode.SIMULATION if SWEEP_LINK in st.query_params else Mode.SINGLE_LINE
+        mode = st.segmented_control("Mode", list(Mode), key=MODE, label_visibility="collapsed")
+        sweep = sweep_form(cat, strats) if mode == Mode.SIMULATION else None
+        runs = backtest_form(cat, strats) if mode != Mode.SIMULATION else None
         background()
-    if mode == "Sweep":
+    if mode == Mode.SIMULATION:
         sweep_page(sweep, cat, strats)
     else:
         backtest_page(runs, cat, strats)

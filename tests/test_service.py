@@ -22,10 +22,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
+START = "2024-02-01"
+END = "2024-06-28"
 RUN = {
     "ticker": "AAPL",
-    "start": "2024-02-01",
-    "end": "2024-06-28",
+    "start": START,
+    "end": END,
     "strategy": "high_breakout",
     "params": {"timeframe": "1h", "stop_loss_pct": 1.0},
     "features": "compute",
@@ -245,7 +247,7 @@ def test_valuation_route_with_and_without_fundamentals(tmp_path: Path) -> None:
         r = c.get(f"/runs/{key}/valuation")
         assert r.status_code == 200, r.text
         assert r.json() == {"ticker": RUN["ticker"], "start": None, "end": None}
-    days = pd.date_range(RUN["start"], RUN["end"], freq="D")
+    days = pd.date_range(START, END, freq="D")
     table = pa.table(
         {
             "ticker": [RUN["ticker"]] * len(days),

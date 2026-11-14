@@ -10,7 +10,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
       - run: uv sync --frozen
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
       - run: uv run ruff format --check
       - run: uv run ruff check
       - run: uv run mypy src tests

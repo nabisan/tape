@@ -1184,6 +1184,7 @@ dev = [
     { name = "pyarrow-stubs" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "types-openpyxl" },
 ]
 
 [package.metadata]
@@ -1192,7 +1193,7 @@ requires-dist = [
     { name = "exchange-calendars", specifier = ">=4.13" },
     { name = "fastapi", specifier = ">=0.120" },
     { name = "httpx2", specifier = ">=2.16" },
-    { name = "marimo", specifier = ">=0.25.2" },
+    { name = "marimo", specifier = "==0.25.2" },
     { name = "numba", specifier = ">=0.68" },
     { name = "numpy", specifier = ">=2.5" },
     { name = "pandas", specifier = ">=2.3" },
@@ -1212,6 +1213,7 @@ dev = [
     { name = "pyarrow-stubs", specifier = ">=20" },
     { name = "pytest", specifier = ">=9.2" },
     { name = "ruff", specifier = ">=0.17" },
+    { name = "types-openpyxl", specifier = ">=3.1.5.20261017" },
 ]
 
 [[package]]
@@ -1248,6 +1250,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ee/9f/c5201d42a484c061e528825fc8e2d565f5abd50a4ced6fb7d29c4ec99b2b/truststore-0.10.5.tar.gz", hash = "sha256:30d36967ccaded5cbb38d602c433f53600036c79d502f4533a49b60a03bbefcd", size = 28091, upload-time = "2026-10-12T22:27:31.808Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/51/e9/3a7820be2bb0fe53b6bc9c3be26d3d1158004e4c3ab953aa6840b955b1e9/truststore-0.10.5-py3-none-any.whl", hash = "sha256:9aaaedaefaf06d8b206278cf8b5012bc897f485a874503501e12d776df78951c", size = 19017, upload-time = "2026-10-12T22:27:30.377Z" },
+]
+
+[[package]]
+name = "types-openpyxl"
+version = "3.1.5.20261017"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/af/13/ce0b36e7e29ee31ec75d6718d48d28d2d48ad319ddf4665f81c8f3a8fc95/types_openpyxl-3.1.5.20261017.tar.gz", hash = "sha256:3deb3b6279b65ab379c126df0ee1fd27500c9628edb8d9667d73f637462917dc", size = 102026, upload-time = "2026-10-17T06:20:01.431Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/17/a091e90fde3e90eff9168354269626e210a4c3c688910d8c9176b8a08cb4/types_openpyxl-3.1.5.20261017-py3-none-any.whl", hash = "sha256:3315cfebad290cc7ade1fccaf3a46ee820b3a8e7df726ff4f18d30ab7f383d68", size = 165886, upload-time = "2026-10-17T06:19:59.944Z" },
 ]
 
 [[package]]

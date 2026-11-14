@@ -150,8 +150,9 @@ def test_stop_with_notional_sizes_at_the_stop_level() -> None:
 
 
 def test_signal_time_is_the_decision_for_market_and_the_trigger_for_stops() -> None:
+    pending = Order(1, OrderSide.BUY, OrderType.MARKET, 10, TimeInForce.GTC, 100, 0)
+    assert pending.signal_ns is None
     market = Order(1, OrderSide.BUY, OrderType.MARKET, 10, TimeInForce.GTC, 100, 0)
-    assert market.signal_ns is None
     market.status, market.closed_ns = OrderStatus.FILLED, 200
     assert market.signal_ns == 100
     stop = Order(2, OrderSide.BUY, OrderType.STOP_MARKET, 10, TimeInForce.GTC, 100, 0, 5.0)

@@ -52,7 +52,7 @@ def test_ledger_reconciles_with_the_engine(
     unrealized = t["unrealized_pnl"].to_numpy(zero_copy_only=False)
     assert equity == pytest.approx(cash + realized - commission + unrealized, abs=1e-6)
     assert t["cumulative_pnl"].to_numpy() == pytest.approx(equity - cash)
-    states = [BarState(v) for v in t["state"].to_pylist()]
+    states = [BarState(str(v)) for v in t["state"].to_pylist()]
     positions = t["position"].to_pylist()
     for st, q in zip(states, positions, strict=True):
         assert (q != 0) == (st in IN_POSITION)

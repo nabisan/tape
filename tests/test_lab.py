@@ -175,11 +175,12 @@ def test_execution_choices_round_trip_and_charge_only_what_is_switched_on() -> N
 def test_an_opened_run_seeds_the_form() -> None:
     specs = RunRequest.model_validate(REQUEST).specs()
     found = seed(specs)
+    assert found is not None
     assert found["ticker"] == "AAPL" and found["start"] == "2024-02-01" and not found["compare"]
     params = {"timeframe": "1h", "fast": 5, "slow": 20}
     assert found["legs"]["A"] == {"strategy": "sma_cross", "params": params}
     assert found["execution"]["commission"] and found["execution"]["commission_per_share"] == 0.01
-    assert seed({}) == {}
+    assert seed({}) is None
 
 
 def test_the_form_ships_its_own_script_and_styles() -> None:

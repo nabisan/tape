@@ -1,0 +1,17 @@
+{
+  "name": "tape-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "types:emit": "json2ts --unreachableDefinitions --no-additionalProperties --maxItems -1 --bannerComment '' < src/tape/lab/types/api.schema.json",
+    "types": "npm run -s types:emit > src/tape/lab/types/api.d.ts",
+    "check": "tsc -p tsconfig.json",
+    "test": "node --test 'tests/web/*.test.js'"
+  },
+  "devDependencies": {
+    "@anywidget/types": "0.4.0",
+    "@types/node": "26.6.6",
+    "json-schema-to-typescript": "16.0.0",
+    "typescript": "7.0.2"
+  }
+}

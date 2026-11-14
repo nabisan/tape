@@ -1,0 +1,1226 @@
+{
+  "$defs": {
+    "Basket": {
+      "properties": {
+        "industries": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "quintiles": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sectors": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tickers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "universes": {
+          "items": {
+            "$ref": "#/$defs/Choice"
+          },
+          "type": "array"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "universes",
+        "tickers"
+      ],
+      "title": "Basket",
+      "type": "object"
+    },
+    "BasketQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "custom": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "industries": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scheme": {
+          "$ref": "#/$defs/Scheme"
+        },
+        "sectors": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "start": {
+          "format": "date",
+          "type": "string"
+        },
+        "universe": {
+          "default": "all",
+          "type": "string"
+        },
+        "volatility": {
+          "default": [],
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 5,
+          "type": "array"
+        }
+      },
+      "required": [
+        "start"
+      ],
+      "title": "BasketQuery",
+      "type": "object"
+    },
+    "Catalog": {
+      "properties": {
+        "data_version": {
+          "type": "string"
+        },
+        "first_session": {
+          "format": "date",
+          "type": "string"
+        },
+        "last_session": {
+          "format": "date",
+          "type": "string"
+        },
+        "tickers": {
+          "items": {
+            "$ref": "#/$defs/TickerInfo"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "data_version",
+        "first_session",
+        "last_session",
+        "tickers"
+      ],
+      "title": "Catalog",
+      "type": "object"
+    },
+    "Choice": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title"
+      ],
+      "title": "Choice",
+      "type": "object"
+    },
+    "ConfigSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "$defs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FieldSchema"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FieldSchema"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "properties"
+      ],
+      "title": "ConfigSchema",
+      "type": "object"
+    },
+    "ExecutionChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "commission": {
+          "default": false,
+          "type": "boolean"
+        },
+        "commission_per_share": {
+          "default": 0.005,
+          "minimum": 0,
+          "type": "number"
+        },
+        "entry_delay_minutes": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "intraday": {
+          "default": false,
+          "type": "boolean"
+        },
+        "prob_fill_on_limit": {
+          "default": 1.0,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "slippage": {
+          "default": false,
+          "type": "boolean"
+        },
+        "slippage_bps": {
+          "default": 1.0,
+          "minimum": 0,
+          "type": "number"
+        },
+        "squareoff_minutes_before_close": {
+          "default": 5,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "title": "ExecutionChoice",
+      "type": "object"
+    },
+    "Exit": {
+      "enum": [
+        "signal",
+        "stop_loss",
+        "take_profit"
+      ],
+      "title": "Exit",
+      "type": "string"
+    },
+    "FieldSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "$ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "allOf": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/FieldSchema"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "const": {
+          "$ref": "#/$defs/Json-Output"
+        },
+        "default": {
+          "$ref": "#/$defs/Json-Output"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Json-Output"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "exclusiveMaximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "exclusiveMinimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "when": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/Json-Output"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "FieldSchema",
+      "type": "object"
+    },
+    "FormModel": {
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "type": "string"
+        },
+        "busy": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "page": {
+          "enum": [
+            "run",
+            "simulation"
+          ],
+          "type": "string"
+        },
+        "pages": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Seed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "submission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunRequest-Output"
+            },
+            {
+              "$ref": "#/$defs/SweepRequest-Output"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "page",
+        "pages",
+        "api",
+        "seed",
+        "submission",
+        "message",
+        "busy"
+      ],
+      "title": "FormModel",
+      "type": "object"
+    },
+    "Json-Input": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/Json-Input"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/Json-Input"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "JsonInput"
+    },
+    "Json-Output": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/Json-Output"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/Json-Output"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "JsonOutput"
+    },
+    "LedgerModel": {
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "api",
+        "key"
+      ],
+      "title": "LedgerModel",
+      "type": "object"
+    },
+    "LedgerState": {
+      "enum": [
+        "absent",
+        "building",
+        "ready",
+        "failed"
+      ],
+      "title": "LedgerState",
+      "type": "string"
+    },
+    "LedgerStatus": {
+      "properties": {
+        "detail": {
+          "default": "",
+          "type": "string"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state": {
+          "$ref": "#/$defs/LedgerState"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "LedgerStatus",
+      "type": "object"
+    },
+    "Leg-Input": {
+      "additionalProperties": false,
+      "properties": {
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Json-Input"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategy"
+      ],
+      "title": "LegInput",
+      "type": "object"
+    },
+    "Leg-Output": {
+      "additionalProperties": false,
+      "properties": {
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Json-Output"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategy"
+      ],
+      "title": "LegOutput",
+      "type": "object"
+    },
+    "Ordered": {
+      "additionalProperties": false,
+      "properties": {
+        "lower": {
+          "type": "string"
+        },
+        "strict": {
+          "default": true,
+          "type": "boolean"
+        },
+        "upper": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "title": "Ordered",
+      "type": "object"
+    },
+    "PathsFigure": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "layout": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "traces": {
+          "items": {
+            "$ref": "#/$defs/PathsTrace"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "layout",
+        "config",
+        "traces"
+      ],
+      "title": "PathsFigure",
+      "type": "object"
+    },
+    "PathsMeta": {
+      "properties": {
+        "dates": {
+          "items": {
+            "format": "date",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "series": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "dates",
+        "series"
+      ],
+      "title": "PathsMeta",
+      "type": "object"
+    },
+    "PathsModel": {
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "type": "string"
+        },
+        "figure": {
+          "$ref": "#/$defs/PathsFigure"
+        },
+        "key": {
+          "type": "string"
+        },
+        "plotly": {
+          "type": "string"
+        },
+        "runs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "api",
+        "key",
+        "plotly",
+        "runs",
+        "figure"
+      ],
+      "title": "PathsModel",
+      "type": "object"
+    },
+    "PathsTrace": {
+      "additionalProperties": true,
+      "properties": {
+        "meta": {
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "meta"
+      ],
+      "title": "PathsTrace",
+      "type": "object"
+    },
+    "ResolvedSpace": {
+      "additionalProperties": false,
+      "properties": {
+        "choices": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Timeframe"
+          },
+          "type": "object"
+        },
+        "on_demand": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Timeframe"
+          },
+          "type": "array"
+        },
+        "ordered": {
+          "items": {
+            "$ref": "#/$defs/Ordered"
+          },
+          "type": "array"
+        },
+        "ready": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "format": "date",
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "default": {},
+          "propertyNames": {
+            "$ref": "#/$defs/Timeframe"
+          },
+          "type": "object"
+        },
+        "timeframes": {
+          "items": {
+            "$ref": "#/$defs/Timeframe"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "timeframes",
+        "choices",
+        "ordered"
+      ],
+      "title": "ResolvedSpace",
+      "type": "object"
+    },
+    "RunRequest-Input": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "date",
+          "type": "string"
+        },
+        "execution": {
+          "$ref": "#/$defs/ExecutionChoice"
+        },
+        "legs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Leg-Input"
+          },
+          "maxProperties": 2,
+          "minProperties": 1,
+          "type": "object"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "start": {
+          "format": "date",
+          "type": "string"
+        },
+        "ticker": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "n",
+        "ticker",
+        "start",
+        "end",
+        "legs"
+      ],
+      "title": "RunRequestInput",
+      "type": "object"
+    },
+    "RunRequest-Output": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "date",
+          "type": "string"
+        },
+        "execution": {
+          "$ref": "#/$defs/ExecutionChoice"
+        },
+        "legs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Leg-Output"
+          },
+          "maxProperties": 2,
+          "minProperties": 1,
+          "type": "object"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "start": {
+          "format": "date",
+          "type": "string"
+        },
+        "ticker": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "n",
+        "ticker",
+        "start",
+        "end",
+        "legs"
+      ],
+      "title": "RunRequestOutput",
+      "type": "object"
+    },
+    "Scheme": {
+      "enum": [
+        "GICS",
+        "SIC"
+      ],
+      "title": "Scheme",
+      "type": "string"
+    },
+    "Seed": {
+      "additionalProperties": false,
+      "properties": {
+        "compare": {
+          "default": false,
+          "type": "boolean"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "execution": {
+          "$ref": "#/$defs/ExecutionChoice"
+        },
+        "legs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Leg-Output"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ticker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Seed",
+      "type": "object"
+    },
+    "Skipped": {
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "ticker": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ticker",
+        "reason"
+      ],
+      "title": "Skipped",
+      "type": "object"
+    },
+    "State": {
+      "enum": [
+        "running",
+        "done",
+        "failed",
+        "stopped"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "StrategyInfo": {
+      "properties": {
+        "config_schema": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "exits": {
+          "items": {
+            "$ref": "#/$defs/Exit"
+          },
+          "type": "array"
+        },
+        "intraday": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "title",
+        "version",
+        "intraday",
+        "exits",
+        "config_schema"
+      ],
+      "title": "StrategyInfo",
+      "type": "object"
+    },
+    "StrategySpace": {
+      "properties": {
+        "config_schema": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "space": {
+          "$ref": "#/$defs/ResolvedSpace"
+        },
+        "ticker": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "ticker",
+        "space",
+        "config_schema"
+      ],
+      "title": "StrategySpace",
+      "type": "object"
+    },
+    "SweepRequest-Input": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "date",
+          "type": "string"
+        },
+        "execution": {
+          "$ref": "#/$defs/ExecutionChoice"
+        },
+        "grid": {
+          "additionalProperties": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Json-Input"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "start": {
+          "format": "date",
+          "type": "string"
+        },
+        "strategy": {
+          "type": "string"
+        },
+        "tickers": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "timeframe": {
+          "$ref": "#/$defs/Timeframe"
+        }
+      },
+      "required": [
+        "n",
+        "tickers",
+        "start",
+        "end",
+        "strategy",
+        "timeframe"
+      ],
+      "title": "SweepRequestInput",
+      "type": "object"
+    },
+    "SweepRequest-Output": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "date",
+          "type": "string"
+        },
+        "execution": {
+          "$ref": "#/$defs/ExecutionChoice"
+        },
+        "grid": {
+          "additionalProperties": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Json-Output"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "start": {
+          "format": "date",
+          "type": "string"
+        },
+        "strategy": {
+          "type": "string"
+        },
+        "tickers": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "timeframe": {
+          "$ref": "#/$defs/Timeframe"
+        }
+      },
+      "required": [
+        "n",
+        "tickers",
+        "start",
+        "end",
+        "strategy",
+        "timeframe"
+      ],
+      "title": "SweepRequestOutput",
+      "type": "object"
+    },
+    "SweepStatus": {
+      "properties": {
+        "done": {
+          "type": "integer"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "key": {
+          "type": "string"
+        },
+        "skipped": {
+          "items": {
+            "$ref": "#/$defs/Skipped"
+          },
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/State"
+        },
+        "strategy": {
+          "default": "",
+          "type": "string"
+        },
+        "tickers": {
+          "default": 0,
+          "type": "integer"
+        },
+        "timeframe": {
+          "default": "",
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key",
+        "state",
+        "total",
+        "done",
+        "failed",
+        "skipped"
+      ],
+      "title": "SweepStatus",
+      "type": "object"
+    },
+    "TickerInfo": {
+      "properties": {
+        "first_session": {
+          "format": "date",
+          "type": "string"
+        },
+        "last_session": {
+          "format": "date",
+          "type": "string"
+        },
+        "ticker": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ticker",
+        "first_session",
+        "last_session"
+      ],
+      "title": "TickerInfo",
+      "type": "object"
+    },
+    "Timeframe": {
+      "enum": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h",
+        "1d"
+      ],
+      "title": "Timeframe",
+      "type": "string"
+    }
+  },
+  "title": "TapeApi"
+}

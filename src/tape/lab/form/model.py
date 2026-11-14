@@ -122,18 +122,30 @@ class SweepRequest(BaseModel):
         )
 
 
-def seed(specs: Mapping[str, RunSpec]) -> dict[str, Any]:
+class Seed(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    ticker: str | None = None
+    start: str | None = None
+    end: str | None = None
+    compare: bool = False
+    legs: dict[str, Leg] = {}
+    execution: ExecutionChoice = ExecutionChoice()
+
+
+def seed(specs: Mapping[str, RunSpec]) -> dict[str, Any] | None:
     if not specs:
-        return {}
+        return None
     first = next(iter(specs.values()))
-    return {
-        "ticker": first.ticker,
-        "start": first.start.isoformat(),
-        "end": first.end.isoformat(),
-        "compare": len(specs) == 2,
-        "legs": {name: {"strategy": s.strategy, "params": s.params} for name, s in specs.items()},
-        "execution": ExecutionChoice.of(first.execution).model_dump(),
-    }
+    found = Seed(
+        ticker=first.ticker,
+        start=first.start.isoformat(),
+        end=first.end.isoformat(),
+        compare=len(specs) == 2,
+        legs={name: Leg(strategy=s.strategy, params=s.params) for name, s in specs.items()},
+        execution=ExecutionChoice.of(first.execution),
+    )
+    return found.model_dump(mode="json")
 
 
 class Form(anywidget.AnyWidget):
@@ -143,7 +155,7 @@ class Form(anywidget.AnyWidget):
     page = traitlets.Unicode("run").tag(sync=True)
     pages = traitlets.Dict().tag(sync=True)
     api = traitlets.Unicode("").tag(sync=True)
-    seed = traitlets.Dict().tag(sync=True)
-    submission = traitlets.Dict().tag(sync=True)
+    seed = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
+    submission = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
     message = traitlets.Unicode("").tag(sync=True)
     busy = traitlets.Bool(False).tag(sync=True)

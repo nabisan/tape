@@ -1,6 +1,39 @@
-const PRESETS = [["1Y", 1], ["3Y", 3], ["5Y", 5], ["Max", null]];
-const LEGS = ["A", "B"];
-const EXECUTION = {
+// @ts-check
+/** @typedef {import("../types/api").FormModel} Model */
+/** @typedef {import("../types/api").Catalog} Catalog */
+/** @typedef {import("../types/api").TickerInfo} TickerInfo */
+/** @typedef {import("../types/api").StrategyInfo} StrategyInfo */
+/** @typedef {import("../types/api").StrategySpace} StrategySpace */
+/** @typedef {import("../types/api").ConfigSchema} ConfigSchema */
+/** @typedef {import("../types/api").FieldSchema} FieldSchema */
+/** @typedef {import("../types/api").Basket} Basket */
+/** @typedef {import("../types/api").BasketQuery} BasketQuery */
+/** @typedef {import("../types/api").SweepStatus} SweepStatus */
+/** @typedef {import("../types/api").Ordered} Ordered */
+/** @typedef {import("../types/api").ExecutionChoice} ExecutionChoice */
+/** @typedef {import("../types/api").Timeframe} Timeframe */
+/** @typedef {import("../types/api").JsonInput} Json */
+/** @typedef {import("../types/api").RunRequestInput} RunRequest */
+/** @typedef {import("../types/api").SweepRequestInput} SweepRequest */
+/** @typedef {import("@anywidget/types").AnyModel<Model>} AnyModel */
+
+/** @typedef {Record<string, Json>} Params */
+/** @typedef {Required<ExecutionChoice>} Execution */
+/** @typedef {Omit<RunRequest, "n"> | Omit<SweepRequest, "n">} Request */
+/** @typedef {{ error: string }} Failure */
+/** @template T @typedef {[T, ...T[]]} NonEmpty */
+/** @typedef {{ preset: string | null, start: string | null, end: string | null }} Range */
+/** @typedef {{ preset: string | null, start: string, end: string, offered: string[] }} Span */
+/** @typedef {{ executionOpen: boolean, menus: Set<string>, searches: Map<string, string> }} Ui */
+/** @typedef {(e: Event) => unknown} Handler */
+/** @typedef {string | number | boolean | null | undefined | Handler} Attr */
+/** @typedef {Node | string | number | boolean | null | undefined | Child[]} Child */
+/** @typedef {{ name: string, options: number[], current: number[], hidden: number[] }} GridRow */
+
+/** @type {readonly (readonly [string, number | null])[]} */
+export const PRESETS = [["1Y", 1], ["3Y", 3], ["5Y", 5], ["Max", null]];
+/** @type {Execution} */
+export const EXECUTION = {
   commission: false,
   commission_per_share: 0.005,
   slippage: false,
@@ -11,98 +44,350 @@ const EXECUTION = {
   squareoff_minutes_before_close: 5,
 };
 const PAGES = { run: "Single line", simulation: "Simulation" };
-const SCHEMES = ["GICS", "SIC"];
+const SCHEMES = /** @type {const} */ (["GICS", "SIC"]);
 const POLL_MS = 3000;
 
-const label = (v) => {
+/** @param {unknown} v */
+export const label = (v) => {
   const t = String(v).replaceAll("_", " ");
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
-const yearsBefore = (iso, years) => {
-  const [y, m, d] = iso.split("-").map(Number);
+/**
+ * @param {string} iso
+ * @param {number} years
+ */
+export const yearsBefore = (iso, years) => {
+  const [y = 0, m = 1, d = 1] = iso.split("-").map(Number);
   const day = new Date(Date.UTC(y - years, m - 1, d));
   const fixed = day.getUTCMonth() === m - 1 ? day : new Date(Date.UTC(y - years, m - 1, 28));
   return fixed.toISOString().slice(0, 10);
 };
 
-const count = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
+/**
+ * @param {number} n
+ * @param {string} word
+ */
+export const count = (n, word) => `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
 
-const clamp = (iso, lo, hi) => (iso < lo ? lo : iso > hi ? hi : iso);
+/**
+ * @param {string} iso
+ * @param {string} lo
+ * @param {string} hi
+ */
+export const clamp = (iso, lo, hi) => (iso < lo ? lo : iso > hi ? hi : iso);
 
-const resolve = (prop, defs) => {
+/**
+ * @template T
+ * @param {readonly T[]} xs
+ * @returns {xs is NonEmpty<T>}
+ */
+export const nonEmpty = (xs) => xs.length > 0;
+
+/**
+ * @param {Range} range
+ * @param {string} first
+ * @param {string} last
+ * @returns {Span}
+ */
+export function span(range, first, last) {
+  const offered = PRESETS.filter(([, y]) => y === null || yearsBefore(last, y) >= first).map(([n]) => n);
+  const preset = range.preset && !offered.includes(range.preset) ? "Max" : range.preset;
+  let start = range.start ?? first;
+  let end = range.end ?? last;
+  if (preset) {
+    const years = PRESETS.find(([n]) => n === preset)?.[1] ?? null;
+    start = years === null ? first : clamp(yearsBefore(last, years), first, last);
+    end = last;
+  }
+  start = clamp(start, first, last);
+  return { preset, start, end: clamp(end, start, last), offered };
+}
+
+/**
+ * @param {FieldSchema} prop
+ * @param {Record<string, FieldSchema>} defs
+ * @returns {FieldSchema}
+ */
+export const resolve = (prop, defs) => {
   const ref = prop.$ref ?? (prop.allOf ?? []).map((p) => p.$ref).find(Boolean);
   if (!ref) return prop;
-  const base = defs[ref.split("/").pop()] ?? {};
+  const base = defs[ref.split("/").pop() ?? ""] ?? {};
   const rest = Object.fromEntries(Object.entries(prop).filter(([k]) => k !== "$ref" && k !== "allOf"));
   return { ...base, ...rest };
 };
 
-const visible = (prop, chosen) => Object.entries(prop.when ?? {}).every(([k, v]) => chosen[k] === v);
+/**
+ * @param {FieldSchema} prop
+ * @param {Params} chosen
+ */
+export const visible = (prop, chosen) => Object.entries(prop.when ?? {}).every(([k, v]) => chosen[k] === v);
 
-const dispatch = (e) => e.currentTarget._on?.[e.type]?.(e);
+/**
+ * @param {Ordered} o
+ * @param {number} lo
+ * @param {number} hi
+ */
+const holds = (o, lo, hi) => (o.strict ? lo < hi : lo <= hi);
 
+/**
+ * @param {{ config_schema: Record<string, unknown> }} found
+ * @returns {ConfigSchema}
+ */
+export const schemaOf = (found) => /** @type {ConfigSchema} */ (found.config_schema);
+
+/**
+ * @param {ConfigSchema} schema
+ * @param {Params} params
+ * @param {ReadonlySet<string>} skip
+ * @returns {[string, FieldSchema][]}
+ */
+export function fieldsOf(schema, params, skip) {
+  const defs = schema.$defs ?? {};
+  /** @type {[string, FieldSchema][]} */
+  const out = [];
+  for (const [name, raw] of Object.entries(schema.properties)) {
+    if (skip.has(name)) continue;
+    const prop = resolve(raw, defs);
+    if ("const" in prop) {
+      params[name] = prop.const ?? null;
+      continue;
+    }
+    if (!(name in params)) params[name] = prop.default ?? null;
+    if (prop.when && !visible(prop, params)) {
+      delete params[name];
+      continue;
+    }
+    out.push([name, prop]);
+  }
+  return out;
+}
+
+/**
+ * @param {ConfigSchema} schema
+ * @param {NonEmpty<Timeframe>} frames
+ * @param {Json | undefined} current
+ * @returns {{ timeframe: Timeframe, fixed: boolean }}
+ */
+export function timeframeOf(schema, frames, current) {
+  const prop = resolve(schema.properties["timeframe"] ?? {}, schema.$defs ?? {});
+  if ("const" in prop) return { timeframe: /** @type {Timeframe} */ (prop.const), fixed: true };
+  const offered = frames.find((f) => f === current) ?? frames.find((f) => f === prop.default) ?? frames[frames.length - 1] ?? frames[0];
+  return { timeframe: offered, fixed: false };
+}
+
+/**
+ * @param {Record<string, number[]>} choices
+ * @param {readonly Ordered[]} ordered
+ * @param {Params} params
+ * @param {Record<string, FieldSchema>} props
+ * @returns {[string, number[]][]}
+ */
+export function windows(choices, ordered, params, props) {
+  const taken = new Set();
+  return Object.entries(choices).map(([w, domain]) => {
+    let options = [...domain];
+    for (const o of ordered) {
+      const lo = params[o.lower];
+      const hi = params[o.upper];
+      if (o.upper === w && taken.has(o.lower) && typeof lo === "number") options = options.filter((v) => holds(o, lo, v));
+      if (o.lower === w && taken.has(o.upper) && typeof hi === "number") options = options.filter((v) => holds(o, v, hi));
+    }
+    const current = params[w];
+    if (typeof current !== "number" || !options.includes(current)) {
+      const fallback = props[w]?.default;
+      params[w] = typeof fallback === "number" && options.includes(fallback) ? fallback : (options[0] ?? null);
+    }
+    taken.add(w);
+    return [w, options];
+  });
+}
+
+/**
+ * @param {Record<string, number[]>} choices
+ * @param {readonly Ordered[]} ordered
+ * @param {Record<string, number[]>} saved
+ * @returns {{ rows: GridRow[], picked: Record<string, number[]> }}
+ */
+export function gridOf(choices, ordered, saved) {
+  /** @type {Record<string, number[]>} */
+  const picked = {};
+  /** @param {string} n */
+  const partner = (n) => picked[n] ?? choices[n] ?? [];
+  const rows = Object.entries(choices).map(([name, domain]) => {
+    const options = domain.filter((v) =>
+      ordered.every(
+        (o) =>
+          (o.upper !== name || partner(o.lower).some((lo) => holds(o, lo, v))) &&
+          (o.lower !== name || partner(o.upper).some((hi) => holds(o, v, hi))),
+      ),
+    );
+    const kept = saved[name] ?? options;
+    const current = kept.filter((v) => options.includes(v));
+    picked[name] = current;
+    return { name, options, current, hidden: kept.filter((v) => !options.includes(v)) };
+  });
+  return { rows, picked };
+}
+
+/**
+ * @param {Record<string, readonly number[]>} grid
+ * @param {readonly Ordered[]} ordered
+ */
+export function combinations(grid, ordered) {
+  const names = Object.keys(grid);
+  let n = 0;
+  /**
+   * @param {number} i
+   * @param {Record<string, number>} picked
+   */
+  const walk = (i, picked) => {
+    const name = names[i];
+    if (name === undefined) {
+      const ok = ordered.every((o) => {
+        const lo = picked[o.lower];
+        const hi = picked[o.upper];
+        return lo === undefined || hi === undefined || holds(o, lo, hi);
+      });
+      n += ok ? 1 : 0;
+      return;
+    }
+    for (const v of grid[name] ?? []) walk(i + 1, { ...picked, [name]: v });
+  };
+  walk(0, {});
+  return names.length ? n : 1;
+}
+
+/** @type {WeakMap<EventTarget, Record<string, Handler>>} */
+const handlers = new WeakMap();
+/** @type {WeakMap<EventTarget, Set<string>>} */
+const bound = new WeakMap();
+
+/** @param {Event} e */
+const dispatch = (e) => {
+  if (e.currentTarget) handlers.get(e.currentTarget)?.[e.type]?.(e);
+};
+
+/**
+ * @param {Element} el
+ * @param {string} type
+ */
 const bind = (el, type) => {
-  el._bound ??= new Set();
-  if (!el._bound.has(type)) {
-    el._bound.add(type);
+  const types = bound.get(el) ?? new Set();
+  bound.set(el, types);
+  if (!types.has(type)) {
+    types.add(type);
     el.addEventListener(type, dispatch);
   }
 };
 
+/**
+ * @param {readonly Child[]} children
+ * @returns {(Node | string)[]}
+ */
+const flatten = (children) =>
+  children.flatMap((c) =>
+    Array.isArray(c) ? flatten(c) : c instanceof Node || (typeof c === "string" && c) ? [c] : typeof c === "number" ? [String(c)] : [],
+  );
+
+/**
+ * @template {keyof HTMLElementTagNameMap} K
+ * @param {K} tag
+ * @param {Record<string, Attr>} [attrs]
+ * @param {...Child} children
+ * @returns {HTMLElementTagNameMap[K]}
+ */
 const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v === undefined || v === null || v === false) continue;
-    if (k.startsWith("on")) {
-      (el._on ??= {})[k.slice(2)] = v;
-      bind(el, k.slice(2));
-    }
-    else if (k === "className") el.className = v;
-    else if (v === true) el.setAttribute(k, "");
-    else el.setAttribute(k, v);
+    if (typeof v === "function") {
+      const type = k.slice(2);
+      handlers.set(el, { ...handlers.get(el), [type]: v });
+      bind(el, type);
+    } else if (k === "className") el.className = String(v);
+    else el.setAttribute(k, v === true ? "" : String(v));
   }
-  for (const c of children.flat()) if (c instanceof Node || typeof c === "string" || typeof c === "number") el.append(c);
+  el.append(...flatten(children));
   return el;
 };
 
+/**
+ * @param {ChildNode} from
+ * @param {ChildNode} to
+ */
 function morph(from, to) {
   if (from === to) return;
   if (from.nodeType !== to.nodeType || from.nodeName !== to.nodeName) {
     from.replaceWith(to);
     return;
   }
-  if (from.nodeType !== Node.ELEMENT_NODE) {
-    if (from.data !== to.data) from.data = to.data;
+  if (!(from instanceof Element) || !(to instanceof Element)) {
+    if (from.textContent !== to.textContent) from.textContent = to.textContent;
     return;
   }
   for (const a of [...from.attributes]) if (!to.hasAttribute(a.name)) from.removeAttribute(a.name);
   for (const a of [...to.attributes]) if (from.getAttribute(a.name) !== a.value) from.setAttribute(a.name, a.value);
-  from._on = to._on;
-  for (const type of Object.keys(to._on ?? {})) bind(from, type);
+  const on = handlers.get(to);
+  if (on) {
+    handlers.set(from, on);
+    for (const type of Object.keys(on)) bind(from, type);
+  } else handlers.delete(from);
   morphChildren(from, [...to.childNodes]);
-  if (from instanceof HTMLInputElement) {
+  if (from instanceof HTMLInputElement && to instanceof HTMLInputElement) {
     if (from.type === "checkbox") from.checked = to.checked;
     else if (from.value !== to.value) from.value = to.value;
-  } else if (from instanceof HTMLSelectElement && from.value !== to.value) from.value = to.value;
-  else if (from instanceof HTMLDetailsElement && from.open !== to.open) from.open = to.open;
+  } else if (from instanceof HTMLSelectElement && to instanceof HTMLSelectElement && from.value !== to.value) from.value = to.value;
+  else if (from instanceof HTMLDetailsElement && to instanceof HTMLDetailsElement && from.open !== to.open) from.open = to.open;
 }
 
+/**
+ * @param {Element} parent
+ * @param {readonly ChildNode[]} next
+ */
 function morphChildren(parent, next) {
   const current = [...parent.childNodes];
-  next.forEach((node, i) => (i < current.length ? morph(current[i], node) : parent.append(node)));
+  next.forEach((node, i) => {
+    const old = current[i];
+    if (old) morph(old, node);
+    else parent.append(node);
+  });
   current.slice(next.length).forEach((node) => node.remove());
 }
 
-const nodes = (...parts) => parts.flat(Infinity).filter((p) => p instanceof Node);
+/**
+ * @param {...Child} parts
+ * @returns {ChildNode[]}
+ */
+const nodes = (...parts) => flatten(parts).filter((p) => p instanceof Element);
 
+/** @param {Event} e */
+const target = (e) => /** @type {HTMLInputElement} */ (e.currentTarget);
+
+/**
+ * @param {string} title
+ * @param {Child} control
+ * @param {string} [hint]
+ */
 const field = (title, control, hint) =>
   h("label", { className: "tf-field" }, h("span", {}, title, hint && h("em", {}, ` · ${hint}`)), control);
 
+/**
+ * @template V
+ * @param {readonly (readonly [V, string])[]} options
+ * @param {unknown} value
+ * @param {(v: V) => void} onchange
+ */
 const select = (options, value, onchange) =>
   h(
     "select",
-    { className: "tf-input", onchange: (e) => onchange(e.target.value) },
+    {
+      className: "tf-input",
+      onchange: (e) => {
+        const picked = options.find(([v]) => String(v) === target(e).value);
+        if (picked) onchange(picked[0]);
+      },
+    },
     options.map(([v, text]) => {
       const o = h("option", { value: String(v) }, text);
       o.selected = String(v) === String(value);
@@ -110,25 +395,42 @@ const select = (options, value, onchange) =>
     }),
   );
 
+/**
+ * @param {string} title
+ * @param {boolean} checked
+ * @param {(v: boolean) => void} onchange
+ */
 const toggle = (title, checked, onchange) => {
-  const box = h("input", { type: "checkbox", onchange: (e) => onchange(e.target.checked) });
+  const box = h("input", { type: "checkbox", onchange: (e) => onchange(target(e).checked) });
   box.checked = checked;
   return h("label", { className: "tf-toggle" }, box, h("span", {}, title));
 };
 
+/**
+ * @param {Json | undefined} value
+ * @param {{ min?: number | null, max?: number | null, step?: number | null }} limits
+ * @param {(v: number) => void} oninput
+ */
 const number = (value, { min, max, step }, oninput) =>
   h("input", {
     className: "tf-input",
     type: "number",
-    value: String(value),
-    min: min ?? undefined,
-    max: max ?? undefined,
+    value: String(value ?? ""),
+    min,
+    max,
     step: step ?? "any",
-    oninput: (e) => e.target.value !== "" && oninput(Number(e.target.value)),
+    oninput: (e) => target(e).value !== "" && oninput(Number(target(e).value)),
   });
 
+/** @param {Child[]} items */
 const grid = (items) => h("div", { className: "tf-grid" }, items);
 
+/**
+ * @template V
+ * @param {readonly (readonly [V, string])[]} options
+ * @param {unknown} value
+ * @param {(v: V) => void} onpick
+ */
 const segmented = (options, value, onpick) =>
   h(
     "div",
@@ -138,6 +440,11 @@ const segmented = (options, value, onpick) =>
     ),
   );
 
+/**
+ * @param {readonly number[]} options
+ * @param {readonly number[]} chosen
+ * @param {(v: number[]) => void} onchange
+ */
 const chips = (options, chosen, onchange) =>
   h(
     "div",
@@ -155,6 +462,13 @@ const chips = (options, chosen, onchange) =>
     ),
   );
 
+/** @param {unknown} e */
+const reason = (e) => (e instanceof Error ? e.message : String(e));
+
+/**
+ * @param {string} url
+ * @param {RequestInit} [init]
+ */
 async function fetchJson(url, init) {
   const r = await fetch(url, init);
   if (!r.ok) {
@@ -168,30 +482,74 @@ async function fetchJson(url, init) {
   return r.json();
 }
 
+/**
+ * @param {string} url
+ * @param {unknown} [body]
+ */
 const post = (url, body) =>
   fetchJson(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) });
 
-function multi(ui, key, title, options, chosen, onchange, { placeholder, searchable } = {}) {
+/** @param {string} api */
+export const client = (api) => ({
+  /** @returns {Promise<Catalog>} */
+  catalog: () => fetchJson(`${api}/catalog`),
+  /** @returns {Promise<Record<string, StrategyInfo>>} */
+  strategies: () => fetchJson(`${api}/strategies`),
+  /**
+   * @param {string} name
+   * @param {string} ticker
+   * @param {string} end
+   * @returns {Promise<StrategySpace>}
+   */
+  space: (name, ticker, end) => fetchJson(`${api}/strategies/${name}/space?ticker=${encodeURIComponent(ticker)}&end=${end}`),
+  /**
+   * @param {BasketQuery} query
+   * @returns {Promise<Basket>}
+   */
+  basket: (query) => post(`${api}/universes/basket`, query),
+  /** @returns {Promise<SweepStatus[]>} */
+  sweeps: () => fetchJson(`${api}/sweeps`),
+  /** @returns {Promise<string[]>} */
+  ledgers: () => fetchJson(`${api}/ledgers`),
+  /** @param {string} key */
+  stop: (key) => post(`${api}/sweeps/${key}/stop`),
+});
+
+/** @typedef {ReturnType<typeof client>} Client */
+
+/**
+ * @template V
+ * @param {Ui} ui
+ * @param {string} key
+ * @param {string} title
+ * @param {readonly (readonly [V, string])[]} options
+ * @param {readonly V[]} chosen
+ * @param {(v: V[]) => void} onchange
+ * @param {{ placeholder: string, searchable?: boolean }} opts
+ */
+function multi(ui, key, title, options, chosen, onchange, { placeholder, searchable = false }) {
   const summary = chosen.length === 0 ? placeholder : chosen.length <= 2 ? chosen.join(", ") : `${chosen.length} selected`;
   const details = h(
     "details",
-    { className: "tf-multi", ontoggle: (e) => (e.currentTarget.open ? ui.menus.add(key) : ui.menus.delete(key)) },
+    { className: "tf-multi", ontoggle: (e) => (/** @type {HTMLDetailsElement} */ (e.currentTarget).open ? ui.menus.add(key) : ui.menus.delete(key)) },
     h("summary", { className: "tf-input" }, summary),
   );
   details.open = ui.menus.has(key);
   const list = h("div", { className: "tf-multi-list" });
+  /** @param {string} filter */
   const items = (filter) =>
     options
       .filter(([, text]) => !filter || text.toLowerCase().includes(filter.toLowerCase()))
       .map(([v, text]) => {
         const box = h("input", {
           type: "checkbox",
-          onchange: (e) => onchange(e.target.checked ? [...chosen, v] : chosen.filter((x) => x !== v)),
+          onchange: (e) => onchange(target(e).checked ? [...chosen, v] : chosen.filter((x) => x !== v)),
         });
         box.checked = chosen.includes(v);
         return h("label", { className: "tf-multi-item" }, box, h("span", {}, text));
       });
   list.append(...items(ui.searches.get(key) ?? ""));
+  /** @type {HTMLElement[]} */
   const tools = [];
   if (searchable)
     tools.push(
@@ -200,8 +558,8 @@ function multi(ui, key, title, options, chosen, onchange, { placeholder, searcha
         placeholder: "Search",
         value: ui.searches.get(key) ?? "",
         oninput: (e) => {
-          ui.searches.set(key, e.target.value);
-          morphChildren(list, items(e.target.value));
+          ui.searches.set(key, target(e).value);
+          morphChildren(list, items(target(e).value));
         },
       }),
     );
@@ -210,57 +568,49 @@ function multi(ui, key, title, options, chosen, onchange, { placeholder, searcha
   return field(title, details);
 }
 
+/**
+ * @param {Range} state
+ * @param {string} first
+ * @param {string} last
+ * @param {() => void} redraw
+ */
 function dates(state, first, last, redraw) {
-  const offered = PRESETS.filter(([, y]) => y === null || yearsBefore(last, y) >= first);
-  if (state.preset && !offered.some(([n]) => n === state.preset)) state.preset = "Max";
-  if (state.preset) {
-    const years = PRESETS.find(([n]) => n === state.preset)[1];
-    state.start = years === null ? first : clamp(yearsBefore(last, years), first, last);
-    state.end = last;
-  }
-  state.start = clamp(state.start ?? first, first, last);
-  state.end = clamp(state.end ?? last, state.start, last);
+  const found = span(state, first, last);
+  Object.assign(state, { preset: found.preset, start: found.start, end: found.end });
+  /**
+   * @param {"start" | "end"} key
+   * @param {string} lo
+   * @param {string} hi
+   */
   const input = (key, lo, hi) =>
     h("input", {
       className: "tf-input",
       type: "date",
-      value: state[key],
+      value: found[key],
       min: lo,
       max: hi,
       onchange: (e) => {
-        if (!e.target.value) return;
-        state[key] = e.target.value;
+        if (!target(e).value) return;
+        state[key] = target(e).value;
         state.preset = null;
         redraw();
       },
     });
-  return [
-    segmented(offered.map(([n]) => [n, n]), state.preset, (n) => ((state.preset = n), redraw())),
-    grid([field("From", input("start", first, state.end)), field("To", input("end", state.start, last))]),
-  ];
+  return {
+    span: found,
+    parts: [
+      segmented(found.offered.map((n) => [n, n]), found.preset, (n) => ((state.preset = n), redraw())),
+      grid([field("From", input("start", first, found.end)), field("To", input("end", found.start, last))]),
+    ],
+  };
 }
 
-function fieldsOf(found, params, skip) {
-  const props = found.config_schema.properties;
-  const defs = found.config_schema.$defs ?? {};
-  const out = [];
-  for (const [name, raw] of Object.entries(props)) {
-    if (skip.has(name)) continue;
-    const prop = resolve(raw, defs);
-    if ("const" in prop) {
-      params[name] = prop.const;
-      continue;
-    }
-    if (!(name in params)) params[name] = prop.default;
-    if (prop.when && !visible(prop, params)) {
-      delete params[name];
-      continue;
-    }
-    out.push([name, prop]);
-  }
-  return out;
-}
-
+/**
+ * @param {Params} params
+ * @param {string} name
+ * @param {FieldSchema} prop
+ * @param {() => void} redraw
+ */
 function input(params, name, prop, redraw) {
   const title = prop.title ?? label(name);
   if (prop.enum) return field(title, select(prop.enum.map((v) => [v, label(v)]), params[name], (v) => ((params[name] = v), redraw())));
@@ -274,19 +624,17 @@ function input(params, name, prop, redraw) {
   return field(title, number(params[name], limits, (v) => (params[name] = integer ? Math.round(v) : v)));
 }
 
-function timeframeOf(found, params) {
-  const props = found.config_schema.properties;
-  const tfProp = resolve(props.timeframe ?? {}, found.config_schema.$defs ?? {});
-  const frames = found.space.timeframes;
-  if ("const" in tfProp) params.timeframe = tfProp.const;
-  else if (!frames.includes(params.timeframe)) params.timeframe = frames.includes(tfProp.default) ? tfProp.default : frames.at(-1);
-  return { frames, fixed: "const" in tfProp };
-}
-
+/**
+ * @param {{ execution: Execution }} state
+ * @param {boolean} allowed
+ * @param {Ui} ui
+ * @param {() => void} redraw
+ */
 function execution(state, allowed, ui, redraw) {
   const e = state.execution;
   if (!allowed) e.intraday = false;
-  const set = (k) => (v) => ((e[k] = v), redraw());
+  /** @param {"commission" | "slippage" | "intraday"} k */
+  const set = (k) => /** @param {boolean} v */ (v) => ((e[k] = v), redraw());
   const body = h(
     "div",
     { className: "tf-details-body" },
@@ -304,7 +652,7 @@ function execution(state, allowed, ui, redraw) {
   );
   const details = h(
     "details",
-    { className: "tf-details", ontoggle: (e) => (ui.executionOpen = e.currentTarget.open) },
+    { className: "tf-details", ontoggle: (ev) => (ui.executionOpen = /** @type {HTMLDetailsElement} */ (ev.currentTarget).open) },
     h("summary", {}, "Execution"),
     body,
   );
@@ -312,92 +660,125 @@ function execution(state, allowed, ui, redraw) {
   return details;
 }
 
-function submitButton(model, text, ready, payload) {
+/**
+ * @param {AnyModel} model
+ * @param {string} text
+ * @param {(() => Request) | null} request
+ */
+function submitButton(model, text, request) {
   const busy = model.get("busy");
   const message = model.get("message");
   const submit = () => {
-    const previous = model.get("submission")?.n ?? 0;
-    model.set("submission", { n: previous + 1, ...payload() });
+    if (!request) return;
+    model.set("submission", { n: (model.get("submission")?.n ?? 0) + 1, ...request() });
     model.save_changes();
   };
   return [
-    h("button", { type: "button", className: "tf-run", disabled: busy || !ready, onclick: submit }, busy ? "Running…" : text),
+    h("button", { type: "button", className: "tf-run", disabled: busy || !request, onclick: submit }, busy ? "Running…" : text),
     message && h("div", { className: "tf-error" }, message),
   ];
 }
 
+/**
+ * @param {Client} api
+ * @param {() => void} redraw
+ */
 function spaceCache(api, redraw) {
+  /** @type {Map<string, StrategySpace | Failure | null>} */
   const spaces = new Map();
+  /**
+   * @param {string} name
+   * @param {string} ticker
+   * @param {string} end
+   */
   return (name, ticker, end) => {
     const key = `${name}|${ticker}|${end}`;
     if (!spaces.has(key)) {
       spaces.set(key, null);
-      fetchJson(`${api}/strategies/${name}/space?ticker=${encodeURIComponent(ticker)}&end=${end}`)
+      api
+        .space(name, ticker, end)
         .then((found) => spaces.set(key, found))
-        .catch((e) => spaces.set(key, { error: e.message }))
+        .catch((e) => spaces.set(key, { error: reason(e) }))
         .finally(redraw);
     }
-    return spaces.get(key);
+    return spaces.get(key) ?? null;
   };
 }
 
-function runForm({ model, api, catalog, strategies, redraw }) {
-  const tickers = new Map(catalog.tickers.map((t) => [t.ticker, t]));
-  const names = Object.keys(strategies);
-  const seed = model.get("seed") ?? {};
-  const state = {
-    ticker: tickers.has(seed.ticker) ? seed.ticker : tickers.has("AAPL") ? "AAPL" : catalog.tickers[0].ticker,
-    preset: seed.start ? null : "Max",
-    start: seed.start ?? null,
-    end: seed.end ?? null,
-    compare: Boolean(seed.compare),
-    legs: Object.fromEntries(
-      LEGS.map((leg, i) => {
-        const s = seed.legs?.[leg];
-        return [leg, { strategy: s && strategies[s.strategy] ? s.strategy : names[i % names.length], params: { ...(s?.params ?? {}) } }];
-      }),
-    ),
-    execution: { ...EXECUTION, ...(seed.execution ?? {}) },
-  };
-  const ui = { executionOpen: false };
-  const space = spaceCache(api, redraw);
-  const legs = () => (state.compare ? LEGS : LEGS.slice(0, 1));
+/**
+ * @typedef Context
+ * @prop {AnyModel} model
+ * @prop {Client} api
+ * @prop {Catalog} catalog
+ * @prop {NonEmpty<TickerInfo>} tickers
+ * @prop {Record<string, StrategyInfo>} strategies
+ * @prop {NonEmpty<string>} names
+ * @prop {() => void} redraw
+ */
 
-  const legView = (name) => {
+/** @param {Context} ctx */
+function runForm({ model, api, tickers: listed, strategies, names, redraw }) {
+  const tickers = new Map(listed.map((t) => [t.ticker, t]));
+  const seed = model.get("seed");
+  /** @param {string | null | undefined} t */
+  const known = (t) => (t && tickers.has(t) ? t : null);
+  /**
+   * @param {"A" | "B"} leg
+   * @param {number} i
+   * @returns {{ strategy: string, params: Params }}
+   */
+  const seeded = (leg, i) => {
+    const s = seed?.legs?.[leg];
+    return { strategy: s && strategies[s.strategy] ? s.strategy : (names[i % names.length] ?? names[0]), params: { ...s?.params } };
+  };
+  const state = {
+    ticker: known(seed?.ticker) ?? known("AAPL") ?? listed[0].ticker,
+    /** @type {string | null} */
+    preset: seed?.start ? null : "Max",
+    start: seed?.start ?? null,
+    end: seed?.end ?? null,
+    compare: Boolean(seed?.compare),
+    legs: { A: seeded("A", 0), B: seeded("B", 1) },
+    /** @type {Execution} */
+    execution: { ...EXECUTION, ...seed?.execution },
+  };
+  /** @type {Ui} */
+  const ui = { executionOpen: false, menus: new Set(), searches: new Map() };
+  const space = spaceCache(api, redraw);
+  /** @returns {("A" | "B")[]} */
+  const legs = () => (state.compare ? ["A", "B"] : ["A"]);
+
+  /**
+   * @param {"A" | "B"} name
+   * @param {string} end
+   */
+  const legView = (name, end) => {
     const leg = state.legs[name];
     const p = leg.params;
     const head = field(
       state.compare ? `Strategy ${name}` : "Strategy",
-      select(names.map((n) => [n, strategies[n].title]), leg.strategy, (v) => ((leg.strategy = v), (leg.params = {}), redraw())),
+      select(names.map((n) => [n, strategies[n]?.title ?? n]), leg.strategy, (v) => ((leg.strategy = v), (leg.params = {}), redraw())),
     );
-    const found = space(leg.strategy, state.ticker, state.end);
-    if (found === null) return h("div", { className: "tf-leg" }, head, h("div", { className: "tf-note" }, "Loading choices…"));
-    if (found.error) return h("div", { className: "tf-leg" }, head, h("div", { className: "tf-error" }, found.error));
-    if (!found.space.timeframes.length)
-      return h("div", { className: "tf-leg" }, head, h("div", { className: "tf-note" }, "No precomputed window has enough history by the end date."));
-    const tf = timeframeOf(found, p);
-    const props = found.config_schema.properties;
-    const choices = found.space.choices[p.timeframe] ?? {};
-    const windows = [];
-    const taken = {};
-    for (const [w, domain] of Object.entries(choices)) {
-      let options = [...domain];
-      for (const o of found.space.ordered) {
-        const holds = (lo, hi) => (o.strict ? lo < hi : lo <= hi);
-        if (o.upper === w && o.lower in taken) options = options.filter((v) => holds(p[o.lower], v));
-        if (o.lower === w && o.upper in taken) options = options.filter((v) => holds(v, p[o.upper]));
-      }
-      if (!options.includes(p[w])) p[w] = options.includes(props[w]?.default) ? props[w].default : options[0];
-      taken[w] = true;
-      windows.push(field(props[w]?.title ?? label(w), select(options.map((o) => [o, o]), p[w], (v) => ((p[w] = Number(v)), redraw()))));
-    }
-    const fields = fieldsOf(found, p, new Set(["timeframe", ...Object.keys(choices)])).map(([f, prop]) => input(p, f, prop, redraw));
-    const frame = tf.fixed ? null : field("Timeframe", select(tf.frames.map((f) => [f, f]), p.timeframe, (v) => ((p.timeframe = v), redraw())));
-    return h("div", { className: "tf-leg" }, head, frame, grid([...windows, ...fields]));
+    const found = space(leg.strategy, state.ticker, end);
+    if (found === null) return { ready: false, view: h("div", { className: "tf-leg" }, head, h("div", { className: "tf-note" }, "Loading choices…")) };
+    if ("error" in found) return { ready: false, view: h("div", { className: "tf-leg" }, head, h("div", { className: "tf-error" }, found.error)) };
+    const frames = found.space.timeframes;
+    if (!nonEmpty(frames))
+      return { ready: false, view: h("div", { className: "tf-leg" }, head, h("div", { className: "tf-note" }, "No precomputed window has enough history by the end date.")) };
+    const schema = schemaOf(found);
+    const tf = timeframeOf(schema, frames, p["timeframe"]);
+    p["timeframe"] = tf.timeframe;
+    const choices = found.space.choices[tf.timeframe] ?? {};
+    const picks = windows(choices, found.space.ordered, p, schema.properties).map(([w, options]) =>
+      field(schema.properties[w]?.title ?? label(w), select(options.map((o) => [o, String(o)]), p[w], (v) => ((p[w] = v), redraw()))),
+    );
+    const fields = fieldsOf(schema, p, new Set(["timeframe", ...Object.keys(choices)])).map(([f, prop]) => input(p, f, prop, redraw));
+    const frame = tf.fixed ? null : field("Timeframe", select(frames.map((f) => [f, f]), tf.timeframe, (v) => ((p["timeframe"] = v), redraw())));
+    return { ready: true, view: h("div", { className: "tf-leg" }, head, frame, grid([...picks, ...fields])) };
   };
 
   return () => {
-    const t = tickers.get(state.ticker);
+    const t = tickers.get(state.ticker) ?? listed[0];
     const tickerInput = h("input", {
       className: "tf-input",
       list: "tf-tickers",
@@ -405,81 +786,81 @@ function runForm({ model, api, catalog, strategies, redraw }) {
       spellcheck: "false",
       autocomplete: "off",
       onchange: (e) => {
-        const v = e.target.value.trim().toUpperCase();
+        const v = target(e).value.trim().toUpperCase();
         if (tickers.has(v)) {
           state.ticker = v;
           redraw();
-        } else e.target.value = state.ticker;
+        } else target(e).value = state.ticker;
       },
-      onfocus: (e) => e.target.select(),
+      onfocus: (e) => target(e).select(),
     });
-    const dateParts = dates(state, t.first_session, t.last_session, redraw);
-    const legViews = legs().map(legView);
-    const ready =
-      legs().every((leg) => {
-        const found = space(state.legs[leg].strategy, state.ticker, state.end);
-        return found && !found.error && found.space.timeframes.length;
-      }) && state.start <= state.end;
-    const payload = () => ({
+    const range = dates(state, t.first_session, t.last_session, redraw);
+    const { start, end } = range.span;
+    const views = legs().map((leg) => legView(leg, end));
+    const ready = views.every((v) => v.ready) && start <= end;
+    /** @returns {Omit<RunRequest, "n">} */
+    const request = () => ({
       ticker: state.ticker,
-      start: state.start,
-      end: state.end,
+      start,
+      end,
       legs: Object.fromEntries(legs().map((leg) => [leg, { strategy: state.legs[leg].strategy, params: { ...state.legs[leg].params } }])),
       execution: { ...state.execution },
     });
     return nodes(
       field("Ticker", tickerInput),
       h("datalist", { id: "tf-tickers" }, [...tickers.keys()].map((v) => h("option", { value: v }))),
-      dateParts,
+      range.parts,
       toggle("Compare two strategies", state.compare, (v) => ((state.compare = v), redraw())),
-      legViews,
+      views.map((v) => v.view),
       execution(state, legs().every((leg) => strategies[state.legs[leg].strategy]?.intraday), ui, redraw),
-      submitButton(model, state.compare ? "Run comparison" : "Run single line", ready, payload),
+      submitButton(model, state.compare ? "Run comparison" : "Run single line", ready ? request : null),
     );
   };
 }
 
-function combinations(gridValues, ordered) {
-  const names = Object.keys(gridValues);
-  let count = 0;
-  const walk = (i, picked) => {
-    if (i === names.length) {
-      const ok = ordered.every((o) => !(o.lower in picked && o.upper in picked) || (o.strict ? picked[o.lower] < picked[o.upper] : picked[o.lower] <= picked[o.upper]));
-      count += ok ? 1 : 0;
-      return;
-    }
-    for (const v of gridValues[names[i]]) walk(i + 1, { ...picked, [names[i]]: v });
-  };
-  walk(0, {});
-  return names.length ? count : 1;
-}
-
-function simulationForm({ model, api, catalog, strategies, redraw }) {
-  const names = Object.keys(strategies);
-  const all = catalog.tickers.map((t) => t.ticker);
+/** @param {Context} ctx */
+function simulationForm({ model, api, catalog, tickers: listed, strategies, names, redraw }) {
+  const all = listed.map((t) => t.ticker);
   const state = {
     universe: "all",
+    /** @type {string[]} */
     custom: [],
+    /** @type {"GICS" | "SIC"} */
     scheme: "GICS",
+    /** @type {string[]} */
     sectors: [],
+    /** @type {string[]} */
     industries: [],
+    /** @type {number[]} */
     volatility: [],
+    /** @type {string[]} */
     excluded: [],
+    /** @type {string | null} */
     preset: "Max",
+    /** @type {string | null} */
     start: null,
+    /** @type {string | null} */
     end: null,
     strategy: names[0],
+    /** @type {Timeframe | null} */
     timeframe: null,
+    /** @type {Record<string, number[]>} */
     grid: {},
+    /** @type {Params} */
     params: {},
+    /** @type {Execution} */
     execution: { ...EXECUTION },
   };
+  /** @type {Ui} */
   const ui = { executionOpen: false, menus: new Set(), searches: new Map() };
   const space = spaceCache(api, redraw);
+  /** @type {Basket | Failure | null} */
   let basket = null;
   let asked = "";
 
-  const ask = () => {
+  /** @param {string} start */
+  const ask = (start) => {
+    /** @type {BasketQuery} */
     const query = {
       universe: state.universe,
       custom: state.custom,
@@ -487,26 +868,26 @@ function simulationForm({ model, api, catalog, strategies, redraw }) {
       sectors: state.sectors,
       industries: state.industries,
       volatility: state.volatility,
-      start: state.start,
+      start,
     };
     const key = JSON.stringify(query);
     if (key === asked) return;
     asked = key;
-    post(`${api}/universes/basket`, query)
+    api
+      .basket(query)
       .then((found) => {
         if (asked === key) basket = found;
       })
-      .catch((e) => (basket = { error: e.message }))
+      .catch((e) => (basket = { error: reason(e) }))
       .finally(redraw);
   };
 
-  const basketView = () => {
-    if (!basket) return [h("div", { className: "tf-note" }, "Loading the universe…")];
-    if (basket.error) return [h("div", { className: "tf-error" }, basket.error)];
+  /** @param {Basket} b */
+  const basketView = (b) => {
     const parts = [
       field(
         "Universe",
-        select(basket.universes.map((u) => [u.key, u.title]), state.universe, (v) => {
+        select(b.universes.map((u) => [u.key, u.title]), state.universe, (v) => {
           Object.assign(state, { universe: v, sectors: [], industries: [], volatility: [], excluded: [] });
           redraw();
         }),
@@ -519,47 +900,51 @@ function simulationForm({ model, api, catalog, strategies, redraw }) {
           searchable: true,
         }),
       );
-    } else {
+      return parts;
+    }
+    parts.push(
+      field("Classification", segmented(SCHEMES.map((s) => [s, s]), state.scheme, (s) => (Object.assign(state, { scheme: s, sectors: [], industries: [] }), redraw()))),
+      multi(ui, `sector:${state.scheme}`, "Sector", (b.sectors ?? []).map((s) => [s, s]), state.sectors, (v) => (Object.assign(state, { sectors: v, industries: [] }), redraw()), {
+        placeholder: "All sectors",
+      }),
+      multi(ui, `industry:${state.scheme}`, "Industry", (b.industries ?? []).map((s) => [s, s]), state.industries, (v) => ((state.industries = v), redraw()), {
+        placeholder: "All industries",
+        searchable: true,
+      }),
+    );
+    const quintiles = b.quintiles ?? [];
+    if (quintiles.length)
       parts.push(
-        field("Classification", segmented(SCHEMES.map((s) => [s, s]), state.scheme, (s) => (Object.assign(state, { scheme: s, sectors: [], industries: [] }), redraw()))),
-        multi(ui, `sector:${state.scheme}`, "Sector", basket.sectors.map((s) => [s, s]), state.sectors, (v) => (Object.assign(state, { sectors: v, industries: [] }), redraw()), {
-          placeholder: "All sectors",
-        }),
-        multi(ui, `industry:${state.scheme}`, "Industry", basket.industries.map((s) => [s, s]), state.industries, (v) => ((state.industries = v), redraw()), {
-          placeholder: "All industries",
-          searchable: true,
+        multi(ui, "vol", "Volatility quintile", quintiles.map((q, i) => [i, q]), state.volatility, (v) => ((state.volatility = v.sort((x, y) => x - y)), redraw()), {
+          placeholder: "Any volatility",
         }),
       );
-      if (basket.quintiles.length)
-        parts.push(
-          multi(ui, "vol", "Volatility quintile", basket.quintiles.map((q, i) => [i, q]), state.volatility, (v) => ((state.volatility = v.sort()), redraw()), {
-            placeholder: "Any volatility",
-          }),
-        );
-    }
     return parts;
   };
 
-  const chosen = () => {
-    if (!basket || basket.error) return [];
+  /** @param {Basket} b */
+  const chosen = (b) => {
     const out = new Set(state.excluded);
-    return basket.tickers.filter((t) => !out.has(t));
+    return b.tickers.filter((t) => !out.has(t));
   };
 
-  const tickersView = () => {
-    if (!basket || basket.error || state.universe === "custom") return [];
-    const list = chosen();
+  /**
+   * @param {Basket} b
+   * @param {string[]} list
+   */
+  const tickersView = (b, list) => {
+    if (state.universe === "custom") return [];
     const details = h(
       "details",
-      { className: "tf-details", ontoggle: (e) => (e.currentTarget.open ? ui.menus.add("tickers") : ui.menus.delete("tickers")) },
-      h("summary", {}, `Tickers · ${list.length.toLocaleString()}`),
+      { className: "tf-details", ontoggle: (e) => (/** @type {HTMLDetailsElement} */ (e.currentTarget).open ? ui.menus.add("tickers") : ui.menus.delete("tickers")) },
+      h("summary", {}, `Tickers · ${list.length.toLocaleString("en-US")}`),
       h(
         "div",
         { className: "tf-details-body" },
         h(
           "div",
           { className: "tf-tags" },
-          basket.tickers.map((t) => {
+          b.tickers.map((t) => {
             const out = state.excluded.includes(t);
             return h(
               "button",
@@ -579,96 +964,118 @@ function simulationForm({ model, api, catalog, strategies, redraw }) {
     return [details];
   };
 
-  const summaryView = () => {
-    if (!basket || basket.error) return [];
-    const list = chosen();
-    const notes = [...basket.notes];
+  /**
+   * @param {Basket} b
+   * @param {string[]} list
+   */
+  const summaryView = (b, list) => {
+    const notes = [...(b.notes ?? [])];
     if (state.excluded.length) notes.push(`${state.excluded.length} left out by hand`);
     return [h("div", { className: "tf-basket" }, h("b", {}, count(list.length, "ticker")), notes.map((n) => h("div", {}, n)))];
   };
 
-  const strategyView = (tickers) => {
+  /**
+   * @param {string[]} tickers
+   * @param {string} end
+   * @returns {{ parts: Child[], runs: number, grid: Record<string, number[]> }}
+   */
+  const strategyView = (tickers, end) => {
     const head = field(
       "Strategy",
-      select(names.map((n) => [n, strategies[n].title]), state.strategy, (v) => (Object.assign(state, { strategy: v, grid: {}, params: {}, timeframe: null }), redraw())),
+      select(names.map((n) => [n, strategies[n]?.title ?? n]), state.strategy, (v) => (Object.assign(state, { strategy: v, grid: {}, params: {}, timeframe: null }), redraw())),
     );
-    if (!tickers.length) return { parts: [head], runs: 0 };
-    const found = space(state.strategy, tickers[0], state.end);
-    if (found === null) return { parts: [head, h("div", { className: "tf-note" }, "Loading choices…")], runs: 0 };
-    if (found.error) return { parts: [head, h("div", { className: "tf-error" }, found.error)], runs: 0 };
-    if (!found.space.timeframes.length)
-      return { parts: [head, h("div", { className: "tf-note" }, `No precomputed features cover ${strategies[state.strategy].title} for ${tickers[0]}.`)], runs: 0 };
-    const p = { timeframe: state.timeframe };
-    const tf = timeframeOf(found, p);
-    if (state.timeframe !== p.timeframe) state.grid = {};
-    state.timeframe = p.timeframe;
-    const choices = found.space.choices[state.timeframe] ?? {};
-    const props = found.config_schema.properties;
-    const windows = [];
-    const picked = {};
-    for (const [w, domain] of Object.entries(choices)) {
-      let options = [...domain];
-      for (const o of found.space.ordered) {
-        const holds = (lo, hi) => (o.strict ? lo < hi : lo <= hi);
-        const partner = (n) => picked[n] ?? choices[n];
-        if (o.upper === w) options = options.filter((v) => partner(o.lower).some((lo) => holds(lo, v)));
-        if (o.lower === w) options = options.filter((v) => partner(o.upper).some((hi) => holds(v, hi)));
-      }
-      const saved = state.grid[w] ?? options;
-      const current = saved.filter((v) => options.includes(v));
-      const hidden = saved.filter((v) => !options.includes(v));
-      picked[w] = current;
-      windows.push(field(props[w]?.title ?? label(w), chips(options, current, (v) => ((state.grid[w] = [...v, ...hidden]), redraw()))));
-    }
+    const none = { runs: 0, grid: {} };
+    const first = tickers[0];
+    if (first === undefined) return { parts: [head], ...none };
+    const found = space(state.strategy, first, end);
+    if (found === null) return { parts: [head, h("div", { className: "tf-note" }, "Loading choices…")], ...none };
+    if ("error" in found) return { parts: [head, h("div", { className: "tf-error" }, found.error)], ...none };
+    const frames = found.space.timeframes;
+    if (!nonEmpty(frames))
+      return { parts: [head, h("div", { className: "tf-note" }, `No precomputed features cover ${strategies[state.strategy]?.title ?? state.strategy} for ${first}.`)], ...none };
+    const schema = schemaOf(found);
+    const tf = timeframeOf(schema, frames, state.timeframe);
+    if (state.timeframe !== tf.timeframe) state.grid = {};
+    state.timeframe = tf.timeframe;
+    const choices = found.space.choices[tf.timeframe] ?? {};
+    const { rows, picked } = gridOf(choices, found.space.ordered, state.grid);
+    const pickers = rows.map((r) =>
+      field(schema.properties[r.name]?.title ?? label(r.name), chips(r.options, r.current, (v) => ((state.grid[r.name] = [...v, ...r.hidden]), redraw()))),
+    );
     const combos = combinations(picked, found.space.ordered);
     const runs = tickers.length * combos;
     const caption = h("div", { className: "tf-note" }, `${count(tickers.length, "ticker")} × ${count(combos, "valid combination")} = ${count(runs, "run")}`);
-    const fields = fieldsOf(found, state.params, new Set(["timeframe", ...Object.keys(choices)])).map(([f, prop]) => input(state.params, f, prop, redraw));
-    const frame = tf.fixed ? null : field("Timeframe", select(tf.frames.map((f) => [f, f]), state.timeframe, (v) => (Object.assign(state, { timeframe: v, grid: {} }), redraw())));
-    return { parts: [head, frame, windows, caption, grid(fields)], runs, grid: picked };
+    const fields = fieldsOf(schema, state.params, new Set(["timeframe", ...Object.keys(choices)])).map(([f, prop]) => input(state.params, f, prop, redraw));
+    const frame = tf.fixed ? null : field("Timeframe", select(frames.map((f) => [f, f]), tf.timeframe, (v) => (Object.assign(state, { timeframe: v, grid: {} }), redraw())));
+    return { parts: [head, frame, pickers, caption, grid(fields)], runs, grid: picked };
   };
 
   return () => {
-    const dateParts = dates(state, catalog.first_session, catalog.last_session, redraw);
-    ask();
-    const tickers = chosen();
-    const strategy = strategyView(tickers);
-    const payload = () => ({
-      tickers,
-      start: state.start,
-      end: state.end,
-      strategy: state.strategy,
-      timeframe: state.timeframe,
-      grid: { ...strategy.grid },
-      params: { ...state.params },
-      execution: { ...state.execution },
-    });
+    const range = dates(state, catalog.first_session, catalog.last_session, redraw);
+    const { start, end } = range.span;
+    ask(start);
+    const b = basket;
+    if (b === null || "error" in b) {
+      const status = b === null ? h("div", { className: "tf-note" }, "Loading the universe…") : h("div", { className: "tf-error" }, b.error);
+      return nodes(status, range.parts, strategyView([], end).parts, execution(state, Boolean(strategies[state.strategy]?.intraday), ui, redraw), submitButton(model, "Run simulation", null));
+    }
+    const tickers = chosen(b);
+    const strategy = strategyView(tickers, end);
+    const timeframe = state.timeframe;
+    /** @type {(() => Omit<SweepRequest, "n">) | null} */
+    const request =
+      strategy.runs > 0 && start <= end && timeframe && nonEmpty(tickers)
+        ? () => ({
+            tickers,
+            start,
+            end,
+            strategy: state.strategy,
+            timeframe,
+            grid: { ...strategy.grid },
+            params: { ...state.params },
+            execution: { ...state.execution },
+          })
+        : null;
     return nodes(
-      basketView(),
-      dateParts,
-      tickersView(),
-      summaryView(),
+      basketView(b),
+      range.parts,
+      tickersView(b, tickers),
+      summaryView(b, tickers),
       strategy.parts,
       execution(state, Boolean(strategies[state.strategy]?.intraday), ui, redraw),
-      submitButton(model, "Run simulation", strategy.runs > 0 && state.start <= state.end, payload),
+      submitButton(model, "Run simulation", request),
     );
   };
 }
 
+/**
+ * @param {Client} api
+ * @param {Record<string, StrategyInfo>} strategies
+ * @param {HTMLElement} box
+ */
 function background(api, strategies, box) {
+  /** @type {Set<string>} */
   let stopping = new Set();
+  /**
+   * @param {SweepStatus[]} sweeps
+   * @param {string[]} ledgers
+   */
   const draw = (sweeps, ledgers) => {
     if (!sweeps.length && !ledgers.length) return morphChildren(box, []);
     morphChildren(box, [
       h("div", { className: "tf-section" }, "Background"),
       ...sweeps.map((s) => {
         const total = Math.max(1, s.total);
-        const name = strategies[s.strategy]?.title ?? s.strategy;
+        const name = (s.strategy && strategies[s.strategy]?.title) ?? s.strategy ?? "";
         return h(
           "div",
           { className: "tf-job" },
           h("div", { className: "tf-bar" }, h("i", { style: `width:${(100 * s.done) / total}%` })),
-          h("div", { className: "tf-note" }, `Simulation ${s.key.slice(0, 8)} · ${name} ${s.timeframe} · ${count(s.tickers, "ticker")} · ${s.done.toLocaleString()}/${total.toLocaleString()}`),
+          h(
+            "div",
+            { className: "tf-note" },
+            `Simulation ${s.key.slice(0, 8)} · ${name} ${s.timeframe ?? ""} · ${count(s.tickers ?? 0, "ticker")} · ${s.done.toLocaleString("en-US")}/${total.toLocaleString("en-US")}`,
+          ),
           h(
             "button",
             {
@@ -677,7 +1084,10 @@ function background(api, strategies, box) {
               disabled: stopping.has(s.key),
               onclick: () => {
                 stopping.add(s.key);
-                post(`${api}/sweeps/${s.key}/stop`).catch(() => stopping.delete(s.key)).finally(tick);
+                api
+                  .stop(s.key)
+                  .catch(() => stopping.delete(s.key))
+                  .finally(tick);
               },
             },
             stopping.has(s.key) ? "Stopping…" : "Stop",
@@ -688,7 +1098,7 @@ function background(api, strategies, box) {
     ]);
   };
   const tick = () =>
-    Promise.all([fetchJson(`${api}/sweeps`), fetchJson(`${api}/ledgers`)])
+    Promise.all([api.sweeps(), api.ledgers()])
       .then(([sweeps, ledgers]) => {
         stopping = new Set([...stopping].filter((k) => sweeps.some((s) => s.key === k)));
         draw(sweeps, ledgers);
@@ -699,13 +1109,15 @@ function background(api, strategies, box) {
   return () => clearInterval(timer);
 }
 
+/** @type {import("@anywidget/types").AnyWidget<Model>} */
 export default {
   async render({ model, el }) {
-    const api = model.get("api");
+    const api = client(model.get("api"));
     const page = model.get("page");
     const root = h("div", { className: "tf" });
     const jobs = h("div", { className: "tf-jobs" });
     el.append(root, jobs);
+    const links = model.get("pages");
 
     const brand = h(
       "div",
@@ -715,23 +1127,33 @@ export default {
         "nav",
         { className: "tf-seg" },
         Object.entries(PAGES).map(([key, name]) =>
-          key === page ? h("a", { className: "on", "aria-current": "page" }, name) : h("a", { href: model.get("pages")[key] ?? "#" }, name),
+          key === page ? h("a", { className: "on", "aria-current": "page" }, name) : h("a", { href: links[key] ?? "#" }, name),
         ),
       ),
     );
 
     root.replaceChildren(brand, h("div", { className: "tf-note" }, "Loading…"));
+    /** @param {string} text */
+    const fail = (text) => root.replaceChildren(brand, h("div", { className: "tf-error" }, text));
     let catalog, strategies;
     try {
-      [catalog, strategies] = await Promise.all([fetchJson(`${api}/catalog`), fetchJson(`${api}/strategies`)]);
+      [catalog, strategies] = await Promise.all([api.catalog(), api.strategies()]);
     } catch (e) {
-      root.replaceChildren(brand, h("div", { className: "tf-error" }, `The server could not be reached: ${e.message}`));
+      fail(`The server could not be reached: ${reason(e)}`);
+      return;
+    }
+    const tickers = catalog.tickers;
+    const names = Object.keys(strategies);
+    if (!nonEmpty(tickers) || !nonEmpty(names)) {
+      fail("The catalog has no tickers or no strategies yet.");
       return;
     }
 
+    /** @type {() => ChildNode[]} */
     let view = () => [];
     const redraw = () => morphChildren(root, [brand, ...view()]);
-    const ctx = { model, api, catalog, strategies, redraw };
+    /** @type {Context} */
+    const ctx = { model, api, catalog, tickers, strategies, names, redraw };
     view = page === "simulation" ? simulationForm(ctx) : runForm(ctx);
     model.on("change:busy", redraw);
     model.on("change:message", redraw);

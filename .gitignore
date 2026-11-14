@@ -23,3 +23,5 @@ results/
 ARCHITECTURE.md
 DESIGN.md
 reference/
+
+node_modules/

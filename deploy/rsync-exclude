@@ -9,3 +9,4 @@ __pycache__/
 store/
 results/
 .gradientdeck/
+node_modules/

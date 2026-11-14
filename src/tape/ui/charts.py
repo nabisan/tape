@@ -189,7 +189,7 @@ def paths(frame: pd.DataFrame, runs: list[str], best: dict[str, str], reference:
     x = frame["date"].to_numpy()
     fig = go.Figure()
     if runs:
-        gap = np.array([np.datetime64("NaT")])
+        gap = np.array(["NaT"], dtype=x.dtype)
         xs = np.concatenate([np.concatenate([x, gap]) for _ in runs])
         ys = np.concatenate([np.r_[frame[k].to_numpy(dtype=float), np.nan] for k in runs])
         fig.add_trace(

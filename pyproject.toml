@@ -5,16 +5,17 @@ description = "Bar-level US equity backtesting service"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
+    "anywidget>=0.11.0",
     "exchange-calendars>=4.13",
     "fastapi>=0.120",
     "httpx2>=2.16",
+    "marimo>=0.25.2",
     "numba>=0.68",
     "numpy>=2.5",
     "pandas>=2.3",
     "plotly>=6.3",
     "pyarrow>=26",
     "pydantic>=2.14",
-    "streamlit>=1.50",
     "ta-lib>=0.8.3",
     "uvicorn>=0.38",
     "xlsxwriter>=3.3.1",
@@ -48,6 +49,8 @@ ignore = ["PLR2004", "PLR0913"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/tape/service/api.py" = ["TC001", "TC002", "TC003"]
+"src/tape/lab/pages/*.py" = ["B018", "PLR0913", "PLR0917", "PLR1711"]
+"src/tape/lab/mount.py" = ["TC002"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -68,6 +71,12 @@ mypy_path = "src"
 [[tool.mypy.overrides]]
 module = ["talib", "talib.*", "numba", "numba.*", "exchange_calendars", "exchange_calendars.*", "plotly", "plotly.*", "xlsxwriter", "xlsxwriter.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tape.lab.pages.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

@@ -34,7 +34,6 @@ from tape.service.api import create_app
 from tape.service.results import ResultStore
 from tape.service.worker import execute_run, init_worker
 from tape.sweep import SUMMARY, SweepSpec, expand, summary
-from tape.ui.theme import STREAMLIT as THEME
 from tape.universe import (
     CONTACT,
     SEC_TICKERS,
@@ -304,30 +303,6 @@ def serve_api(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
-def serve_ui(args: argparse.Namespace) -> int:
-    app = Path(__file__).with_name("ui") / "app.py"
-    os.environ.setdefault("TAPE_API_URL", args.api)
-    os.execv(
-        sys.executable,
-        [
-            sys.executable,
-            "-m",
-            "streamlit",
-            "run",
-            str(app),
-            "--server.address",
-            args.host,
-            "--server.port",
-            str(args.port),
-            "--server.headless",
-            "true",
-            "--browser.gatherUsageStats",
-            "false",
-            *(f"--{k}={v}" for k, v in THEME.items()),
-        ],
-    )
-
-
 type Handler = Callable[[Settings, argparse.Namespace], int]
 
 COMMANDS: Final[dict[tuple[str, str | None], Handler]] = {
@@ -340,7 +315,6 @@ COMMANDS: Final[dict[tuple[str, str | None], Handler]] = {
     ("universes", "fetch"): universes_fetch,
     ("fundamentals", "import"): fundamentals_import,
     ("serve", "api"): serve_api,
-    ("serve", "ui"): lambda _, a: serve_ui(a),
 }
 
 
@@ -388,17 +362,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     fi = fundamentals.add_parser("import", help="import daily market cap and P/E into the store")
     fi.add_argument("source", help="parquet with ticker, date, shares, market_cap, ttm_net_income, pe_ratio")
-    serve = commands.add_parser("serve", help="run the API or the web UI").add_subparsers(
+    serve = commands.add_parser("serve", help="run the service (API and web UI)").add_subparsers(
         dest="action", required=True
     )
     api = serve.add_parser("api", help="backtest service")
     api.add_argument("--host", default="127.0.0.1")
     api.add_argument("--port", type=int, default=8000)
     api.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
-    ui = serve.add_parser("ui", help="Streamlit front end")
-    ui.add_argument("--host", default="127.0.0.1")
-    ui.add_argument("--port", type=int, default=8501)
-    ui.add_argument("--api", default="http://127.0.0.1:8000")
     args = parser.parse_args(argv)
     settings = Settings.from_env()
     log.setup(settings.log_level)

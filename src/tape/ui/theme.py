@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Final
 
 MONO: Final = "JetBrains Mono"
@@ -35,29 +34,6 @@ HEAT_DOWN: Final = (248, 200, 208)
 SERIES: Final = ((INK, "solid"), (MUTED, "dash"))
 INDICATORS: Final = ((INK, "solid"), (MUTED, "solid"), (INK, "dot"), (MUTED, "dot"))
 
-STREAMLIT: Final[dict[str, str]] = {
-    "theme.base": "light",
-    "theme.primaryColor": INK,
-    "theme.backgroundColor": WHITE,
-    "theme.secondaryBackgroundColor": FIELD,
-    "theme.textColor": INK,
-    "theme.borderColor": HAIRLINE,
-    "theme.dataframeBorderColor": HAIRLINE,
-    "theme.dataframeHeaderBackgroundColor": FIELD,
-    "theme.linkColor": INK,
-    "theme.redColor": SECONDARY,
-    "theme.greenColor": SECONDARY,
-    "theme.font": MONO,
-    "theme.headingFont": MONO,
-    "theme.codeFont": MONO,
-    "theme.baseFontSize": str(SIZE),
-    "theme.baseRadius": "0px",
-    "theme.buttonRadius": "0px",
-    "theme.showWidgetBorder": "true",
-    "theme.showSidebarBorder": "true",
-    "theme.sidebar.backgroundColor": WHITE,
-    "client.toolbarMode": "viewer",
-}
 
 VARIABLES: Final = {
     "mono": f"'{MONO}', ui-monospace, monospace",
@@ -74,8 +50,3 @@ VARIABLES: Final = {
     "hairline": HAIRLINE,
     "field": FIELD,
 }
-
-_ROOT: Final = ":root { " + " ".join(f"--{k}: {v};" for k, v in VARIABLES.items()) + " }"
-CSS: Final = (
-    f"<style>@import url('{MONO_URL}');\n{_ROOT}\n{Path(__file__).with_name('tape.css').read_text()}</style>"
-)

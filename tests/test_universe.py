@@ -8,9 +8,9 @@ import httpx2
 import numpy as np
 import pytest
 
+from tape.baskets import quintiles
 from tape.core.types import Ticker, Timeframe
 from tape.engine.reports import TRADING_DAYS
-from tape.ui.basket import quintiles
 from tape.universe import Gics, Sic, nasdaq, parse, profiles, sic, sic_division, wikipedia
 from tests.test_engine_runs import make_store
 

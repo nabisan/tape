@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from tape.core.types import Timeframe
 from tape.engine.exits import Exit
 from tape.engine.parameters import ResolvedSpace
 from tape.engine.reports import Metrics
@@ -78,3 +79,22 @@ class RunDetail(BaseModel):
     key: str
     spec: RunSpec
     metrics: Metrics
+
+
+class StoredSweep(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    strategy: str
+    timeframe: Timeframe
+    tickers: int
+    start: date
+    end: date
+    saved: datetime
+
+
+class PathsMeta(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    dates: list[date]
+    series: list[str]

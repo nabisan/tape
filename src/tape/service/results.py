@@ -13,6 +13,7 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from pydantic import ValidationError
 
+from tape.core.hashing import Digest
 from tape.engine import tables
 from tape.engine.orders import OrderOrigin
 from tape.engine.reports import Metrics, capital_loss_pct, time_in_market_pct
@@ -26,7 +27,6 @@ if TYPE_CHECKING:
     import pandas as pd
     from pydantic import BaseModel
 
-    from tape.core.hashing import Digest
     from tape.runner import Result
 
 
@@ -182,6 +182,13 @@ class ResultStore:
             return tables.conform(found, schema(table, found.schema.names))
         except tables.SchemaError as e:
             raise StaleResultError(f"run {key[:8]} {table} was {STALE}") from e
+
+    def stored_sweeps(self) -> list[tuple[Digest, Path]]:
+        folder = self.root / "sweeps"
+        if not folder.is_dir():
+            return []
+        found = [(Digest(p.stem), p) for p in folder.glob("*.json") if p.with_suffix(".parquet").is_file()]
+        return sorted(found, key=lambda kp: kp[1].with_suffix(".parquet").stat().st_mtime, reverse=True)
 
     def sweep_summary(self, key: Digest) -> Path:
         return self.root / "sweeps" / f"{key}.parquet"

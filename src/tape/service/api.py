@@ -4,17 +4,21 @@ import asyncio
 import io
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
+import pyarrow as pa
 import pyarrow.parquet as pq
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
 from tape import log
+from tape.baskets import Basket, BasketQuery, basket
 from tape.benchmarks import Comparison, compare
 from tape.catalog.store import Status, Store
 from tape.core.hashing import Digest
@@ -23,13 +27,16 @@ from tape.engine.backtest import ENGINE_VERSION, ExecutionSpec
 from tape.features.catalog import FeatureCatalog
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.fundamentals import Fundamentals, Valuation
+from tape.lab.mount import mount
 from tape.runner import MissingFeaturesError, RunSpec, cold, missing_features, unbuildable, warm
 from tape.service.ledgers import MEDIA, Ledgers, LedgerStatus, filename
 from tape.service.models import (
     Catalog,
+    PathsMeta,
     RunDays,
     RunDetail,
     RunSummary,
+    StoredSweep,
     StrategyInfo,
     StrategySpace,
     TickerInfo,
@@ -51,7 +58,9 @@ if TYPE_CHECKING:
     from tape.config import Settings
 
 PARQUET = "application/vnd.apache.parquet"
+FLOAT32 = "application/octet-stream"
 RECENT_BARS = 2_500
+GZIP_FROM = 1_024
 
 
 def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
@@ -137,6 +146,12 @@ def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
     @router.get("/universes/profiles")
     def universe_profiles(before: date) -> Profiles:
         return _profiles(before)
+
+    @router.post("/universes/basket")
+    def universe_basket(query: BasketQuery) -> Basket:
+        found = classifications()
+        entries = {str(e.ticker): e for e in found.entries} if found is not None else {}
+        return basket(query, list(manifest.available), memberships(), entries, _profiles(query.start))
 
     @router.get("/execution/schema")
     def execution_schema() -> dict[str, Any]:
@@ -238,6 +253,28 @@ def _sweep_routes(store: Store, results: ResultStore, sweeps: SweepManager) -> A
     def running_sweeps() -> list[SweepStatus]:
         return sweeps.running()
 
+    @router.get("/sweeps/stored")
+    def stored_sweeps() -> list[StoredSweep]:
+        out = []
+        for key, path in results.stored_sweeps():
+            try:
+                spec = SweepSpec.model_validate_json(path.read_text())
+            except ValidationError:
+                continue
+            saved = datetime.fromtimestamp(path.with_suffix(".parquet").stat().st_mtime, UTC)
+            out.append(
+                StoredSweep(
+                    key=key,
+                    strategy=spec.strategy,
+                    timeframe=spec.timeframe,
+                    tickers=len(spec.tickers),
+                    start=spec.start,
+                    end=spec.end,
+                    saved=saved,
+                )
+            )
+        return out
+
     @router.post("/sweeps/{key}/stop")
     def stop_sweep(key: str) -> SweepStatus:
         status = sweeps.stop(Digest(key))
@@ -281,14 +318,40 @@ def _sweep_routes(store: Store, results: ResultStore, sweeps: SweepManager) -> A
         except ValidationError as e:
             raise HTTPException(410, f"sweep {key[:8]} was {STALE}") from e
 
-    @router.get("/sweeps/{key}/paths")
-    def sweep_paths(key: str) -> Response:
+    return router
+
+
+def _path_routes(store: Store, results: ResultStore) -> APIRouter:
+    router = APIRouter()
+
+    def stored_paths(key: str) -> Path:
         k = Digest(key)
         if not results.sweep_summary(k).is_file():
             raise HTTPException(404, f"sweep {key} has no summary yet")
         if not results.sweep_paths(k).is_file():
             results.save_paths(k, paths(store, results, k))
-        return Response(results.sweep_paths(k).read_bytes(), media_type=PARQUET)
+        return results.sweep_paths(k)
+
+    @router.get("/sweeps/{key}/paths")
+    def sweep_paths(key: str) -> Response:
+        return Response(stored_paths(key).read_bytes(), media_type=PARQUET)
+
+    @router.get("/sweeps/{key}/paths/meta")
+    def sweep_paths_meta(key: str) -> PathsMeta:
+        found = pq.read_table(stored_paths(key))
+        days = found["date"].cast(pa.date32()).to_pylist()
+        if any(d is None for d in days):
+            raise HTTPException(500, f"sweep {key[:8]} paths have missing dates")
+        return PathsMeta(
+            dates=[d for d in days if d is not None], series=[n for n in found.schema.names if n != "date"]
+        )
+
+    @router.get("/sweeps/{key}/paths/values")
+    def sweep_paths_values(key: str) -> Response:
+        found = pq.read_table(stored_paths(key))
+        series = [n for n in found.schema.names if n != "date"]
+        body = b"".join(found[n].to_numpy(zero_copy_only=False).astype("<f4").tobytes() for n in series)
+        return Response(body, media_type=FLOAT32)
 
     return router
 
@@ -320,6 +383,7 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         app.state.ledger_pool.shutdown(cancel_futures=True)
 
     app = FastAPI(title="tape", version=str(ENGINE_VERSION), lifespan=lifespan)
+    app.add_middleware(GZipMiddleware, minimum_size=GZIP_FROM)
 
     @app.exception_handler(StaleResultError)
     async def stale(_: Request, error: StaleResultError) -> JSONResponse:
@@ -341,6 +405,8 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
     app.include_router(_ledger_routes(results, Ledgers(results, ledger_pool, build_ledger)))
     app.include_router(_run_routes(store, results, pool, grid))
     app.include_router(_sweep_routes(store, results, sweeps))
+    app.include_router(_path_routes(store, results))
+    mount(app)
     return app
 
 

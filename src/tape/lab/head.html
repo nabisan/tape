@@ -1,0 +1,25 @@
+<script>
+  (() => {
+    const watched = new WeakSet();
+    const fit = (gd) => {
+      const width = gd.getBoundingClientRect().width;
+      const drawn = gd._fullLayout?.width;
+      if (!window.Plotly || !gd.layout || !width || (drawn && Math.abs(width - drawn) < 1)) return;
+      clearTimeout(gd._tapeFit);
+      gd._tapeFit = setTimeout(() => {
+        delete gd.layout.width;
+        window.Plotly.Plots.resize(gd).catch(() => {});
+      }, 60);
+    };
+    const observer = new ResizeObserver((entries) => entries.forEach((entry) => fit(entry.target)));
+    const scan = (root) =>
+      root.querySelectorAll("*").forEach((el) => {
+        if (el.shadowRoot) scan(el.shadowRoot);
+        if (el.classList?.contains("js-plotly-plot") && !watched.has(el)) {
+          watched.add(el);
+          observer.observe(el);
+        }
+      });
+    setInterval(() => scan(document), 1000);
+  })();
+</script>

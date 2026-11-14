@@ -17,6 +17,7 @@ from tape.service.models import (
     RunDays,
     RunDetail,
     RunSummary,
+    StoredSweep,
     StrategyInfo,
     StrategySpace,
     UniverseInfo,
@@ -37,6 +38,7 @@ JSON: Final = {"content-type": "application/json"}
 STRATEGIES: Final = TypeAdapter(dict[str, StrategyInfo])
 UNIVERSES: Final = TypeAdapter(list[UniverseInfo])
 SWEEPS: Final = TypeAdapter(list[SweepStatus])
+STORED: Final = TypeAdapter(list[StoredSweep])
 KEYS: Final = TypeAdapter(list[str])
 
 
@@ -116,6 +118,9 @@ class Client:
 
     def running_sweeps(self) -> list[SweepStatus]:
         return SWEEPS.validate_python(self._get("/sweeps").json())
+
+    def stored_sweeps(self) -> list[StoredSweep]:
+        return STORED.validate_python(self._get("/sweeps/stored").json())
 
     def stop_sweep(self, key: str) -> SweepStatus:
         return SweepStatus.model_validate(self._send("POST", f"/sweeps/{key}/stop").json())

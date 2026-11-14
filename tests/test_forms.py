@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import date
 
 from tape.engine.backtest import ExecutionSpec
+from tape.lab import schema as forms
+from tape.lab.schema import fixed, visible
 from tape.strategies.breakout import HighBreakoutConfig
 from tape.strategies.sma_cross import SmaCrossConfig
-from tape.ui import forms
-from tape.ui.forms import fixed, visible
 
 PROPS = SmaCrossConfig.model_json_schema()["properties"]
 

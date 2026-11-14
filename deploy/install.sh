@@ -14,7 +14,7 @@ etc=/etc/nginx/tape
 
 DEBIAN_FRONTEND=noninteractive apt-get install -y -q nginx apache2-utils >/dev/null
 
-for unit in tape-api tape-ui; do
+for unit in tape-api; do
     sed -e "s|@APP@|$app|g" -e "s|@USER@|$user|g" -e "s|@HOME@|$home|g" \
         "$app/deploy/systemd/$unit.service" > "/etc/systemd/system/$unit.service"
 done
@@ -39,8 +39,8 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 
 systemctl daemon-reload
-systemctl enable tape-api tape-ui >/dev/null
-systemctl restart tape-api tape-ui
+systemctl enable tape-api >/dev/null
+systemctl restart tape-api
 systemctl reload nginx
 if (( auth )); then
     echo "installed: https://$host  login on, users: $(grep -c . "$etc/htpasswd" || true)"

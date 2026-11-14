@@ -9,11 +9,13 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from tape.catalog.bars import bar_ends
 from tape.core.hashing import Digest, Json, digest
 from tape.core.types import DATE, Ticker, Timeframe
 from tape.engine import reports
 from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec
 from tape.engine.ledger import Ledger
+from tape.features.align import as_of
 from tape.features.build import materialize
 from tape.features.catalog import FeatureCatalog
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
@@ -212,6 +214,16 @@ def prepare(store: Store, spec: RunSpec, grid: FeatureGrid, ledger: Ledger | Non
         entry = catalog.lookup(spec.ticker, timeframe, f)
         return None if entry is None else catalog.values(entry)
 
+    targets = bar_ends(decision, sessions, timeframe)
+
+    def align(f: FeatureSpec, source: Timeframe) -> F64:
+        bars = store.bars(spec.ticker, source)
+        entry = catalog.lookup(spec.ticker, source, f)
+        values = catalog.values(entry) if entry is not None else None
+        if values is None or len(values) != len(bars):
+            values = f.compute(bars)
+        return as_of(values, bar_ends(bars, sessions, source), targets)
+
     engine = BacktestEngine(
         strategy,
         m1=m1,
@@ -219,6 +231,7 @@ def prepare(store: Store, spec: RunSpec, grid: FeatureGrid, ledger: Ledger | Non
         sessions=sessions,
         execution=spec.execution,
         stored=stored,
+        align=align,
         ledger=ledger,
     )
     return Prepared(engine, sessions, m1, decision, first, last)

@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING, Annotated
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from tape.catalog.bars import last_minutes
-from tape.core.types import INTRADAY_MINUTES, NS_PER_MINUTE, Minutes, Notional
+from tape.catalog.bars import bar_ends, last_minutes
+from tape.core.types import NS_PER_MINUTE, Minutes, Notional, Timeframe
 from tape.engine.matching import FillModel, MatchingEngine
 from tape.engine.orders import Fill, Order, OrderOrigin, OrderSide, OrderStatus, OrderType, TimeInForce
 from tape.engine.portfolio import Portfolio, Trade
 from tape.engine.strategy import Bar
+from tape.features.align import Aligned
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
 ENGINE_VERSION = 5
 
 type Stored = Callable[[FeatureSpec], F64 | None]
+type Align = Callable[[FeatureSpec, Timeframe], F64]
 
 
 class FillOn(StrEnum):
@@ -48,6 +50,7 @@ class ExecutionSpec(BaseModel):
 class Context:
     __slots__ = (
         "_features",
+        "align",
         "allow_entries",
         "bars",
         "incoming",
@@ -60,9 +63,12 @@ class Context:
         "working",
     )
 
-    def __init__(self, bars: Bars, initial_cash: float, stored: Stored | None = None) -> None:
+    def __init__(
+        self, bars: Bars, initial_cash: float, stored: Stored | None = None, align: Align | None = None
+    ) -> None:
         self.bars = bars
         self.stored = stored
+        self.align = align
         self.portfolio = Portfolio(initial_cash)
         self.orders: list[Order] = []
         self.incoming: list[Order] = []
@@ -71,7 +77,7 @@ class Context:
         self.now_ns = 0
         self.session = 0
         self.allow_entries = True
-        self._features: dict[str, tuple[FeatureSpec, F64]] = {}
+        self._features: dict[str, tuple[FeatureSpec | Aligned, F64]] = {}
 
     def feature(self, spec: FeatureSpec) -> F64:
         if spec.id not in self._features:
@@ -81,7 +87,17 @@ class Context:
             self._features[spec.id] = (spec, values)
         return self._features[spec.id][1]
 
-    def features(self) -> list[tuple[FeatureSpec, F64]]:
+    def higher(self, spec: FeatureSpec, timeframe: Timeframe) -> F64:
+        key = Aligned(feature=spec, timeframe=timeframe)
+        if key.id not in self._features:
+            if self.align is None:
+                raise ValueError(f"no {timeframe} data to align {spec.name} onto this run's bars")
+            values = self.align(spec, timeframe)
+            assert len(values) == len(self.bars)
+            self._features[key.id] = (key, values)
+        return self._features[key.id][1]
+
+    def features(self) -> list[tuple[FeatureSpec | Aligned, F64]]:
         return list(self._features.values())
 
     def submit(
@@ -140,6 +156,12 @@ class Context:
         self.orders.append(order)
         self.working.append(order)
         return order
+
+    def cancel(self, order: Order) -> None:
+        if order.working:
+            order.status = OrderStatus.CANCELED
+            order.closed_ns = self.now_ns
+        self.prune()
 
     def cancel_all(self) -> None:
         for o in (*self.working, *self.incoming):
@@ -200,6 +222,7 @@ class BacktestEngine:
         execution: ExecutionSpec,
         fast_forward: bool = True,
         stored: Stored | None = None,
+        align: Align | None = None,
         ledger: Ledger | None = None,
     ) -> None:
         timeframe = strategy.config.timeframe
@@ -212,7 +235,7 @@ class BacktestEngine:
         self.ledger = ledger
         self.ends = ends
         self.decision = decision
-        self.ctx = Context(decision, execution.initial_cash, stored)
+        self.ctx = Context(decision, execution.initial_cash, stored, align)
         self.matcher = MatchingEngine(execution.fill)
         self.fills: list[Fill] = []
         self.marks: tuple[list[int], list[float], list[int], list[float]] = ([], [], [], [])
@@ -231,12 +254,7 @@ class BacktestEngine:
                 strict=True,
             )
         )
-        closes = sessions.close_ns[stream.session]
-        if by_bar and timeframe not in INTRADAY_MINUTES:
-            self.bar_end: list[int] = closes.tolist()
-        else:
-            span = INTRADAY_MINUTES[timeframe] if by_bar else 1
-            self.bar_end = np.minimum(stream.time_ns + span * NS_PER_MINUTE, closes).tolist()
+        self.bar_end: list[int] = bar_ends(stream, sessions, timeframe if by_bar else Timeframe.M1).tolist()
         self.session_end = np.r_[stream.session[1:] != stream.session[:-1], True].tolist()
         decision_end = np.zeros(len(stream), dtype=bool)
         decision_end[ends] = True

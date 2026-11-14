@@ -11,6 +11,7 @@ from tape.core.types import Notional, Quantity, Timeframe
 from tape.engine.exits import Exit
 from tape.engine.orders import Order, OrderSide, OrderType, TimeInForce
 from tape.engine.parameters import ParameterSpace
+from tape.features.align import Aligned
 
 if TYPE_CHECKING:
     from tape.core.types import F64
@@ -66,7 +67,7 @@ class Bar:
 class Indicator:
     __slots__ = ("_ctx", "_values", "spec")
 
-    def __init__(self, spec: FeatureSpec, values: F64, ctx: Context) -> None:
+    def __init__(self, spec: FeatureSpec | Aligned, values: F64, ctx: Context) -> None:
         self.spec = spec
         self._values = values
         self._ctx = ctx
@@ -118,8 +119,12 @@ class Strategy[C: StrategyConfig]:
     def on_stop(self) -> None:
         pass
 
-    def indicator(self, spec: FeatureSpec) -> Indicator:
-        return Indicator(spec, self.ctx.feature(spec), self.ctx)
+    def indicator(self, spec: FeatureSpec, timeframe: Timeframe | None = None) -> Indicator:
+        if timeframe is None or timeframe is self.config.timeframe:
+            return Indicator(spec, self.ctx.feature(spec), self.ctx)
+        return Indicator(
+            Aligned(feature=spec, timeframe=timeframe), self.ctx.higher(spec, timeframe), self.ctx
+        )
 
     @property
     def position(self) -> int:
@@ -166,6 +171,9 @@ class Strategy[C: StrategyConfig]:
     def enter(self, side: OrderSide, *, close: int = 0, **order: Any) -> Order | None:
         shares, notional = self.opening()
         return self.submit(side, close + shares, notional=notional, **order)
+
+    def cancel(self, order: Order) -> None:
+        self.ctx.cancel(order)
 
     def cancel_all(self) -> None:
         self.ctx.cancel_all()

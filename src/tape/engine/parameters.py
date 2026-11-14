@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from datetime import date
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -14,17 +14,24 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from typing import Self
 
-    from pydantic import BaseModel as Config
-
     from tape.core.types import Ticker
     from tape.features.catalog import FeatureCatalog
     from tape.features.kinds import FeatureSpec
+
+
+class Config(Protocol):
+    @property
+    def timeframe(self) -> Timeframe: ...
 
 
 class WindowParameter(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     kinds: tuple[FeatureKind, ...]
+    source: str | None = None
+
+    def on_decision(self, config: Config) -> bool:
+        return self.source is None or getattr(config, self.source) is config.timeframe
 
 
 class Ordered(BaseModel):
@@ -49,6 +56,7 @@ class ParameterSpace(BaseModel):
 
     windows: dict[str, WindowParameter] = {}
     ordered: tuple[Ordered, ...] = ()
+    timeframes: tuple[Timeframe, ...] = tuple(Timeframe)
 
     @model_validator(mode="after")
     def _known(self) -> Self:
@@ -61,7 +69,12 @@ class ParameterSpace(BaseModel):
         return max(spec_for(kind, window).warmup() for kind in self.windows[name].kinds)
 
     def requires(self, config: Config) -> list[FeatureSpec]:
-        return [spec_for(kind, getattr(config, name)) for name, p in self.windows.items() for kind in p.kinds]
+        return [
+            spec_for(kind, getattr(config, name))
+            for name, p in self.windows.items()
+            if p.on_decision(config)
+            for kind in p.kinds
+        ]
 
     def resolve(
         self, catalog: FeatureCatalog, ticker: Ticker, grid: FeatureGrid = DEFAULT_GRID
@@ -69,7 +82,7 @@ class ParameterSpace(BaseModel):
         stored = set(catalog.timeframes(ticker))
         choices: dict[Timeframe, dict[str, list[int]]] = {}
         on_demand: list[Timeframe] = []
-        for tf in (tf for tf in Timeframe if tf in stored or grid.covers(tf)):
+        for tf in (tf for tf in self.timeframes if tf in stored or grid.covers(tf)):
             present = catalog.ids(ticker, tf)
             available = present | grid.ids(tf)
             windows = sorted(

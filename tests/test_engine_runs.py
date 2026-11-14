@@ -35,7 +35,10 @@ HB_5M = ("high_breakout", {"timeframe": "5m", "stop_loss_pct": 0.25})
 HB_1H = ("high_breakout", {"timeframe": "1h", "stop_loss_pct": 1.0})
 LB_5M = ("low_breakdown", {"timeframe": "5m", "stop_loss_pct": 0.25})
 LB_1H = ("low_breakdown", {"timeframe": "1h", "stop_loss_pct": 1.0})
-ALL = [SMA_D1, SMA_H1, HB_5M, HB_1H, LB_5M, LB_1H]
+SB_5M = ("sma_breakout", {"timeframe": "5m", "trend": "5m", "window": 50})
+SB_1H = ("sma_breakout", {"timeframe": "5m", "trend": "1h", "window": 20})
+SB_1D = ("sma_breakout", {"timeframe": "5m", "trend": "1d", "window": 5})
+ALL = [SMA_D1, SMA_H1, HB_5M, HB_1H, LB_5M, LB_1H, SB_5M, SB_1H, SB_1D]
 
 
 def make_store(root: Path, perturb_after: date | None = None) -> Store:
@@ -92,7 +95,7 @@ def test_ledger_reconciles(store: Store, strategy: tuple[str, dict[str, object]]
     assert r.metrics.total_commission == pytest.approx(r.fills["commission"].sum())
 
 
-@pytest.mark.parametrize("strategy", ALL, ids=lambda s: f"{s[0]}-{s[1]['timeframe']}")
+@pytest.mark.parametrize("strategy", ALL, ids=lambda s: "-".join(map(str, (s[0], *s[1].values()))))
 def test_no_look_ahead(store: Store, tmp_path: Path, strategy: tuple[str, dict[str, object]]) -> None:
     shifted = make_store(tmp_path, perturb_after=CUT)
     a, b = execute(store, spec(strategy)), execute(shifted, spec(strategy))

@@ -45,7 +45,7 @@ def test_catalog_and_strategies(client: TestClient) -> None:
     cat = client.get("/catalog").json()
     assert [t["ticker"] for t in cat["tickers"]] == ["AAPL", "SPY"]
     strategies = client.get("/strategies").json()
-    assert set(strategies) == {"sma_cross", "high_breakout", "low_breakdown"}
+    assert set(strategies) == {"sma_cross", "high_breakout", "low_breakdown", "sma_breakout"}
     assert "fast" in strategies["sma_cross"]["config_schema"]["properties"]
 
 

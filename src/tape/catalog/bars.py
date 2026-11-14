@@ -72,6 +72,13 @@ def labels(m1: Bars, sessions: Sessions, timeframe: Timeframe) -> I64:
     return session_open + (m1.time_ns - session_open) // width * width
 
 
+def bar_ends(bars: Bars, sessions: Sessions, timeframe: Timeframe) -> I64:
+    closes = sessions.close_ns[bars.session]
+    if timeframe not in INTRADAY_MINUTES:
+        return closes
+    return np.minimum(bars.time_ns + INTRADAY_MINUTES[timeframe] * NS_PER_MINUTE, closes)
+
+
 def last_minutes(m1: Bars, sessions: Sessions, timeframe: Timeframe) -> I64:
     label = labels(m1, sessions, timeframe)
     return np.flatnonzero(np.r_[label[1:] != label[:-1], True])

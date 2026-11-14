@@ -96,7 +96,7 @@ def title(name: str) -> str:
     if name in TITLES:
         return TITLES[name]
     kind, _, window = name.partition("_")
-    return f"{kind.upper()} {window}".strip()
+    return f"{kind.upper()} {window.replace('_', ' ')}".strip()
 
 
 def kind(name: str) -> str:

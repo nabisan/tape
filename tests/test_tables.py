@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -138,3 +139,16 @@ def test_legacy_orders_gain_origin_from_their_tag(tmp_path: Path) -> None:
     assert frame["origin"].tolist() == ["strategy", "stop_loss", "square_off", "strategy"]
     served = pq.read_table(pa.BufferReader(store.table(Digest("cd34"), Table.ORDERS)))
     assert served.schema.names == tables.ORDERS.names
+
+
+def test_concurrent_writers_of_the_same_sweep_paths_never_collide(tmp_path: Path) -> None:
+    store = ResultStore(tmp_path)
+    key = Digest("cd34")
+    store.sweep_paths(key).parent.mkdir(parents=True)
+    frame = pd.DataFrame(
+        {"date": pd.date_range("2024-01-02", periods=500).astype("datetime64[ns]"), "a": 1.0, "b": 2.0}
+    )
+    with ThreadPoolExecutor(8) as pool:
+        list(pool.map(lambda _: store.save_paths(key, frame), range(64)))
+    assert pq.read_table(store.sweep_paths(key)).num_rows == 500
+    assert [p.name for p in store.sweep_paths(key).parent.iterdir()] == [store.sweep_paths(key).name]

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import shutil
+import uuid
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
@@ -94,6 +94,10 @@ class StaleResultError(Exception):
 STALE: Final = "computed by an older engine version; run it again"
 
 
+def scratch(path: Path) -> Path:
+    return path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+
+
 class ResultStore:
     __slots__ = ("root",)
 
@@ -108,7 +112,7 @@ class ResultStore:
         final = self.root / result.key
         if final.exists():
             return
-        tmp = self.root / f".{result.key}.{os.getpid()}.tmp"
+        tmp = scratch(final)
         tmp.mkdir()
         try:
             frames = {
@@ -138,7 +142,7 @@ class ResultStore:
             found[name] = derive[name](key, found)
         metrics = Metrics.model_validate(found)
         if missing:
-            tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+            tmp = scratch(path)
             tmp.write_text(metrics.model_dump_json(indent=2))
             tmp.replace(path)
         return metrics
@@ -198,21 +202,21 @@ class ResultStore:
 
     def save_paths(self, key: Digest, frame: pd.DataFrame) -> None:
         path = self.sweep_paths(key)
-        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp = scratch(path)
         arrow = tables.table(frame, tables.paths(c for c in frame.columns if c != "date"))
         pq.write_table(arrow, tmp, compression="zstd")
         tmp.replace(path)
 
     def replace_summary(self, key: Digest, summary: pa.Table) -> None:
         path = self.sweep_summary(key)
-        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp = scratch(path)
         pq.write_table(summary, tmp, compression="zstd")
         tmp.replace(path)
 
     def save_sweep(self, key: Digest, spec: BaseModel, summary: pa.Table) -> None:
         path = self.sweep_summary(key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp = scratch(path)
         pq.write_table(summary, tmp, compression="zstd")
         path.with_suffix(".json").write_text(spec.model_dump_json(indent=2))
         tmp.replace(path)

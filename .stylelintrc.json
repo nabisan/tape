@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "declaration-property-unit-disallowed-list": {
+      "/^(padding|margin|gap|row-gap|column-gap)/": ["px", "rem", "em"],
+      "font-size": ["px", "rem", "em"],
+      "/^transition/": ["ms", "s"]
+    },
+    "declaration-property-value-allowed-list": {
+      "/^transition(-timing-function)?$/": ["none", "/var\\(--(t-)?ease\\)/"]
+    }
+  }
+}

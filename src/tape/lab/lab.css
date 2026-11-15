@@ -7,41 +7,41 @@ body { font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; 
 ::selection { background: var(--t-ink); color: var(--t-white); }
 *, *::before, *::after { border-radius: 0 !important; }
 
-.app-sidebar > div:last-child { padding: 24px var(--t-margin) 32px; }
+.app-sidebar > div:last-child { padding: var(--t-space-5) var(--t-margin) var(--t-space-6); }
 .app-sidebar[data-expanded="false"] > div:last-child { visibility: hidden; }
 #App[data-config-width="full"] > div:has(.marimo-cell) { padding-left: var(--t-margin); padding-right: var(--t-margin); }
 
-[part="label"] label { font-size: 12px; font-weight: 400; color: var(--t-secondary); line-height: 16px; }
-.mo-label.space-y-2 > * + * { margin-top: 4px; }
+[part="label"] label { font-size: var(--t-text-1); font-weight: 400; color: var(--t-secondary); line-height: 16px; }
+.mo-label.space-y-2 > * + * { margin-top: var(--t-space-1); }
 
 :host(marimo-dropdown) button[data-slot], :host(marimo-dropdown) select,
 :host(marimo-number) [data-testid="marimo-plugin-number-input"] > div,
 :host(marimo-date) [role="group"], :host(marimo-date-range) [role="group"] {
   height: 36px; min-height: 36px; margin: 0; border: 1px solid var(--t-hairline); box-shadow: none;
-  background: var(--t-white); font-size: 13px; color: var(--t-ink);
+  background: var(--t-white); font-size: var(--t-text-2); color: var(--t-ink);
 }
 :host(marimo-dropdown) button[data-slot]:hover, :host(marimo-dropdown) select:hover,
 :host(marimo-number) [data-testid="marimo-plugin-number-input"] > div:hover { border-color: var(--t-secondary); }
-:host(marimo-number) input { font-size: 13px; }
+:host(marimo-number) input { font-size: var(--t-text-2); }
 
 :host(marimo-radio) [role="radiogroup"] { gap: 0; }
 :host(marimo-radio) [role="radiogroup"] > div { margin: 0; }
 :host(marimo-radio) [role="radio"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
 :host(marimo-radio) [role="radio"] + label {
-  display: inline-block; min-width: 40px; padding: 6px 12px; margin-left: -1px;
-  border: 1px solid var(--t-hairline); font-size: 12px; font-weight: 400; text-align: center; cursor: pointer; color: var(--t-ink);
+  display: inline-block; min-width: 40px; padding: var(--t-space-2) var(--t-space-3); margin-left: calc(-1 * var(--t-hair));
+  border: 1px solid var(--t-hairline); font-size: var(--t-text-1); font-weight: 400; text-align: center; cursor: pointer; color: var(--t-ink);
 }
 :host(marimo-radio) [role="radio"][data-state="checked"] + label { background: var(--t-field); border-color: var(--t-ink); position: relative; }
 
-:host(marimo-switch) label { font-size: 12px; font-weight: 400; color: var(--t-secondary); }
+:host(marimo-switch) label { font-size: var(--t-text-1); font-weight: 400; color: var(--t-secondary); }
 :host(marimo-switch) [role="switch"][data-state="checked"] { background: var(--t-ink); }
 
 :host(marimo-button) button {
   width: 100%; height: 40px; border: 1px solid var(--t-ink); background: var(--t-ink); color: var(--t-white);
-  box-shadow: none; font-size: 13px; font-weight: 500;
+  box-shadow: none; font-size: var(--t-text-2); font-weight: 500;
 }
 :host(marimo-button) button:hover { background: var(--t-secondary); border-color: var(--t-secondary); }
 
 :host(marimo-accordion) [data-orientation="vertical"] > div { border: 1px solid var(--t-hairline); }
-:host(marimo-accordion) button { padding: 8px 12px; font-size: 12px; color: var(--t-ink); text-decoration: none; }
-:host(marimo-accordion) [role="region"] > div { padding: 4px 12px 12px; }
+:host(marimo-accordion) button { padding: var(--t-space-2) var(--t-space-3); font-size: var(--t-text-1); color: var(--t-ink); text-decoration: none; }
+:host(marimo-accordion) [role="region"] > div { padding: var(--t-space-1) var(--t-space-3) var(--t-space-3); }

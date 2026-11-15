@@ -15,6 +15,15 @@ CELL: Final = 28
 GAP: Final = 24
 MARGIN: Final = 24
 SIDEBAR: Final = 352
+SPACE: Final = (4, 8, 12, 16, 24, 32)
+TEXT: Final = (12, 13, 20, 28)
+HAIR: Final = 1
+
+SPRING: Final = (
+    "linear(0, 0.024 2.5%, 0.084 5%, 0.167 7.5%, 0.559 17.5%, 0.645 20%, 0.722 22.5%, 0.789 25%,"
+    " 0.846 27.5%, 0.893 30%, 0.931 32.5%, 0.984 37.5%, 1.013 42.5%, 1.027 55%, 1)"
+)
+DURATION: Final = 400
 
 WHITE: Final = "#ffffff"
 INK: Final = "#111111"
@@ -49,4 +58,9 @@ VARIABLES: Final = {
     "faint": FAINT,
     "hairline": HAIRLINE,
     "field": FIELD,
+    "hair": f"{HAIR}px",
+    **{f"space-{step}": f"{value}px" for step, value in enumerate(SPACE, 1)},
+    **{f"text-{step}": f"{value}px" for step, value in enumerate(TEXT, 1)},
+    "ease": SPRING,
+    "dur": f"{DURATION}ms",
 }

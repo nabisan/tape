@@ -6,11 +6,13 @@ app = marimo.App(
 )
 
 with app.setup:
+    import html
     import os
 
     import marimo as mo
     from pydantic import ValidationError
 
+    from tape import book
     from tape.benchmarks import REFERENCE
     from tape.core.hashing import Digest
     from tape.lab import markup, views
@@ -21,6 +23,7 @@ with app.setup:
     from tape.lab.widgets.paths import Paths
     from tape.ui import charts
     from tape.ui.client import ApiError, Client
+    from tape.ui.theme import DOWN, INK
 
     api = Client(os.environ.get("TAPE_API_URL", "http://127.0.0.1:8000"))
 
@@ -196,6 +199,41 @@ def _(best, info, returns, spec):
         ]
     )
     return (runs,)
+
+
+@app.cell
+def _(best, key, runs, spec):
+    _picked = not runs.value.empty
+    _run = str(runs.value["key"].iloc[0]) if _picked else str(best["key"].iloc[0])
+    _row = best[best["key"] == _run].iloc[0]
+    try:
+        _curve = api.sweep_book(key, _run)
+        _sleeves = book.members(best, _run)
+    except (ApiError, book.BookError) as _e:
+        mo.stop(True, mo.Html(markup.notice(str(_e))))
+    _cash = spec.execution.initial_cash
+    _source = "the selected run" if _picked else "the top run by Sharpe"
+    _named = views.book_parameters(_row, best)
+    _parts = [html.escape(_named)] if _named else []
+    _parts += [
+        f"{len(_sleeves):,} tickers &times; ${_cash:,.0f} each, cash not shared",
+        f"parameters of {_source}",
+    ]
+    _caption = " &middot; ".join(_parts)
+    mo.vstack(
+        [
+            mo.Html(
+                markup.title(
+                    "Book",
+                    _caption,
+                    markup.key_line("Equity", INK) + markup.key_line("Drawdown from peak", DOWN),
+                )
+            ),
+            mo.Html(views.book_stats(book.stats(_curve))),
+            mo.ui.plotly(views.still(charts.equity({"Book": _curve})), config=charts.CONFIG),
+        ]
+    )
+    return
 
 
 @app.cell

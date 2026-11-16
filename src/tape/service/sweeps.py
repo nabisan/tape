@@ -8,6 +8,7 @@ import pandas as pd
 from pydantic import BaseModel
 
 from tape.benchmarks import REFERENCE, prices
+from tape.book import combine, encode, members
 from tape.log import Log
 from tape.service.results import Table
 from tape.sweep import Plan, Skipped, SweepSpec, expand, summary
@@ -150,6 +151,14 @@ class SweepManager:
                     self._log.warn("sweep run failed", sweep=progress.key[:12], ticker=run.ticker, reason=e)
                     return
         progress.done += 1
+
+
+def book(results: ResultStore, key: Digest, run: str) -> bytes:
+    summary = results.sweep_summary(key)
+    spec = SweepSpec.model_validate_json(summary.with_suffix(".json").read_text())
+    chosen = members(pd.read_parquet(summary), run)
+    sleeves = {t: results.frame(k, Table.EQUITY).set_index("date")["equity"] for t, k in chosen.items()}
+    return encode(combine(sleeves, spec.execution.initial_cash))
 
 
 def paths(store: Store, results: ResultStore, key: Digest) -> pd.DataFrame:

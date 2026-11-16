@@ -9,6 +9,7 @@ import pandas as pd
 from pydantic import TypeAdapter
 
 from tape.benchmarks import Comparison
+from tape.book import decode
 from tape.fundamentals import Valuation
 from tape.log import Log
 from tape.service.ledgers import LedgerStatus
@@ -136,6 +137,9 @@ class Client:
 
     def sweep_spec(self, key: str) -> SweepSpec:
         return SweepSpec.model_validate(self._get(f"/sweeps/{key}/spec").json())
+
+    def sweep_book(self, key: str, run: str) -> pd.DataFrame:
+        return decode(self._send("GET", f"/sweeps/{key}/book", params={"run": run}).content)
 
     def sweep_paths(self, key: str) -> pd.DataFrame:
         return pd.read_parquet(io.BytesIO(self._get(f"/sweeps/{key}/paths").content))

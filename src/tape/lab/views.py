@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import pandas as pd
 
+from tape.book import parameters
 from tape.core.types import DATE
 from tape.engine.exits import applies
 from tape.lab.markup import EN_DASH, MINUS, day, fmt
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 
     import plotly.graph_objects as go
 
+    from tape.book import BookStats
     from tape.engine.exits import Exit
     from tape.service.models import StoredSweep
     from tape.service.sweeps import SweepStatus
@@ -169,3 +171,26 @@ def progress(status: SweepStatus) -> str:
         f'<div class="t-meta">Simulation {status.key[:8]} &middot; {status.done:,} of {total:,} runs'
         f"{f' &middot; {status.failed:,} failed' if status.failed else ''}</div>"
     )
+
+
+BOOK_STATS: Final[tuple[tuple[str, Callable[[BookStats], float], str], ...]] = (
+    ("Capital", lambda b: b.capital, "${:,.0f}"),
+    ("Return", lambda b: b.total_return_pct, "{:.2f}%"),
+    ("CAGR", lambda b: b.cagr_pct, "{:.2f}%"),
+    ("Sharpe", lambda b: b.sharpe, "{:.2f}"),
+    ("Max DD", lambda b: b.max_drawdown_pct, "{:.2f}%"),
+    ("Longest DD, sessions", lambda b: float(b.max_drawdown_sessions), "{:,.0f}"),
+    ("Max loss on capital", lambda b: b.max_capital_loss_pct, "{:.2f}%"),
+    ("DD now", lambda b: b.drawdown_now_pct, "{:.2f}%"),
+)
+
+
+def book_parameters(row: pd.Series, frame: pd.DataFrame) -> str:
+    varied = [c for c in parameters(frame.columns) if frame[c].nunique() > 1]
+    return " · ".join(f"{label(c)} {label(row[c])}" for c in varied)
+
+
+def book_stats(stats: BookStats) -> str:
+    head = "".join(f"<th>{h}</th>" for h, _, _ in BOOK_STATS) + "<th>Trough</th>"
+    cells = "".join(f"<td>{fmt(fn(stats), pattern)}</td>" for _, fn, pattern in BOOK_STATS)
+    return table(head, cells + f"<td>{day(stats.trough)}</td>")

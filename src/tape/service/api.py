@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from tape import log
 from tape.baskets import Basket, BasketQuery, basket
 from tape.benchmarks import Comparison, compare
+from tape.book import BookError
 from tape.catalog.store import Status, Store
 from tape.core.hashing import Digest
 from tape.core.types import Ticker, Timeframe
@@ -43,7 +44,7 @@ from tape.service.models import (
     UniverseInfo,
 )
 from tape.service.results import BARS_PER_ROW, STALE, ResultStore, StaleResultError, Table, thin
-from tape.service.sweeps import SweepManager, SweepStatus, paths
+from tape.service.sweeps import SweepManager, SweepStatus, book, paths
 from tape.service.worker import build_ledger, execute_run, init_ledger_worker, init_worker
 from tape.strategies.registry import STRATEGIES
 from tape.sweep import SweepSpec
@@ -315,6 +316,18 @@ def _sweep_routes(store: Store, results: ResultStore, sweeps: SweepManager) -> A
             raise HTTPException(404, f"no sweep {key}")
         try:
             return SweepSpec.model_validate_json(path.read_text())
+        except ValidationError as e:
+            raise HTTPException(410, f"sweep {key[:8]} was {STALE}") from e
+
+    @router.get("/sweeps/{key}/book")
+    def sweep_book(key: str, run: str) -> Response:
+        k = Digest(key)
+        if not results.sweep_summary(k).is_file():
+            raise HTTPException(404, f"sweep {key} has no summary yet")
+        try:
+            return Response(book(results, k, run), media_type=PARQUET)
+        except BookError as e:
+            raise HTTPException(422, str(e)) from e
         except ValidationError as e:
             raise HTTPException(410, f"sweep {key[:8]} was {STALE}") from e
 

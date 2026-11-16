@@ -23,7 +23,7 @@ with app.setup:
     from tape.lab.widgets.paths import Paths
     from tape.ui import charts
     from tape.ui.client import ApiError, Client
-    from tape.ui.theme import DOWN, INK
+    from tape.ui.theme import DOWN, INK, MUTED
 
     api = Client(os.environ.get("TAPE_API_URL", "http://127.0.0.1:8000"))
 
@@ -226,11 +226,13 @@ def _(best, key, runs, spec):
                 markup.title(
                     "Book",
                     _caption,
-                    markup.key_line("Equity", INK) + markup.key_line("Drawdown from peak", DOWN),
+                    markup.key_line("Equity", INK)
+                    + markup.key_line("Drawdown from peak", DOWN)
+                    + markup.key_line("Drawdown from capital", MUTED),
                 )
             ),
             mo.Html(views.book_stats(book.stats(_curve))),
-            mo.ui.plotly(views.still(charts.equity({"Book": _curve})), config=charts.CONFIG),
+            mo.ui.plotly(views.still(charts.book(_curve)), config=charts.CONFIG),
         ]
     )
     return

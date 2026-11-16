@@ -12,6 +12,7 @@ from tape.ui.theme import (
     DOWN,
     DOWN_FILL,
     FAINT,
+    FAINT_FILL,
     GRID,
     HAIRLINE,
     INDICATORS,
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
 
 CONFIG: Final = {"displayModeBar": False, "scrollZoom": False}
 EQUITY_HEIGHT: Final = 380
+BOOK_HEIGHT: Final = 460
 PRICE_HEIGHT: Final = 440
 HEATMAP_HEIGHT: Final = 340
 FONT: Final = f"{MONO}, ui-monospace, monospace"
@@ -104,6 +106,34 @@ def equity(curves: dict[str, pd.DataFrame]) -> go.Figure:
     fig.update_yaxes(tickprefix="$", tickformat=",.0f", row=1, col=1)
     fig.update_yaxes(ticksuffix="%", tickformat=".0f", nticks=3, row=2, col=1)
     return _style(fig, EQUITY_HEIGHT)
+
+
+def book(frame: pd.DataFrame) -> go.Figure:
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.6, 0.2, 0.2], vertical_spacing=0.04)
+    x = frame["date"]
+    fig.add_trace(go.Scattergl(x=x, y=frame["equity"], name="Book", line={"color": INK, "width": 1.5}), 1, 1)
+    for row, column, name, color, fill in (
+        (2, "drawdown_pct", "Drawdown from peak", DOWN, DOWN_FILL),
+        (3, "below_capital_pct", "Drawdown from capital", MUTED, FAINT_FILL),
+    ):
+        fig.add_trace(
+            go.Scattergl(
+                x=x,
+                y=frame[column],
+                name=name,
+                line={"color": color, "width": 1},
+                fill="tozeroy",
+                fillcolor=fill,
+            ),
+            row,
+            1,
+        )
+    floor = min(float(frame["drawdown_pct"].min()), -1.0)
+    fig.update_xaxes(hoverformat=DATE)
+    fig.update_yaxes(tickprefix="$", tickformat=",.0f", row=1, col=1)
+    for row in (2, 3):
+        fig.update_yaxes(ticksuffix="%", tickformat=".0f", nticks=3, range=[1.05 * floor, 0], row=row, col=1)
+    return _style(fig, BOOK_HEIGHT)
 
 
 def price(bars: pd.DataFrame, fills: pd.DataFrame, indicators: list[str], intraday: bool) -> go.Figure:

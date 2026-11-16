@@ -12,6 +12,7 @@ import pytest
 from tape.book import BOOK, BookError, combine, decode, encode, members, stats
 from tape.core.types import Ticker
 from tape.engine.tables import SchemaError
+from tape.ui import charts
 from tests.test_sweep import client, root, sma, wait  # noqa: F401
 
 if TYPE_CHECKING:
@@ -131,3 +132,12 @@ def test_book_through_the_api_matches_its_runs(client: TestClient) -> None:  # n
     assert np.all(frame["drawdown_pct"] <= 0)
     assert client.get(f"/sweeps/{key}/book", params={"run": "nope"}).status_code == 422
     assert client.get("/sweeps/0123/book", params={"run": run}).status_code == 404
+
+
+def test_both_underwater_panels_share_one_scale() -> None:
+    frame = combine({A: marks(["2024-01-02", "2024-01-03", "2024-01-04"], [130.0, 104.0, 95.0])}, 100.0)
+    fig = charts.book(frame)
+    assert [t.name for t in fig.data] == ["Book", "Drawdown from peak", "Drawdown from capital"]
+    assert list(fig.data[2].y) == pytest.approx([0.0, 0.0, -5.0])
+    assert fig.layout.yaxis2.range == fig.layout.yaxis3.range
+    assert fig.layout.yaxis2.range[0] <= float(frame["drawdown_pct"].min())

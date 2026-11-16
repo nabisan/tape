@@ -18,6 +18,7 @@ from tape.catalog.store import Store
 from tape.core.types import Ticker, Timeframe
 from tape.engine.backtest import BacktestEngine
 from tape.engine.matching import FillModel
+from tape.engine.strategy import StrategyConfig
 from tape.runner import Result, RunSpec, execute, session_range
 from tape.strategies.registry import create
 from tape.strategies.sma_cross import direction_of
@@ -193,7 +194,7 @@ def test_notional_sizing_buys_at_the_fill(store: Store) -> None:
     for side, quantity, price in zip(sides, quantities, prices, strict=True):
         signed = quantity if side == "buy" else -quantity
         reverses = held != 0 and (held > 0) != (signed > 0)
-        assert quantity - (abs(held) if reverses else 0) == math.floor(100_000.0 / price)
+        assert quantity - (abs(held) if reverses else 0) == math.floor(StrategyConfig().notional / price)
         held += signed
 
 

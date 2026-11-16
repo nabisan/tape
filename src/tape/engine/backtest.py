@@ -39,7 +39,7 @@ class FillOn(StrEnum):
 class ExecutionSpec(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    initial_cash: Notional = 100_000.0
+    initial_cash: Notional = 10_000.0
     fill: FillModel = FillModel()
     fill_on: FillOn = FillOn.BAR
     intraday: bool = False

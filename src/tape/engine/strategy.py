@@ -48,7 +48,7 @@ class StrategyConfig(BaseModel):
     sizing: Sizing = Sizing.NOTIONAL
     notional: Annotated[
         Notional, Field(json_schema_extra={"when": {"sizing": "notional"}, "step": 10_000})
-    ] = 100_000.0
+    ] = 10_000.0
     shares: Annotated[Quantity, Field(json_schema_extra={"when": {"sizing": "shares"}, "step": 10})] = 100
 
 

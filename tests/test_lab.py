@@ -74,13 +74,21 @@ def test_the_return_filter_keeps_only_runs_inside_the_dragged_range() -> None:
 
 def test_the_runs_sheet_labels_columns_drops_fixed_ones_and_gates_win_rate() -> None:
     spec = sma(grid={"fast": [5, 10]})
-    shown = views.sheet(FRAME, spec, frozenset({Exit.SIGNAL}))
+    shown = views.sheet(FRAME, spec, frozenset({Exit.SIGNAL}), 252)
     assert "Slow" not in shown.columns
     assert {"Ticker", "Fast", "Return %", "Sharpe", "key"} <= set(shown.columns)
     assert "Win %" not in shown.columns
     assert list(shown["First signal"]) == ["01 Feb 2024 10:30:00", "", "01 Mar 2024 09:35:00"]
-    with_tp = views.sheet(FRAME, spec, frozenset({Exit.SIGNAL, Exit.TAKE_PROFIT}))
+    with_tp = views.sheet(FRAME, spec, frozenset({Exit.SIGNAL, Exit.TAKE_PROFIT}), 252)
     assert "Win %" in with_tp.columns
+
+
+def test_the_runs_sheet_shows_the_span_and_years_behind_cagr() -> None:
+    frame = FRAME.assign(start=[date(2024, 1, 2)] * 3, end=[date(2024, 12, 31)] * 3, sessions=[252, 126, 504])
+    shown = views.sheet(frame, sma(grid={"fast": [5, 10]}), frozenset({Exit.SIGNAL}), 252)
+    assert list(shown["Start"]) == ["02 Jan 2024"] * 3
+    assert list(shown["Years"]) == [1.0, 0.5, 2.0]
+    assert list(shown.columns).index("Years") == list(shown.columns).index("Sessions") + 1
 
 
 @pytest.mark.parametrize(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Annotated, Final, get_args, get_origin
 
 import pyarrow as pa
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -23,6 +23,11 @@ if TYPE_CHECKING:
     from tape.service.results import ResultStore
 
 SUMMARY: Final = (
+    "start",
+    "end",
+    "sessions",
+    "initial_cash",
+    "final_equity",
     "net_pnl",
     "total_return_pct",
     "cagr_pct",
@@ -142,10 +147,14 @@ def expand(spec: SweepSpec, store: Store, grid: FeatureGrid = DEFAULT_GRID) -> P
 
 def metric_type(name: str) -> pa.DataType:
     annotation = Metrics.model_fields[name].annotation
+    alias = getattr(annotation, "__value__", annotation)
+    annotation = get_args(alias)[0] if get_origin(alias) is Annotated else alias
     if annotation is int:
         return tables.I64
     if annotation == (datetime | None):
         return tables.TIME
+    if annotation == (date | None):
+        return tables.DATE
     return tables.F64
 
 

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 TIME: Final[pa.DataType] = pa.timestamp("ns")
+DATE: Final[pa.DataType] = pa.date32()
 F64: Final[pa.DataType] = pa.float64()
 I64: Final[pa.DataType] = pa.int64()
 TEXT: Final[pa.DataType] = pa.string()

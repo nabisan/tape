@@ -35,6 +35,12 @@ class Column:
 
 
 COLUMNS: Final[dict[str, Column | None]] = {
+    "start": Column("Start", ""),
+    "end": Column("End", ""),
+    "sessions": Column("Sessions", "{:,.0f}"),
+    "years": Column("Years", "{:.2f}"),
+    "initial_cash": Column("Capital $", "{:,.0f}"),
+    "final_equity": Column("Final equity $", "{:,.2f}"),
     "net_pnl": Column("Net P&L $", "{:,.0f}"),
     "total_return_pct": Column("Return %", "{:.2f}"),
     "cagr_pct": Column("CAGR %", "{:.2f}"),
@@ -126,7 +132,7 @@ def within(frame: pd.DataFrame, column: str, bounds: Collection[float] | None) -
     return frame[frame[column].between(lo, hi)]
 
 
-def sheet(best: pd.DataFrame, spec: SweepSpec, exits: Collection[Exit]) -> pd.DataFrame:
+def sheet(best: pd.DataFrame, spec: SweepSpec, exits: Collection[Exit], periods: int) -> pd.DataFrame:
     hidden = set(fixed(best, spec))
     keep = [c for c in best.columns if c not in hidden and (c not in COLUMNS or COLUMNS[c] is not None)]
     keep = [c for c in keep if applies(c, exits)]
@@ -137,6 +143,14 @@ def sheet(best: pd.DataFrame, spec: SweepSpec, exits: Collection[Exit]) -> pd.Da
     for c in ("first_signal", "last_signal"):
         if c in names:
             shown[names[c]] = [stamp(None if pd.isna(v) else v.to_pydatetime()) for v in best[c]]
+    for c in ("start", "end"):
+        if c in names:
+            shown[names[c]] = ["" if pd.isna(v) else day(pd.Timestamp(v).date()) for v in best[c]]
+    if "sessions" in names:
+        years = COLUMNS["years"]
+        assert years is not None
+        at = list(shown.columns).index(names["sessions"]) + 1
+        shown.insert(at, years.label, best["sessions"].to_numpy(dtype=float) / periods)
     return shown
 
 

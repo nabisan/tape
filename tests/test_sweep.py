@@ -204,7 +204,18 @@ def test_stored_summaries_gain_newly_declared_columns(client: TestClient, root: 
     key = client.post("/sweeps", json=body).json()["key"]
     wait(client, key)
     path = root / "results" / "sweeps" / f"{key}.parquet"
-    dropped = ["volatility_pct", "first_signal", "last_signal", "max_capital_loss_pct", "time_in_market_pct"]
+    dropped = [
+        "volatility_pct",
+        "first_signal",
+        "last_signal",
+        "max_capital_loss_pct",
+        "time_in_market_pct",
+        "initial_cash",
+        "final_equity",
+        "start",
+        "end",
+        "sessions",
+    ]
     legacy = pq.read_table(path).drop_columns(dropped)
     pq.write_table(legacy.append_column("exposure_pct", pa.array([1.0] * legacy.num_rows)), path)
     frame = pd.read_parquet(io.BytesIO(client.get(f"/sweeps/{key}/summary").content))
@@ -212,5 +223,11 @@ def test_stored_summaries_gain_newly_declared_columns(client: TestClient, root: 
     assert frame["volatility_pct"].notna().all()
     assert (frame["max_capital_loss_pct"] <= 0).all()
     assert "exposure_pct" not in frame.columns
+    assert (frame["initial_cash"] == body["execution"]["initial_cash"]).all()
+    assert (frame["sessions"] > 0).all() and (frame["start"] <= frame["end"]).all()
+    assert pq.read_schema(path).field("start").type == pa.date32()
+    assert (frame["final_equity"] - frame["initial_cash"]).to_numpy() == pytest.approx(
+        frame["net_pnl"].to_numpy()
+    )
     assert pd.api.types.is_datetime64_any_dtype(frame["first_signal"])
     assert set(SUMMARY) <= set(pq.read_schema(path).names)

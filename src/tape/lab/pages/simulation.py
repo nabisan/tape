@@ -189,9 +189,9 @@ def _(best, key, spec):
 
 
 @app.cell
-def _(best, info, returns, spec):
+def _(best, catalog, info, returns, spec):
     chosen = views.within(best, "total_return_pct", returns.ranges.get("x"))
-    shown = views.sheet(chosen, spec, info.exits)
+    shown = views.sheet(chosen, spec, info.exits, views.venue(catalog, spec.tickers[0]).periods)
     caption = f"{len(chosen):,} of {len(best):,}" if len(chosen) < len(best) else f"{len(best):,}"
     runs = mo.ui.table(
         shown,

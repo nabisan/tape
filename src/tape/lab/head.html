@@ -25,7 +25,8 @@
 </script>
 <script>
   (() => {
-    if (location.pathname !== "/" || !new URLSearchParams(location.search).has("run")) return;
+    const query = new URLSearchParams(location.search);
+    if (!query.has("run") && !query.has("sweep")) return;
     const until = Date.now() + 15000;
     const fold = setInterval(() => {
       const side = document.querySelector('aside[data-expanded="true"]');

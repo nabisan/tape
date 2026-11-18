@@ -17,6 +17,7 @@ ROUTES: Final = {"run": "", "simulation": "/simulation"}
 SWEEP: Final = b"sweep="
 PLOTLY_JS: Final = Path(plotly.__file__).parent / "package_data" / "plotly.min.js"
 PLOTLY: Final = f"/static/plotly-{get_plotlyjs_version()}.min.js"
+SESSION_TTL: Final = 30 * 60
 FOREVER: Final = {"Cache-Control": "public, max-age=31536000, immutable"}
 
 
@@ -25,7 +26,7 @@ def url(page: str) -> str:
 
 
 def pages() -> ASGIApp:
-    server = marimo.create_asgi_app(quiet=True)
+    server = marimo.create_asgi_app(quiet=True, session_ttl=SESSION_TTL)
     for name, path in ROUTES.items():
         server = server.with_app(path=path, root=str(PAGES / f"{name}.py"))
     app: ASGIApp = server.build()

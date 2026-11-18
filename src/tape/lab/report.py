@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from tape.engine.reports import Metrics
     from tape.fundamentals import Snapshot, Valuation
     from tape.runner import RunSpec
+    from tape.service.models import VenueInfo
 
 type Row = tuple[str, Callable[[Metrics], float], str]
 
@@ -41,13 +42,25 @@ class Line:
 
 type Moment = tuple[str, Callable[[Metrics], datetime | None]]
 
-GROUPS: Final[list[list[Line]]] = [
-    [
-        Line("Net P&L $", lambda m: m.net_pnl, "{:,.0f}"),
+
+def years(m: Metrics, periods: int) -> float:
+    return m.sessions / periods if periods else math.nan
+
+
+def returns(periods: int) -> list[Line]:
+    return [
+        Line("Capital $", lambda m: m.initial_cash, "{:,.0f}"),
+        Line("Final equity $", lambda m: m.final_equity, "{:,.2f}"),
+        Line("Net P&L $", lambda m: m.net_pnl, "{:,.2f}"),
         Line("Total return %", lambda m: m.total_return_pct, "{:.2f}"),
+        Line("Years", lambda m: years(m, periods), "{:.2f}"),
         Line("CAGR %", lambda m: m.cagr_pct, "{:.2f}"),
         Line("Max loss on capital %", lambda m: m.max_capital_loss_pct, "{:.2f}"),
-    ],
+    ]
+
+
+GROUPS: Final[list[list[Line]]] = [
+    [],
     [
         Line("Volatility, ann. %", lambda m: m.volatility_pct, "{:.2f}"),
         Line("Sharpe, ann.", lambda m: m.sharpe, "{:.2f}"),
@@ -69,7 +82,6 @@ GROUPS: Final[list[list[Line]]] = [
     ],
     [
         Line("Commission $", lambda m: m.total_commission, "{:,.0f}", "total_commission"),
-        Line("Final equity $", lambda m: m.final_equity, "{:,.0f}"),
     ],
 ]
 
@@ -116,6 +128,8 @@ def header(
     names: dict[str, str],
     version: str,
     markets: dict[str, Comparison],
+    *,
+    venue: VenueInfo,
 ) -> str:
     spec = next(iter(specs.values()))
     compare = len(specs) == 2
@@ -146,11 +160,24 @@ def header(
         f'<div class="t-meta">{execution_line(spec.execution)}</div>'
         f'<div class="t-ids">{keys} &middot; data {version[:8]}</div></div>'
     )
-    return f'<div class="t-head">{left}{comparison(results, names, markets, spec)}</div>'
+    right = f"<div>{comparison(results, names, markets, spec)}{basis(venue)}</div>"
+    return f'<div class="t-head">{left}{right}</div>'
 
 
 def _cells(values: list[tuple[float, str]]) -> str:
     return "".join(f"<td>{fmt(v, pattern)}</td>" for v, pattern in values)
+
+
+def basis(venue: VenueInfo) -> str:
+    held = (
+        "hold is the spot price in dollars, first open to last close, no carry"
+        if venue.venue == "FX"
+        else "benchmarks are split-adjusted prices without dividends, first open to last close"
+    )
+    return (
+        f'<div class="t-meta">Same sessions as the run &middot; {held}'
+        " &middot; &beta; and &rho; from daily returns</div>"
+    )
 
 
 def comparison(
@@ -221,6 +248,8 @@ def _group(
         if compare:
             cells += '<td class="diff"></td>'
         rows.append(f"<tr><td>{html.escape(text)}</td>{cells}</tr>")
+    if not rows:
+        return ""
     return f'<div class="t-group"><h5>{heading}</h5><table>{head}<tbody>{"".join(rows)}</tbody></table></div>'
 
 
@@ -272,10 +301,33 @@ def valuation(v: Valuation) -> str:
     )
 
 
+def sample(m: Metrics, periods: int) -> str:
+    if m.start is None or m.end is None:
+        return ""
+    return (
+        f'<div class="t-meta">Sample {day(m.start)} &ndash; {day(m.end)} &middot; {m.sessions:,} sessions'
+        f" &middot; {years(m, periods):.2f} years"
+        f" &middot; ${m.initial_cash:,.0f} &rarr; ${m.final_equity:,.2f}</div>"
+    )
+
+
+def conventions(periods: int) -> str:
+    return (
+        f'<div class="t-meta">Daily session-close returns &middot; annualised on {periods} sessions a year'
+        " &middot; risk-free 0%, Sortino target 0% &middot; drawdowns from a peak that starts at capital"
+        " &middot; trade statistics net of commission, closed trades only</div>"
+    )
+
+
 def performance(
-    results: dict[str, tuple[str, Metrics]], value: Valuation, exits: frozenset[Exit], costs: frozenset[Cost]
+    results: dict[str, tuple[str, Metrics]],
+    value: Valuation,
+    exits: frozenset[Exit],
+    costs: frozenset[Cost],
+    venue: VenueInfo,
 ) -> str:
-    groups = [_group(h, g, results, exits, costs) for h, g in zip(GROUP_TITLES, GROUPS, strict=True)]
+    chosen = [returns(venue.periods), *GROUPS[1:]]
+    groups = [_group(h, g, results, exits, costs) for h, g in zip(GROUP_TITLES, chosen, strict=True)]
     block = valuation(value)
     if len(results) == 2:
         body = f'<div class="t-perf compare">{"".join(groups)}{block}</div>'
@@ -284,7 +336,8 @@ def performance(
             f'<div class="t-perf"><div>{groups[0]}{groups[1]}{block}</div>'
             f"<div>{groups[2]}{groups[3]}</div></div>"
         )
-    return title("Performance") + body
+    first = next(iter(results.values()))[1]
+    return title("Performance") + sample(first, venue.periods) + body + conventions(venue.periods)
 
 
 HEAT_SCALE: Final = 90

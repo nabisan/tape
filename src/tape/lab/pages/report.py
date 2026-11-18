@@ -48,6 +48,7 @@ def _(catalog, keys, strategies):
     exits = frozenset(e for s in specs.values() for e in strategies[s.strategy].exits)
     charged = frozenset(c for s in specs.values() for c in s.execution.fill.costs)
     worth = api.valuation(next(iter(keys.values())))
+    _venue = views.venue(catalog, next(iter(specs.values())).ticker)
     if len(results) == 2:
         _keys = "".join(markup.key_line(lb, c, d) for lb, (c, d) in zip(curves, SERIES, strict=False))
         _keys += markup.key_line("Drawdown from peak A", DOWN) + markup.key_line(
@@ -58,7 +59,7 @@ def _(catalog, keys, strategies):
         _keys += markup.key_line("Drawdown from capital", MUTED)
     mo.vstack(
         [
-            mo.Html(report.header(specs, results, names, catalog.data_version, markets)),
+            mo.Html(report.header(specs, results, names, catalog.data_version, markets, venue=_venue)),
             split(
                 mo.vstack(
                     [
@@ -71,7 +72,7 @@ def _(catalog, keys, strategies):
                         ),
                     ]
                 ),
-                mo.Html(report.performance(results, worth, exits, charged)),
+                mo.Html(report.performance(results, worth, exits, charged, _venue)),
             ),
         ],
         gap=1.5,
@@ -152,7 +153,8 @@ def _(catalog, key, leg, specs):
 
 @app.cell
 def _(curves, leg):
-    mo.Html(markup.title("Monthly returns", "%") + report.monthly(curves[leg.value]))
+    _caption = "% &middot; from session-close equity, the first month measured from starting capital"
+    mo.Html(markup.title("Monthly returns", _caption) + report.monthly(curves[leg.value]))
 
 
 if __name__ == "__main__":

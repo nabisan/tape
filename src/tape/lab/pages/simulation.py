@@ -150,7 +150,7 @@ def _(get_current, get_running, poll, set_finished, set_running):
 
 
 @app.cell
-def _(done, strategies):
+def _(catalog, done, strategies):
     key = done
     try:
         spec = api.sweep_spec(key)
@@ -160,25 +160,31 @@ def _(done, strategies):
     mo.stop(frame.empty, mo.Html(markup.notice("The simulation produced no runs.")))
     info = strategies[spec.strategy]
     best = frame.sort_values("sharpe", ascending=False, na_position="last").reset_index(drop=True)
-    mo.Html(views.header(key, spec, frame, info.title))
+    mo.Html(views.header(key, spec, frame, info.title, views.venue(catalog, spec.tickers[0]).periods))
     return best, info, key, spec
 
 
 @app.cell
-def _(best, key, spec):
+def _(best, catalog, key, spec):
     paths = Paths.of(key, [str(k) for k in best["key"]], views.leaders(best, spec), REFERENCE)
     spread = charts.distribution(best["total_return_pct"], "%")
     spread.update_layout(dragmode="select", selectdirection="h")
     returns = mo.ui.plotly(spread, config=charts.CONFIG)
     profitable = float((best["total_return_pct"] > 0).mean())
+    _cash = f"${spec.execution.initial_cash:,.0f} per run"
+    _equities = views.venue(catalog, spec.tickers[0]).venue == "XNYS"
+    _reference = f" &middot; dashed: {REFERENCE}, open to close" if _equities else ""
     split(
-        mo.vstack([mo.Html(markup.title("Equity, all runs", "cumulative return")), paths]),
+        mo.vstack(
+            [mo.Html(markup.title("Equity, all runs", f"cumulative return on {_cash}{_reference}")), paths]
+        ),
         mo.vstack(
             [
                 mo.Html(
                     markup.title(
                         "Total return, all runs",
-                        f"{len(best):,} runs &middot; {profitable:.0%} profitable &middot; drag to filter",
+                        f"{len(best):,} runs on {_cash} &middot; {profitable:.0%} profitable"
+                        " &middot; drag to filter",
                     )
                 ),
                 returns,
@@ -223,6 +229,7 @@ def _(best, catalog, key, runs, spec):
     except (ApiError, book.BookError) as _e:
         mo.stop(True, mo.Html(markup.notice(str(_e))))
     _cash = spec.execution.initial_cash
+    _periods = views.venue(catalog, spec.tickers[0]).periods
     _source = "the selected run" if _picked else "the top run by Sharpe"
     _named = views.book_parameters(_row, best)
     _parts = [html.escape(_named)] if _named else []
@@ -242,7 +249,7 @@ def _(best, catalog, key, runs, spec):
                     + markup.key_line("Drawdown from capital", MUTED),
                 )
             ),
-            mo.Html(views.book_stats(book.stats(_curve, views.venue(catalog, spec.tickers[0]).periods))),
+            mo.Html(views.book_stats(book.stats(_curve, _periods), _periods)),
             mo.ui.plotly(views.zoomable(charts.book(_curve)), config=charts.CONFIG),
         ]
     )

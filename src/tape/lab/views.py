@@ -100,7 +100,7 @@ def stats(frame: pd.DataFrame) -> str:
     return table(head, cells)
 
 
-def header(key: str, spec: SweepSpec, frame: pd.DataFrame, strategy: str) -> str:
+def header(key: str, spec: SweepSpec, frame: pd.DataFrame, strategy: str, periods: int) -> str:
     count = len(spec.tickers)
     held = " · ".join(f"{label(c)} {label(frame[c].iloc[0])}" for c in fixed(frame, spec))
     runs = f"{count} ticker{'s' if count != 1 else ''} &middot; {len(frame):,} runs"
@@ -111,7 +111,16 @@ def header(key: str, spec: SweepSpec, frame: pd.DataFrame, strategy: str) -> str
         f'<div class="t-meta">{day(spec.start)} {DASH} {day(spec.end)} &middot; '
         f"{spec.timeframe} &middot; {runs}</div>"
         f"{held_line}"
+        f"{basis_line(spec, frame, periods)}"
         f'<div class="t-ids">simulation {key[:8]}</div></div>{stats(frame)}</div>'
+    )
+
+
+def basis_line(spec: SweepSpec, frame: pd.DataFrame, periods: int) -> str:
+    span = f" &middot; up to {frame['sessions'].max() / periods:.2f} years" if "sessions" in frame else ""
+    return (
+        f'<div class="t-meta">${spec.execution.initial_cash:,.0f} per run{span}'
+        f" &middot; Sharpe annualised on {periods} sessions a year, risk-free 0%</div>"
     )
 
 
@@ -189,6 +198,7 @@ def progress(status: SweepStatus) -> str:
 
 BOOK_STATS: Final[tuple[tuple[str, Callable[[BookStats], float], str], ...]] = (
     ("Capital", lambda b: b.capital, "${:,.0f}"),
+    ("Final value", lambda b: b.final_equity, "${:,.2f}"),
     ("Return", lambda b: b.total_return_pct, "{:.2f}%"),
     ("CAGR", lambda b: b.cagr_pct, "{:.2f}%"),
     ("Sharpe", lambda b: b.sharpe, "{:.2f}"),
@@ -204,10 +214,21 @@ def book_parameters(row: pd.Series, frame: pd.DataFrame) -> str:
     return " · ".join(f"{label(c)} {label(row[c])}" for c in varied)
 
 
-def book_stats(stats: BookStats) -> str:
-    head = "".join(f"<th>{h}</th>" for h, _, _ in BOOK_STATS) + "<th>Trough</th>"
-    cells = "".join(f"<td>{fmt(fn(stats), pattern)}</td>" for _, fn, pattern in BOOK_STATS)
-    return table(head, cells + f"<td>{day(stats.trough)}</td>")
+def book_stats(stats: BookStats, periods: int) -> str:
+    period = f"{day(stats.start)} {DASH} {day(stats.end)}"
+    head = (
+        "<th>Period</th><th>Years</th>"
+        + "".join(f"<th>{h}</th>" for h, _, _ in BOOK_STATS)
+        + "<th>Trough</th>"
+    )
+    cells = f"<td>{period}</td><td>{fmt(stats.sessions / periods, '{:.2f}')}</td>"
+    cells += "".join(f"<td>{fmt(fn(stats), pattern)}</td>" for _, fn, pattern in BOOK_STATS)
+    note = (
+        f'<div class="t-meta">{stats.sessions:,} sessions &middot; daily session-close returns'
+        f" &middot; annualised on {periods} sessions a year, risk-free 0%"
+        " &middot; drawdowns from a peak that starts at capital</div>"
+    )
+    return table(head, cells + f"<td>{day(stats.trough)}</td>") + note
 
 
 def listed(catalog: Catalog, ticker: str) -> TickerInfo:

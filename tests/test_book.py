@@ -9,7 +9,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from tape.book import BOOK, BookError, combine, decode, encode, members, stats
+from tape.book import BOOK, BookError, combine, decode, encode, members, narrow, pins, stats, token
 from tape.core.types import Ticker
 from tape.engine.tables import SchemaError
 from tape.ui import charts
@@ -96,6 +96,25 @@ def test_members_share_every_parameter_of_the_chosen_run() -> None:
         members(summary, "nope")
     with pytest.raises(BookError, match="repeat a ticker"):
         members(summary.assign(ticker="AAA"), "k1")
+
+
+def test_a_link_pins_one_book_by_its_parameter_values() -> None:
+    summary = pd.DataFrame(
+        {
+            "ticker": ["AAA", "BBB", "AAA", "BBB"],
+            "window": [10, 10, 100, 100],
+            "band": [0.5, 0.5, 1.5, 1.5],
+            "trend": ["1h", "1h", "1h", "1h"],
+            "key": ["k1", "k2", "k3", "k4"],
+            "sharpe": [1.0, 0.5, 0.2, 0.1],
+        }
+    )
+    query = {"sweep": "s", "window": token(np.int64(100)), "band": token(np.float64(1.5)), "trend": "1h"}
+    pinned = pins(summary, query)
+    assert pinned == {"window": "100", "band": "1.5", "trend": "1h"}
+    assert list(narrow(summary, pinned)["key"]) == ["k3", "k4"]
+    assert narrow(summary, {"window": "abc"}).empty and narrow(summary, {"window": "7"}).empty
+    assert len(narrow(summary, {})) == len(summary)
 
 
 def test_the_wire_format_is_declared_and_checked_both_ways() -> None:

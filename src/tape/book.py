@@ -61,6 +61,30 @@ def parameters(columns: Collection[str]) -> list[str]:
     return [c for c in columns if c not in NOT_PARAMETERS]
 
 
+def token(value: object) -> str:
+    return str(value.item() if isinstance(value, np.generic) else value)
+
+
+def pins(summary: pd.DataFrame, query: Mapping[str, object]) -> dict[str, str]:
+    return {c: str(query[c]) for c in parameters(summary.columns) if c in query}
+
+
+def _matches(column: pd.Series, value: str) -> np.ndarray:
+    if pd.api.types.is_numeric_dtype(column) and not pd.api.types.is_bool_dtype(column):
+        try:
+            return np.asarray(np.isclose(column.to_numpy(dtype=float), float(value)), dtype=bool)
+        except ValueError:
+            return np.zeros(len(column), dtype=bool)
+    return (column.astype(str) == value).to_numpy(dtype=bool)
+
+
+def narrow(summary: pd.DataFrame, pinned: Mapping[str, str]) -> pd.DataFrame:
+    keep = np.ones(len(summary), dtype=bool)
+    for name, value in pinned.items():
+        keep &= _matches(summary[name], value)
+    return summary[keep]
+
+
 def members(summary: pd.DataFrame, run: str) -> dict[Ticker, Digest]:
     hit = summary.index[summary["key"] == run]
     if not len(hit):

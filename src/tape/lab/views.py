@@ -206,6 +206,10 @@ BOOK_STATS: Final[tuple[tuple[str, Callable[[BookStats], float], str], ...]] = (
 )
 
 
+def pinned(values: Mapping[str, str], frame: pd.DataFrame) -> str:
+    return " · ".join(f"{label(c)} {label(v)}" for c, v in values.items() if frame[c].nunique() > 1)
+
+
 def book_parameters(row: pd.Series, frame: pd.DataFrame) -> str:
     varied = [c for c in parameters(frame.columns) if frame[c].nunique() > 1]
     return " · ".join(f"{label(c)} {label(row[c])}" for c in varied)

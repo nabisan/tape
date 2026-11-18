@@ -45,22 +45,33 @@ def _():
     form.observe(lambda _: set_submission(form.submission), names=["submission"])
     get_current, set_current = mo.state(_first)
     get_finished, set_finished = mo.state(0)
+    get_pinned, set_pinned = mo.state(
+        {k: v for k, v in params.to_dict().items() if k != "sweep" and isinstance(v, str)}
+    )
+
+    def unpin() -> None:
+        for _k in [k for k in params.to_dict() if k != "sweep"]:
+            params.remove(_k)
+        set_pinned({})
+
     sidebar(form)
     return (
         catalog,
         form,
         get_current,
         get_finished,
+        get_pinned,
         get_submission,
         params,
         set_current,
         set_finished,
         strategies,
+        unpin,
     )
 
 
 @app.cell
-def _(form, get_submission, params, set_current):
+def _(form, get_submission, params, set_current, unpin):
     _sent = get_submission()
     mo.stop(not _sent)
     form.message = ""
@@ -77,13 +88,14 @@ def _(form, get_submission, params, set_current):
         mo.stop(True)
     finally:
         form.busy = False
+    unpin()
     params.set("sweep", _key)
     set_current(_key)
     return
 
 
 @app.cell
-def _(get_current, get_finished, params, set_current, strategies):
+def _(get_current, get_finished, params, set_current, strategies, unpin):
     get_finished()
     _stored = [s for s in api.stored_sweeps() if s.strategy in strategies]
     _options = {views.choice(s, strategies[s.strategy].title): s.key for s in _stored}
@@ -92,6 +104,7 @@ def _(get_current, get_finished, params, set_current, strategies):
 
     def _pick(k: str | None) -> None:
         if k is not None:
+            unpin()
             params.set("sweep", k)
             set_current(k)
 
@@ -195,8 +208,15 @@ def _(best, catalog, key, spec):
 
 
 @app.cell
-def _(best, catalog, info, returns, spec):
-    chosen = views.within(best, "total_return_pct", returns.ranges.get("x"))
+def _(best, get_pinned):
+    pins = book.pins(best, get_pinned())
+    shortlist = book.narrow(best, pins)
+    return pins, shortlist
+
+
+@app.cell
+def _(best, catalog, info, pins, returns, shortlist, spec, unpin):
+    chosen = views.within(shortlist, "total_return_pct", returns.ranges.get("x"))
     shown = views.sheet(chosen, spec, info.exits, views.venue(catalog, spec.tickers[0]).periods)
     caption = f"{len(chosen):,} of {len(best):,}" if len(chosen) < len(best) else f"{len(best):,}"
     runs = mo.ui.table(
@@ -209,19 +229,24 @@ def _(best, catalog, info, returns, spec):
         show_column_summaries=False,
         show_data_types=False,
     )
+    _named = views.pinned(pins, best)
+    unpinner = mo.ui.button(label=f"{_named}  \u00d7", on_click=lambda _: unpin()) if _named else None
+    _none = mo.Html(markup.notice(f"No runs in this simulation have {html.escape(_named)}."))
     mo.vstack(
         [
             mo.Html(markup.title("Runs", f"{caption} &middot; by Sharpe &middot; click a row to open it")),
-            runs,
+            unpinner,
+            _none if shortlist.empty else runs,
         ]
     )
-    return (runs,)
+    return runs, unpinner
 
 
 @app.cell
-def _(best, catalog, key, runs, spec):
+def _(best, catalog, key, pins, runs, shortlist, spec):
+    mo.stop(shortlist.empty)
     _picked = not runs.value.empty
-    _run = str(runs.value["key"].iloc[0]) if _picked else str(best["key"].iloc[0])
+    _run = str(runs.value["key"].iloc[0]) if _picked else str(shortlist["key"].iloc[0])
     _row = best[best["key"] == _run].iloc[0]
     try:
         _curve = api.sweep_book(key, _run)
@@ -230,7 +255,7 @@ def _(best, catalog, key, runs, spec):
         mo.stop(True, mo.Html(markup.notice(str(_e))))
     _cash = spec.execution.initial_cash
     _periods = views.venue(catalog, spec.tickers[0]).periods
-    _source = "the selected run" if _picked else "the top run by Sharpe"
+    _source = "the selected run" if _picked else "the link" if pins else "the top run by Sharpe"
     _named = views.book_parameters(_row, best)
     _parts = [html.escape(_named)] if _named else []
     _parts += [

@@ -150,7 +150,7 @@ def _(get_current, get_running, poll, set_finished, set_running):
 
 
 @app.cell
-def _(catalog, done, strategies):
+def _(done, strategies):
     key = done
     try:
         spec = api.sweep_spec(key)
@@ -160,7 +160,7 @@ def _(catalog, done, strategies):
     mo.stop(frame.empty, mo.Html(markup.notice("The simulation produced no runs.")))
     info = strategies[spec.strategy]
     best = frame.sort_values("sharpe", ascending=False, na_position="last").reset_index(drop=True)
-    mo.Html(views.header(key, spec, frame, info.title, views.venue(catalog, spec.tickers[0]).periods))
+    mo.Html(views.header(key, spec, frame, info.title))
     return best, info, key, spec
 
 

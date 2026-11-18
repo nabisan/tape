@@ -59,7 +59,7 @@ def _(catalog, keys, strategies):
         _keys += markup.key_line("Drawdown from capital", MUTED)
     mo.vstack(
         [
-            mo.Html(report.header(specs, results, names, catalog.data_version, markets, venue=_venue)),
+            mo.Html(report.header(specs, results, names, catalog.data_version, markets)),
             split(
                 mo.vstack(
                     [
@@ -153,8 +153,7 @@ def _(catalog, key, leg, specs):
 
 @app.cell
 def _(curves, leg):
-    _caption = "% &middot; from session-close equity, the first month measured from starting capital"
-    mo.Html(markup.title("Monthly returns", _caption) + report.monthly(curves[leg.value]))
+    mo.Html(markup.title("Monthly returns", "%") + report.monthly(curves[leg.value]))
 
 
 if __name__ == "__main__":

@@ -2,15 +2,12 @@ from __future__ import annotations
 
 from datetime import date
 
-import pandas as pd
-
 from tape.book import BookStats
 from tape.engine.reports import Metrics
 from tape.fundamentals import Valuation
 from tape.lab import report, views
 from tape.service.models import VenueInfo
 from tape.venues import Venue, VolumeKind
-from tests.test_sweep import sma
 
 FX = VenueInfo(
     venue=Venue.FX,
@@ -40,23 +37,20 @@ def metrics(**over: object) -> Metrics:
     return Metrics.model_validate(fields | over)
 
 
-def test_performance_states_its_sample_capital_years_and_conventions() -> None:
+def test_performance_shows_its_span_in_trades_and_its_base_in_returns() -> None:
     m = metrics()
     found = report.performance(
         {"A": ("k", m)}, Valuation(ticker="USDJPY", start=None, end=None), frozenset(), frozenset(), FX
     )
-    assert "Sample 16 Nov 2020 &ndash; 17 Nov 2026 &middot; 1,558 sessions &middot; 5.99 years" in found
-    assert "$10,000 &rarr; $11,691.00" in found
-    assert "annualised on 260 sessions a year" in found and "risk-free 0%" in found
+    assert "Sample" not in found and "risk-free" not in found
     returns = found.split("<h5>Returns</h5>")[1].split("</table>")[0]
     for row in ("Capital $", "Final equity $", "Years", "CAGR %"):
         assert row in returns
+    trades = found.split("<h5>Trades</h5>")[1].split("</table>")[0]
+    assert "<td>Start</td><td>16 Nov 2020</td>" in trades
+    assert "<td>End</td><td>17 Nov 2026</td>" in trades
+    assert "<td>Sessions</td><td>1,558</td>" in trades
     assert "<h5>Costs</h5>" not in found
-
-
-def test_the_benchmark_note_names_what_hold_means_per_venue() -> None:
-    assert "no carry" in report.basis(FX)
-    assert "without dividends" in report.basis(FX.model_copy(update={"venue": Venue.XNYS}))
 
 
 def test_the_book_shows_its_period_years_and_final_value() -> None:
@@ -79,20 +73,4 @@ def test_the_book_shows_its_period_years_and_final_value() -> None:
     found = views.book_stats(stats, 260)
     assert "<th>Period</th><th>Years</th><th>Capital</th><th>Final value</th>" in found
     assert "<td>16 Nov 2020 &ndash; 17 Nov 2026</td><td>6.00</td><td>$50,000</td><td>$57,295.00</td>" in found
-    assert "1,560 sessions" in found and "annualised on 260 sessions a year" in found
-
-
-def test_the_simulation_header_states_capital_years_and_sharpe_basis() -> None:
-    frame = pd.DataFrame(
-        {
-            "ticker": ["AAPL"],
-            "key": ["k"],
-            "sessions": [504],
-            "total_return_pct": [1.0],
-            "sharpe": [0.1],
-            "max_drawdown_pct": [-1.0],
-        }
-    )
-    found = views.basis_line(sma(), frame, 252)
-    assert "$10,000 per run &middot; up to 2.00 years" in found
-    assert "annualised on 252 sessions a year, risk-free 0%" in found
+    assert "risk-free" not in found

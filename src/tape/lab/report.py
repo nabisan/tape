@@ -91,6 +91,13 @@ MOMENTS: Final[dict[str, tuple[Moment, ...]]] = {
 }
 
 
+SPAN: Final[dict[str, tuple[tuple[str, Callable[[Metrics], str]], ...]]] = {
+    "Trades": (
+        ("Start", lambda m: day(m.start) if m.start is not None else "&ndash;"),
+        ("End", lambda m: day(m.end) if m.end is not None else "&ndash;"),
+        ("Sessions", lambda m: f"{m.sessions:,}"),
+    )
+}
 GROUP_TITLES: Final = ("Returns", "Risk", "Trades", "Costs")
 COMPARE: Final[tuple[Row, ...]] = (
     ("Net P&L", lambda m: m.net_pnl, "${:,.0f}"),
@@ -128,8 +135,6 @@ def header(
     names: dict[str, str],
     version: str,
     markets: dict[str, Comparison],
-    *,
-    venue: VenueInfo,
 ) -> str:
     spec = next(iter(specs.values()))
     compare = len(specs) == 2
@@ -160,24 +165,11 @@ def header(
         f'<div class="t-meta">{execution_line(spec.execution)}</div>'
         f'<div class="t-ids">{keys} &middot; data {version[:8]}</div></div>'
     )
-    right = f"<div>{comparison(results, names, markets, spec)}{basis(venue)}</div>"
-    return f'<div class="t-head">{left}{right}</div>'
+    return f'<div class="t-head">{left}{comparison(results, names, markets, spec)}</div>'
 
 
 def _cells(values: list[tuple[float, str]]) -> str:
     return "".join(f"<td>{fmt(v, pattern)}</td>" for v, pattern in values)
-
-
-def basis(venue: VenueInfo) -> str:
-    held = (
-        "hold is the spot price in dollars, first open to last close, no carry"
-        if venue.venue == "FX"
-        else "benchmarks are split-adjusted prices without dividends, first open to last close"
-    )
-    return (
-        f'<div class="t-meta">Same sessions as the run &middot; {held}'
-        " &middot; &beta; and &rho; from daily returns</div>"
-    )
 
 
 def comparison(
@@ -248,6 +240,11 @@ def _group(
         if compare:
             cells += '<td class="diff"></td>'
         rows.append(f"<tr><td>{html.escape(text)}</td>{cells}</tr>")
+    for text, read in SPAN.get(heading, ()):
+        cells = "".join(f"<td>{read(results[lb][1])}</td>" for lb in labels)
+        if compare:
+            cells += '<td class="diff"></td>'
+        rows.append(f"<tr><td>{html.escape(text)}</td>{cells}</tr>")
     if not rows:
         return ""
     return f'<div class="t-group"><h5>{heading}</h5><table>{head}<tbody>{"".join(rows)}</tbody></table></div>'
@@ -301,24 +298,6 @@ def valuation(v: Valuation) -> str:
     )
 
 
-def sample(m: Metrics, periods: int) -> str:
-    if m.start is None or m.end is None:
-        return ""
-    return (
-        f'<div class="t-meta">Sample {day(m.start)} &ndash; {day(m.end)} &middot; {m.sessions:,} sessions'
-        f" &middot; {years(m, periods):.2f} years"
-        f" &middot; ${m.initial_cash:,.0f} &rarr; ${m.final_equity:,.2f}</div>"
-    )
-
-
-def conventions(periods: int) -> str:
-    return (
-        f'<div class="t-meta">Daily session-close returns &middot; annualised on {periods} sessions a year'
-        " &middot; risk-free 0%, Sortino target 0% &middot; drawdowns from a peak that starts at capital"
-        " &middot; trade statistics net of commission, closed trades only</div>"
-    )
-
-
 def performance(
     results: dict[str, tuple[str, Metrics]],
     value: Valuation,
@@ -336,8 +315,7 @@ def performance(
             f'<div class="t-perf"><div>{groups[0]}{groups[1]}{block}</div>'
             f"<div>{groups[2]}{groups[3]}</div></div>"
         )
-    first = next(iter(results.values()))[1]
-    return title("Performance") + sample(first, venue.periods) + body + conventions(venue.periods)
+    return title("Performance") + body
 
 
 HEAT_SCALE: Final = 90

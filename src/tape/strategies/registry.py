@@ -16,6 +16,11 @@ STRATEGIES: Final[dict[str, type[Strategy[Any]]]] = {
 }
 
 
+def stop_loss_pct(name: str, params: Mapping[str, object]) -> float | None:
+    found = getattr(STRATEGIES[name].config_type.model_validate(params), "stop_loss_pct", None)
+    return None if found is None else float(found)
+
+
 def create(name: str, params: Mapping[str, object]) -> Strategy[StrategyConfig]:
     if name not in STRATEGIES:
         raise KeyError(f"unknown strategy {name!r}; known: {', '.join(STRATEGIES)}")

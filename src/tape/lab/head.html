@@ -23,3 +23,14 @@
     setInterval(() => scan(document), 1000);
   })();
 </script>
+<script>
+  (() => {
+    if (location.pathname !== "/" || !new URLSearchParams(location.search).has("run")) return;
+    const until = Date.now() + 15000;
+    const fold = setInterval(() => {
+      const side = document.querySelector('aside[data-expanded="true"]');
+      if (side) side.querySelector("button")?.click();
+      if (side || Date.now() > until) clearInterval(fold);
+    }, 200);
+  })();
+</script>

@@ -72,7 +72,7 @@ def _(catalog, keys, strategies):
                         ),
                     ]
                 ),
-                mo.Html(report.performance(results, worth, exits, charged, _venue)),
+                mo.Html(report.performance(results, worth, exits, charged, venue=_venue, specs=specs)),
             ),
         ],
         gap=1.5,

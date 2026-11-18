@@ -12,6 +12,7 @@ from tape.core.types import DATE
 from tape.engine.exits import applies
 from tape.lab.markup import EN_DASH, MINUS, day, fmt
 from tape.lab.schema import label
+from tape.strategies.registry import stop_loss_pct
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Mapping
@@ -104,6 +105,9 @@ def header(key: str, spec: SweepSpec, frame: pd.DataFrame, strategy: str) -> str
     count = len(spec.tickers)
     held = " · ".join(f"{label(c)} {label(frame[c].iloc[0])}" for c in fixed(frame, spec))
     runs = f"{count} ticker{'s' if count != 1 else ''} &middot; {len(frame):,} runs"
+    stop = None if "stop_loss_pct" in spec.grid else stop_loss_pct(spec.strategy, spec.params)
+    if stop is not None:
+        runs += f" &middot; stop loss {stop:g}%"
     held_line = f'<div class="t-meta">held fixed &middot; {html.escape(held.lower())}</div>' if held else ""
     return (
         '<div class="t-head"><div>'

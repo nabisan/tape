@@ -14,10 +14,11 @@ from tape.engine.costs import charged
 from tape.engine.exits import applies
 from tape.lab.markup import day, fmt, mark, title, value_text
 from tape.lab.schema import label
+from tape.strategies.registry import stop_loss_pct
 from tape.ui.theme import HEAT_DOWN, HEAT_UP
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from datetime import datetime
 
     from tape.benchmarks import Comparison
@@ -214,6 +215,8 @@ def _group(
     results: dict[str, tuple[str, Metrics]],
     exits: frozenset[Exit],
     costs: frozenset[Cost],
+    *,
+    extra: Sequence[tuple[str, list[str]]] = (),
 ) -> str:
     labels = list(results)
     compare = len(labels) == 2
@@ -237,6 +240,11 @@ def _group(
     for text, moment in MOMENTS.get(heading, ()):
         moments = [moment(results[lb][1]) for lb in labels]
         cells = "".join(f"<td>{_stamp(m)}</td>" for m in moments)
+        if compare:
+            cells += '<td class="diff"></td>'
+        rows.append(f"<tr><td>{html.escape(text)}</td>{cells}</tr>")
+    for text, shown in extra:
+        cells = "".join(f"<td>{v}</td>" for v in shown)
         if compare:
             cells += '<td class="diff"></td>'
         rows.append(f"<tr><td>{html.escape(text)}</td>{cells}</tr>")
@@ -303,10 +311,17 @@ def performance(
     value: Valuation,
     exits: frozenset[Exit],
     costs: frozenset[Cost],
+    *,
     venue: VenueInfo,
+    specs: dict[str, RunSpec],
 ) -> str:
     chosen = [returns(venue.periods), *GROUPS[1:]]
-    groups = [_group(h, g, results, exits, costs) for h, g in zip(GROUP_TITLES, chosen, strict=True)]
+    stops = [stop_loss_pct(s.strategy, s.params) for s in specs.values()]
+    extra = {"Risk": [("Stop-loss %", ["&ndash;" if v is None else fmt(v, "{:.2f}") for v in stops])]}
+    groups = [
+        _group(h, g, results, exits, costs, extra=extra.get(h, ()))
+        for h, g in zip(GROUP_TITLES, chosen, strict=True)
+    ]
     block = valuation(value)
     if len(results) == 2:
         body = f'<div class="t-perf compare">{"".join(groups)}{block}</div>'

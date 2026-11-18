@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from datetime import date
 
+import pandas as pd
+
 from tape.book import BookStats
 from tape.engine.reports import Metrics
 from tape.fundamentals import Valuation
 from tape.lab import report, views
+from tape.runner import RunSpec
 from tape.service.models import VenueInfo
 from tape.venues import Venue, VolumeKind
+from tests.test_sweep import sma
 
 FX = VenueInfo(
     venue=Venue.FX,
@@ -19,6 +23,18 @@ FX = VenueInfo(
     first_session=date(2020, 11, 16),
     last_session=date(2026, 11, 17),
 )
+
+
+def run(strategy: str, params: dict[str, object]) -> RunSpec:
+    return RunSpec.model_validate(
+        {
+            "ticker": "USDJPY",
+            "start": "2020-11-16",
+            "end": "2026-11-17",
+            "strategy": strategy,
+            "params": params,
+        }
+    )
 
 
 def metrics(**over: object) -> Metrics:
@@ -40,7 +56,12 @@ def metrics(**over: object) -> Metrics:
 def test_performance_shows_its_span_in_trades_and_its_base_in_returns() -> None:
     m = metrics()
     found = report.performance(
-        {"A": ("k", m)}, Valuation(ticker="USDJPY", start=None, end=None), frozenset(), frozenset(), FX
+        {"A": ("k", m)},
+        Valuation(ticker="USDJPY", start=None, end=None),
+        frozenset(),
+        frozenset(),
+        venue=FX,
+        specs={"A": run("sma_cross", {"timeframe": "1h", "fast": 20, "slow": 50})},
     )
     assert "Sample" not in found and "risk-free" not in found
     returns = found.split("<h5>Returns</h5>")[1].split("</table>")[0]
@@ -51,6 +72,31 @@ def test_performance_shows_its_span_in_trades_and_its_base_in_returns() -> None:
     assert "<td>End</td><td>17 Nov 2026</td>" in trades
     assert "<td>Sessions</td><td>1,558</td>" in trades
     assert "<h5>Costs</h5>" not in found
+    risk = found.split("<h5>Risk</h5>")[1].split("</table>")[0]
+    assert "<td>Stop-loss %</td><td>&ndash;</td>" in risk
+
+
+def test_a_default_stop_loss_is_shown_in_risk_and_the_simulation_header() -> None:
+    found = report.performance(
+        {"A": ("k", metrics())},
+        Valuation(ticker="USDJPY", start=None, end=None),
+        frozenset(),
+        frozenset(),
+        venue=FX,
+        specs={"A": run("high_breakout", {"timeframe": "1h"})},
+    )
+    assert "<td>Stop-loss %</td><td>0.25</td>" in found
+    breakout = sma().model_copy(update={"strategy": "high_breakout", "grid": {}, "params": {}})
+    frame = pd.DataFrame(
+        {
+            "ticker": ["EURUSD"],
+            "key": ["k"],
+            "total_return_pct": [1.0],
+            "sharpe": [0.1],
+            "max_drawdown_pct": [-1.0],
+        }
+    )
+    assert "stop loss 0.25%" in views.header("k" * 16, breakout, frame, "High-Breakout")
 
 
 def test_the_book_shows_its_period_years_and_final_value() -> None:

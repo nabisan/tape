@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from tape.engine.costs import Cost
 
 TRADES: Final[dict[str, Column | None]] = {
-    "trade_id": None,
+    "trade_id": Column("#", "{:,.0f}"),
     "side": Column("Side", ""),
     "quantity": Column("Qty", "{:,.0f}"),
     "entry_time": Column("Entry", ""),

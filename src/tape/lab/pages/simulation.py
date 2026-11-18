@@ -204,7 +204,7 @@ def _(best, catalog, info, returns, spec):
         selection="single",
         page_size=25,
         format_mapping=views.formats(shown),
-        freeze_columns_left=["Ticker"],
+        freeze_columns_left=[views.RANK, "Ticker"],
         hidden_columns=["key"],
         show_column_summaries=False,
         show_data_types=False,

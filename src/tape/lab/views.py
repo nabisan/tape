@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from tape.sweep import SweepSpec
 
 DASH: Final = "&ndash;"
+RANK: Final = "#"
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +145,7 @@ def sheet(best: pd.DataFrame, spec: SweepSpec, exits: Collection[Exit], periods:
     names |= {c: label(c) for c in keep if c not in COLUMNS and c not in {"ticker", "key"}}
     names["ticker"] = "Ticker"
     shown = best[keep].rename(columns=names)
+    shown.insert(0, RANK, best.index.to_numpy() + 1)
     for c in ("first_signal", "last_signal"):
         if c in names:
             shown[names[c]] = [stamp(None if pd.isna(v) else v.to_pydatetime()) for v in best[c]]

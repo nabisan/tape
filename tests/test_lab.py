@@ -213,7 +213,7 @@ TRADES = pd.DataFrame(
 
 def test_the_trades_sheet_labels_stamps_and_drops_commission_when_not_charged() -> None:
     free = blotter.sheet(TRADES, blotter.TRADES, frozenset())
-    assert list(free.columns) == ["Side", "Entry", "Held", "Net $"]
+    assert list(free.columns) == ["#", "Side", "Entry", "Held", "Net $"]
     assert list(free["Entry"]) == ["01 Feb 2024 09:30:00"] and list(free["Held"]) == ["1d 02h"]
     paid = blotter.sheet(TRADES, blotter.TRADES, frozenset({Cost.COMMISSION}))
     assert "Comm $" in paid.columns

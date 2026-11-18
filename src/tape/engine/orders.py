@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -69,10 +68,6 @@ class Order:
         assert (self.price is None) == (self.type is OrderType.MARKET)
         assert self.stop_loss is None or 0 < self.stop_loss < 1
         assert not self.through or self.type is OrderType.STOP_MARKET
-
-    def resolve(self, price: float) -> int:
-        extra = math.floor(self.notional / price) if self.notional is not None else 0
-        return self.quantity + extra
 
     @property
     def working(self) -> bool:

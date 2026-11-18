@@ -98,7 +98,7 @@ def _(leg, results):
 
 
 @app.cell
-def _(key, leg, specs, window):
+def _(catalog, key, leg, specs, window):
     _spec = specs[leg.value]
     _bars, _factor = api.window(key, Table.BARS, window.value[0], window.value[1], MAX_CANDLES)
     _fills, _ = api.window(key, Table.FILLS, window.value[0], window.value[1], MAX_CANDLES)
@@ -107,7 +107,8 @@ def _(key, leg, specs, window):
         markup.key_line(schema.label(n), c, d) for n, (c, d) in zip(_indicators, INDICATORS, strict=False)
     )
     _keys += markup.key_marker("Buy", BUY) + markup.key_marker("Sell", SELL)
-    _caption = f"{_spec.ticker} &middot; {_spec.timeframe} &middot; {len(_bars):,} candles"
+    _zone = views.venue(catalog, _spec.ticker).zone.split("/")[-1].replace("_", " ")
+    _caption = f"{_spec.ticker} &middot; {_spec.timeframe} &middot; {len(_bars):,} candles &middot; {_zone}"
     if _factor > 1:
         _caption += f" &middot; each aggregates {_factor:,} bars"
     _chart = charts.price(_bars, _fills, _indicators, _spec.timeframe is not Timeframe.D1)
@@ -121,18 +122,21 @@ def _(key, leg, specs, window):
 
 
 @app.cell
-def _(key, leg, specs):
+def _(catalog, key, leg, specs):
     _costs = specs[leg.value].execution.fill.costs
+    _digits = views.listed(catalog, specs[leg.value].ticker).price_precision
+    _trade_columns = blotter.priced(blotter.TRADES, _digits)
+    _order_columns = blotter.priced(blotter.ORDERS, _digits)
     _trades = api.table(key, Table.TRADES)
-    _shown = blotter.sheet(_trades, blotter.TRADES, _costs)
+    _shown = blotter.sheet(_trades, _trade_columns, _costs)
 
     def _orders() -> object:
-        frame = blotter.sheet(api.table(key, Table.ORDERS), blotter.ORDERS, _costs)
+        frame = blotter.sheet(api.table(key, Table.ORDERS), _order_columns, _costs)
         return mo.ui.table(
             frame,
             selection=None,
             page_size=20,
-            format_mapping=views.formats(frame, blotter.ORDERS),
+            format_mapping=views.formats(frame, _order_columns),
             show_column_summaries=False,
             show_data_types=False,
         )
@@ -143,7 +147,7 @@ def _(key, leg, specs):
                 _shown,
                 selection=None,
                 page_size=20,
-                format_mapping=views.formats(_shown, blotter.TRADES),
+                format_mapping=views.formats(_shown, _trade_columns),
                 show_column_summaries=False,
                 show_data_types=False,
             ),

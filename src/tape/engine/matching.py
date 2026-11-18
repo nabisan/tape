@@ -13,6 +13,8 @@ from tape.engine.orders import Fill, Order, OrderSide, OrderStatus, OrderType
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+    from tape.core.instruments import Valuation
+
 
 type OHLC = tuple[float, float, float, float]
 
@@ -53,10 +55,11 @@ def _triggered(p: float, level: float, *, buy: bool, through: bool) -> bool:
 
 
 class MatchingEngine:
-    __slots__ = ("_rng", "model")
+    __slots__ = ("_rng", "_valuation", "model")
 
-    def __init__(self, model: FillModel) -> None:
+    def __init__(self, model: FillModel, valuation: Valuation) -> None:
         self.model = model
+        self._valuation = valuation
         self._rng = np.random.default_rng(model.seed)
 
     def path(self, bar: OHLC, bias: int = 0) -> OHLC:
@@ -105,11 +108,12 @@ class MatchingEngine:
                 return None
 
     def _fill(self, order: Order, time_ns: int, reference: float, price: float) -> Fill | None:
-        quantity = order.resolve(reference)
+        extra = self._valuation.units(order.notional, reference) if order.notional is not None else 0
+        quantity = order.quantity + extra
         order.closed_ns = time_ns
         if quantity <= 0:
             order.status = OrderStatus.REJECTED
-            order.reason = "notional below one share"
+            order.reason = f"notional below one {self._valuation.instrument.asset_class.unit}"
             return None
         order.status = OrderStatus.FILLED
         order.quantity = quantity

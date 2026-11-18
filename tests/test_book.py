@@ -62,7 +62,7 @@ def test_stats_name_the_worst_point_and_the_current_drawdown() -> None:
     frame = combine(
         {A: marks(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"], [120, 90, 96, 108])}, 100.0
     )
-    found = stats(frame)
+    found = stats(frame, 252)
     assert found.capital == 100.0
     assert found.max_drawdown_pct == pytest.approx(-25.0)
     assert str(found.trough) == "2024-01-03"

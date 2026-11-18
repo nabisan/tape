@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from tape.book import BookStats
     from tape.engine.exits import Exit
-    from tape.service.models import StoredSweep
+    from tape.service.models import Catalog, StoredSweep, TickerInfo, VenueInfo
     from tape.service.sweeps import SweepStatus
     from tape.sweep import SweepSpec
 
@@ -194,3 +194,15 @@ def book_stats(stats: BookStats) -> str:
     head = "".join(f"<th>{h}</th>" for h, _, _ in BOOK_STATS) + "<th>Trough</th>"
     cells = "".join(f"<td>{fmt(fn(stats), pattern)}</td>" for _, fn, pattern in BOOK_STATS)
     return table(head, cells + f"<td>{day(stats.trough)}</td>")
+
+
+def listed(catalog: Catalog, ticker: str) -> TickerInfo:
+    found = next((t for t in catalog.tickers if t.ticker == ticker), None)
+    if found is None:
+        raise KeyError(f"{ticker} is in no catalog")
+    return found
+
+
+def venue(catalog: Catalog, ticker: str) -> VenueInfo:
+    wanted = listed(catalog, ticker).venue
+    return next(v for v in catalog.venues if v.venue == wanted)

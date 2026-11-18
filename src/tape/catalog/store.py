@@ -14,9 +14,12 @@ from tape.catalog.bars import Bars
 from tape.catalog.source import Drops, columns
 from tape.core.hashing import Digest
 from tape.core.types import Ticker, Timeframe
+from tape.venues import Venue
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from tape.core.instruments import Instrument
 
 SCHEMA_VERSION: Final = 1
 LAYOUT: Final = f"catalog-v{SCHEMA_VERSION}"
@@ -156,16 +159,26 @@ class Store:
         self.manifest = manifest
 
     @classmethod
-    def open(cls, store_dir: Path, data_version: Digest | None = None) -> Store:
+    def open(cls, store_dir: Path, data_version: Digest | None = None, venue: Venue = Venue.XNYS) -> Store:
         base = store_dir / LAYOUT
         if data_version is not None:
             root = base / data_version
             return cls(root, Manifest.model_validate_json((root / MANIFEST).read_bytes()))
         found = [p for p in base.iterdir() if (p / MANIFEST).is_file()] if base.is_dir() else []
-        if not found:
-            raise FileNotFoundError(f"no catalog under {base}")
         stores = [cls(p, Manifest.model_validate_json((p / MANIFEST).read_bytes())) for p in found]
+        stores = [s for s in stores if s.venue is venue]
+        if not stores:
+            raise FileNotFoundError(f"no {venue} catalog under {base}")
         return max(stores, key=lambda s: s.manifest.built_at)
+
+    @property
+    def venue(self) -> Venue:
+        return Venue(self.manifest.calendar)
+
+    def instrument(self, ticker: Ticker) -> Instrument:
+        if ticker not in self.manifest.available:
+            raise KeyError(f"{ticker} not in catalog {self.manifest.data_version}")
+        return self.venue.instrument(ticker)
 
     def sessions(self) -> Sessions:
         return read_sessions(self.root / SESSIONS)

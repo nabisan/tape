@@ -820,8 +820,8 @@ function runForm({ model, api, tickers: listed, strategies, names, redraw }) {
 
 /** @param {Context} ctx */
 function simulationForm({ model, api, catalog, tickers: listed, strategies, names, redraw }) {
-  const all = listed.map((t) => t.ticker);
   const state = {
+    venue: catalog.venues[0]?.venue ?? "XNYS",
     universe: "all",
     /** @type {string[]} */
     custom: [],
@@ -862,6 +862,7 @@ function simulationForm({ model, api, catalog, tickers: listed, strategies, name
   const ask = (start) => {
     /** @type {BasketQuery} */
     const query = {
+      venue: state.venue,
       universe: state.universe,
       custom: state.custom,
       scheme: state.scheme,
@@ -882,9 +883,27 @@ function simulationForm({ model, api, catalog, tickers: listed, strategies, name
       .finally(redraw);
   };
 
+  const market = () => catalog.venues.find((v) => v.venue === state.venue) ?? catalog;
+
   /** @param {Basket} b */
   const basketView = (b) => {
+    const all = listed.filter((t) => t.venue === state.venue).map((t) => t.ticker);
+    const venues =
+      catalog.venues.length > 1
+        ? field(
+            "Market",
+            segmented(
+              catalog.venues.map((v) => [v.venue, v.label]),
+              state.venue,
+              (v) => {
+                Object.assign(state, { venue: v, universe: "all", custom: [], sectors: [], industries: [], volatility: [], excluded: [], start: null, end: null });
+                redraw();
+              },
+            ),
+          )
+        : null;
     const parts = [
+      venues,
       field(
         "Universe",
         select(b.universes.map((u) => [u.key, u.title]), state.universe, (v) => {
@@ -902,6 +921,7 @@ function simulationForm({ model, api, catalog, tickers: listed, strategies, name
       );
       return parts;
     }
+    if (!(b.sectors ?? []).length) return parts;
     parts.push(
       field("Classification", segmented(SCHEMES.map((s) => [s, s]), state.scheme, (s) => (Object.assign(state, { scheme: s, sectors: [], industries: [] }), redraw()))),
       multi(ui, `sector:${state.scheme}`, "Sector", (b.sectors ?? []).map((s) => [s, s]), state.sectors, (v) => (Object.assign(state, { sectors: v, industries: [] }), redraw()), {
@@ -1011,7 +1031,8 @@ function simulationForm({ model, api, catalog, tickers: listed, strategies, name
   };
 
   return () => {
-    const range = dates(state, catalog.first_session, catalog.last_session, redraw);
+    const span = market();
+    const range = dates(state, span.first_session, span.last_session, redraw);
     const { start, end } = range.span;
     ask(start);
     const b = basket;
@@ -1122,7 +1143,7 @@ export default {
     const brand = h(
       "div",
       { className: "tf-head" },
-      h("div", { className: "tf-brand" }, h("span", { className: "word" }, "tape"), h("span", { className: "tag" }, "US equity backtests")),
+      h("div", { className: "tf-brand" }, h("span", { className: "word" }, "tape"), h("span", { className: "tag" }, "Equity and FX backtests")),
       h(
         "nav",
         { className: "tf-seg" },

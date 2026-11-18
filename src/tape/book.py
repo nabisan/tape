@@ -118,14 +118,14 @@ def decode(body: bytes) -> pd.DataFrame:
     return found.to_pandas()
 
 
-def stats(frame: pd.DataFrame) -> BookStats:
+def stats(frame: pd.DataFrame, periods: int) -> BookStats:
     if frame.empty:
         raise BookError("an empty book has no statistics")
     equity = frame["equity"].to_numpy(dtype=np.float64)
     capital = float(frame["capital"].iloc[0])
     final = float(equity[-1])
     returns = np.diff(equity, prepend=capital) / np.r_[capital, equity[:-1]]
-    vol, cagr, sharpe = annualized(returns, final / capital)
+    vol, cagr, sharpe = annualized(returns, final / capital, periods)
     under = frame["drawdown"].to_numpy() < 0
     longest = length = 0
     for flag in under:

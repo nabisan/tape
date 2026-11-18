@@ -15,6 +15,7 @@ from tape.benchmarks import compare
 from tape.calendar import sessions
 from tape.catalog.build import build
 from tape.catalog.store import Store
+from tape.core.instruments import Valuation
 from tape.core.types import Ticker, Timeframe
 from tape.engine.backtest import BacktestEngine
 from tape.engine.matching import FillModel
@@ -175,7 +176,13 @@ def test_fast_forward_is_exact(store: Store, strategy: tuple[str, dict[str, obje
         m1 = store.bars(Ticker("AAPL"), Timeframe.M1)
         decision = store.bars(Ticker("AAPL"), strat.config.timeframe)
         engine = BacktestEngine(
-            strat, m1=m1, decision=decision, sessions=sessions_, execution=s.execution, fast_forward=fast
+            strat,
+            m1=m1,
+            decision=decision,
+            sessions=sessions_,
+            execution=s.execution,
+            valuation=Valuation.of(store.instrument(Ticker("AAPL"))),
+            fast_forward=fast,
         )
         runs.append(engine.run(first, last))
     a, b = runs

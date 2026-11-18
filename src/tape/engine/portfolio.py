@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from tape.core.instruments import Valuation
     from tape.engine.orders import Fill
 
 
@@ -42,32 +44,83 @@ class Trade:
         return self.exit_value / self.exit_quantity if self.exit_quantity else float("nan")
 
 
-class Portfolio:
-    __slots__ = ("cash", "closed", "open", "quantity")
+class Account(Protocol):
+    cash: float
+
+    def settle(self, signed: int, price: float, commission: float, realized: float) -> None: ...
+
+    def equity(self, quantity: int, entry: float, mark: float) -> float: ...
+
+
+class CashAccount:
+    __slots__ = ("cash",)
 
     def __init__(self, cash: float) -> None:
         self.cash = cash
+
+    def settle(self, signed: int, price: float, commission: float, realized: float) -> None:
+        self.cash -= signed * price + commission
+
+    def equity(self, quantity: int, entry: float, mark: float) -> float:
+        return self.cash + quantity * mark
+
+
+class MarginAccount:
+    __slots__ = ("_valuation", "cash")
+
+    def __init__(self, cash: float, valuation: Valuation) -> None:
+        self.cash = cash
+        self._valuation = valuation
+
+    def settle(self, signed: int, price: float, commission: float, realized: float) -> None:
+        self.cash += realized - commission
+
+    def equity(self, quantity: int, entry: float, mark: float) -> float:
+        return self.cash + (self._valuation.pnl(quantity, entry, mark) if quantity else 0.0)
+
+
+def account(cash: float, valuation: Valuation) -> Account:
+    return CashAccount(cash) if valuation.cash_settled else MarginAccount(cash, valuation)
+
+
+class Portfolio:
+    __slots__ = ("account", "closed", "open", "quantity", "valuation")
+
+    def __init__(self, cash: float, valuation: Valuation) -> None:
+        self.valuation = valuation
+        self.account = account(cash, valuation)
         self.quantity = 0
         self.open: Trade | None = None
         self.closed: list[Trade] = []
 
+    @property
+    def cash(self) -> float:
+        return self.account.cash
+
     def equity(self, mark: float) -> float:
-        return self.cash + self.quantity * mark
+        entry = self.open.entry_price if self.open is not None else math.nan
+        return self.account.equity(self.quantity, entry, mark)
+
+    def unrealized(self, mark: float) -> float:
+        if self.open is None:
+            return 0.0
+        return self.valuation.pnl(self.quantity, self.open.entry_price, mark)
 
     def apply(self, fill: Fill) -> None:
         signed = fill.side.sign * fill.quantity
-        self.cash -= signed * fill.price + fill.commission
-        remaining = fill.quantity
+        remaining, realized = fill.quantity, 0.0
         if self.open is not None and fill.side.sign != self.open.sign:
-            remaining = self._reduce(self.open, fill)
+            remaining, realized = self._reduce(self.open, fill)
+        self.account.settle(signed, fill.price, fill.commission, realized)
         if remaining:
             share = fill.commission * remaining / fill.quantity
             self._increase(fill, remaining, share)
         self.quantity += signed
 
-    def _reduce(self, t: Trade, fill: Fill) -> int:
+    def _reduce(self, t: Trade, fill: Fill) -> tuple[int, float]:
         q = min(fill.quantity, t.quantity)
-        t.realized += t.sign * q * (fill.price - t.entry_price)
+        realized = self.valuation.pnl(t.sign * q, t.entry_price, fill.price)
+        t.realized += realized
         t.commission += fill.commission * q / fill.quantity
         t.exit_quantity += q
         t.exit_value += q * fill.price
@@ -78,7 +131,7 @@ class Portfolio:
             t.exit_tag = fill.tag
             self.closed.append(t)
             self.open = None
-        return fill.quantity - q
+        return fill.quantity - q, realized
 
     def _increase(self, fill: Fill, quantity: int, commission: float) -> None:
         t = self.open

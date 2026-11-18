@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from concurrent.futures import Executor
 
-    from tape.catalog.store import Store
+    from tape.catalog.catalogs import Catalogs
     from tape.core.hashing import Digest
     from tape.features.grid import FeatureGrid
     from tape.runner import RunSpec
@@ -71,7 +71,7 @@ class _Progress:
 class SweepManager:
     def __init__(
         self,
-        store: Store,
+        catalogs: Catalogs,
         results: ResultStore,
         *,
         pool: Callable[[], Executor],
@@ -80,7 +80,7 @@ class SweepManager:
         grid: FeatureGrid,
     ) -> None:
         self._grid = grid
-        self._store = store
+        self._catalogs = catalogs
         self._results = results
         self._pool = pool
         self._execute = execute
@@ -93,7 +93,8 @@ class SweepManager:
         current = self._sweeps.get(key)
         if current is not None and current.state == "running":
             return current.status()
-        plan = expand(spec, self._store, self._grid)
+        store = self._catalogs.common(spec.tickers)
+        plan = expand(spec, store, self._grid)
         progress = _Progress(key=key, total=len(plan.runs), skipped=list(plan.skipped), spec=spec)
         self._sweeps[key] = progress
         if self._results.sweep_summary(key).is_file():
@@ -102,7 +103,8 @@ class SweepManager:
         self._log.info(
             "sweep", sweep=key[:12], strategy=spec.strategy, runs=progress.total, tickers=len(spec.tickers)
         )
-        progress.task = asyncio.create_task(self._run(spec, plan, progress))
+        version = store.manifest.data_version
+        progress.task = asyncio.create_task(self._run(spec, plan, progress, version))
         return progress.status()
 
     def running(self) -> list[SweepStatus]:
@@ -127,8 +129,7 @@ class SweepManager:
         rows = len(pd.read_parquet(path, columns=["key"]))
         return SweepStatus(key=key, state="done", total=rows, done=rows, failed=0, skipped=[])
 
-    async def _run(self, spec: SweepSpec, plan: Plan, progress: _Progress) -> None:
-        version = self._store.manifest.data_version
+    async def _run(self, spec: SweepSpec, plan: Plan, progress: _Progress, version: Digest) -> None:
         keys = [r.key(version) for r in plan.runs]
         try:
             await asyncio.gather(*(self._one(r, k, progress) for r, k in zip(plan.runs, keys, strict=True)))
@@ -161,14 +162,16 @@ def book(results: ResultStore, key: Digest, run: str) -> bytes:
     return encode(combine(sleeves, spec.execution.initial_cash))
 
 
-def paths(store: Store, results: ResultStore, key: Digest) -> pd.DataFrame:
+def paths(catalogs: Catalogs, results: ResultStore, key: Digest) -> pd.DataFrame:
     summary = results.sweep_summary(key)
     spec = SweepSpec.model_validate_json(summary.with_suffix(".json").read_text())
+    known = [t for t in spec.tickers if catalogs.has(t)]
+    store = catalogs.common(known) if known else None
     keys = pd.read_parquet(summary, columns=["key"])["key"].tolist()
     cash = spec.execution.initial_cash
     frame = pd.DataFrame({k: results.frame(k, Table.EQUITY).set_index("date")["equity"] for k in keys})
     frame = 100 * (frame / cash - 1)
-    if REFERENCE in store.manifest.available:
+    if store is not None and REFERENCE in store.manifest.available:
         ref = prices(store, REFERENCE, pd.DatetimeIndex(frame.index))
         frame[REFERENCE] = 100 * (ref.close / ref.open - 1)
     if frame.size > WEEKLY_ABOVE:

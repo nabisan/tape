@@ -42,6 +42,19 @@ ORDERS: Final[dict[str, Column | None]] = {
 }
 
 
+PRICES: Final = frozenset({"entry_price", "exit_price", "price", "fill_price"})
+STOCK_DIGITS: Final = 2
+
+
+def priced(columns: Mapping[str, Column | None], digits: int) -> dict[str, Column | None]:
+    if digits == STOCK_DIGITS:
+        return dict(columns)
+    return {
+        c: Column(col.label, f"{{:,.{digits}f}}") if col is not None and c in PRICES else col
+        for c, col in columns.items()
+    }
+
+
 def sheet(frame: pd.DataFrame, columns: Mapping[str, Column | None], costs: Collection[Cost]) -> pd.DataFrame:
     keep = [c for c in frame.columns if (c not in columns or columns[c] is not None) and charged(c, costs)]
     shown = frame[keep].copy()

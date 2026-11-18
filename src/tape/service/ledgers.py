@@ -11,7 +11,7 @@ from tape.engine.backtest import ENGINE_VERSION
 from tape.engine.costs import charged
 from tape.runner import record
 from tape.strategies.registry import STRATEGIES
-from tape.workbook import ledger
+from tape.workbook import ledger, notation
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from pydantic.fields import FieldInfo
 
-    from tape.catalog.store import Store
+    from tape.catalog.catalogs import Catalogs
     from tape.core.hashing import Digest
     from tape.features.grid import FeatureGrid
     from tape.runner import RunSpec
@@ -85,12 +85,13 @@ def heading(spec: RunSpec, first: date, last: date) -> str:
     return f"{spec.ticker} · {cls.title} · {tf} · {params} · {first:{DATE}} {DASH} {last:{DATE}}"
 
 
-def build(store: Store, results: ResultStore, grid: FeatureGrid, key: Digest) -> int:
+def build(catalogs: Catalogs, results: ResultStore, grid: FeatureGrid, key: Digest) -> int:
     folder = results.root / key
     failure = folder / FAILURE
     try:
         spec = results.spec(key)
         expected = results.metrics(key).net_pnl
+        store = catalogs.store(spec.ticker)
         rec = record(store, spec, grid)
         if abs(rec.net_pnl - expected) > TOLERANCE * max(1.0, abs(expected)):
             raise LedgerMismatchError(
@@ -108,7 +109,8 @@ def build(store: Store, results: ResultStore, grid: FeatureGrid, key: Digest) ->
         last = times[-1].as_py().date() if len(times) else spec.end
         costs = spec.execution.fill.costs
         shown = rec.table.select([n for n in rec.table.schema.names if charged(n, costs)])
-        rows = ledger(partial, shown, rec.trades, heading(spec, first, last), subtitle)
+        style = notation(store.instrument(spec.ticker), store.venue)
+        rows = ledger(partial, shown, rec.trades, heading(spec, first, last), subtitle, notation=style)
         partial.replace(folder / FILE)
     except (ValueError, OSError) as e:
         failure.write_text(str(e))

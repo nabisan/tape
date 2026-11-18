@@ -161,7 +161,7 @@ class Ledger:
                 fills=new,
                 realized=cumulative - self._cumulative,
                 commission=sum(f.commission for f in new),
-                unrealized=p.quantity * (close - avg) if p.open is not None else 0.0,
+                unrealized=p.unrealized(close),
                 equity=p.equity(close),
             )
         )

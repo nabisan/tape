@@ -1,7 +1,7 @@
 [project]
 name = "tape"
 version = "0.1.0"
-description = "Bar-level US equity backtesting service"
+description = "Bar-level backtesting service for US equities and spot FX"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [

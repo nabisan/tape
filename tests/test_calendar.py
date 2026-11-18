@@ -53,5 +53,5 @@ def test_locate_regular_hours_boundaries(nov: Sessions) -> None:
 
 
 def test_index_of_non_session_raises(nov: Sessions) -> None:
-    with pytest.raises(KeyError, match="not a XNYS session"):
+    with pytest.raises(KeyError, match="not a session"):
         nov.index(date(2024, 11, 28))

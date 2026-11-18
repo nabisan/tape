@@ -14,6 +14,7 @@ import pyarrow.parquet as pq
 import pytest
 from fastapi.testclient import TestClient
 
+from tape.catalog.catalogs import Catalogs
 from tape.catalog.store import Store
 from tape.config import Settings
 from tape.core.hashing import Digest
@@ -168,7 +169,7 @@ def test_running_sweeps_are_listed_and_can_be_stopped(root: Path, tmp_path: Path
     ]:
         with ThreadPoolExecutor(max_workers=1) as pool:
             manager = SweepManager(
-                Store.open(root / "store"),
+                Catalogs.open(root / "store"),
                 ResultStore(tmp_path / "results"),
                 pool=lambda: pool,
                 execute=execute,

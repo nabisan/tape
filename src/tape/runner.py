@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from tape.catalog.bars import bar_ends
 from tape.core.hashing import Digest, Json, digest
+from tape.core.instruments import Valuation
 from tape.core.types import DATE, Ticker, Timeframe
 from tape.engine import reports
 from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec
@@ -230,6 +231,7 @@ def prepare(store: Store, spec: RunSpec, grid: FeatureGrid, ledger: Ledger | Non
         decision=decision,
         sessions=sessions,
         execution=spec.execution,
+        valuation=Valuation.of(store.instrument(spec.ticker)),
         stored=stored,
         align=align,
         ledger=ledger,
@@ -254,7 +256,7 @@ def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Re
     run = engine.run(first, last)
 
     equity = reports.equity(run, sessions, spec.execution.initial_cash)
-    trades = reports.trades(run, m1)
+    trades = reports.trades(run, m1, engine.ctx.portfolio.valuation)
     k0, k1 = run.first_bar, run.last_bar + 1
     frame = pd.DataFrame(
         {
@@ -279,6 +281,8 @@ def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Re
             run.orders,
             float(decision.open[run.first_bar]),
             bar_ns=decision.time_ns[k0:k1],
+            periods=store.venue.periods,
+            valuation=engine.ctx.portfolio.valuation,
         ),
         equity=equity,
         trades=trades,

@@ -7,14 +7,13 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from itertools import repeat
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from tape import calendar
 from tape.catalog import source
 from tape.catalog.bars import aggregate, regular_hours
 from tape.catalog.store import (
@@ -32,6 +31,7 @@ from tape.catalog.store import (
 from tape.core.hashing import Digest, digest
 from tape.core.types import NS_PER_DAY, Ticker, Timeframe, ticker
 from tape.log import Log
+from tape.venues import Venue
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -39,8 +39,6 @@ if TYPE_CHECKING:
 
     from tape.calendar import Sessions
     from tape.core.types import I32
-
-REFERENCE: Final = Ticker("SPY")
 
 log = Log("Catalog")
 
@@ -113,7 +111,8 @@ def _build_ticker(t: Ticker, path: Path, expected: Digest, sessions: Sessions, r
     except source.SourceError as e:
         return _rejected(t, actual, len(data), str(e))
 
-    days = np.unique(minutes.time_ns // NS_PER_DAY).astype("datetime64[D]")
+    _, inside = sessions.locate(minutes.time_ns)
+    days = np.unique(minutes.time_ns[~inside] // NS_PER_DAY).astype("datetime64[D]")
     non_session = np.setdiff1d(days, sessions.day)
     m1 = regular_hours(minutes, sessions)
     if not len(m1):
@@ -180,17 +179,17 @@ def build(
     source_dir: Path,
     store_dir: Path,
     *,
+    venue: Venue = Venue.XNYS,
     tickers: Sequence[Ticker] | None = None,
-    reference: Ticker = REFERENCE,
+    reference: Ticker | None = None,
     workers: int = 1,
 ) -> Manifest:
+    reference = venue.reference if reference is None else reference
     files = source_files(source_dir, tickers, reference)
     log.info("sources", dir=source_dir, files=len(files), workers=workers)
     with ProcessPoolExecutor(max_workers=workers) as pool:
         hashed = dict(zip(files, pool.map(_file_digest, files.values()), strict=True))
-        data_version = digest(
-            {"calendar": calendar.LIBRARY, "sources": {t: d for t, (d, _) in hashed.items()}}
-        )
+        data_version = digest({"calendar": venue.library, "sources": {t: d for t, (d, _) in hashed.items()}})
         root = store_dir / LAYOUT / data_version
         if (root / MANIFEST).is_file():
             log.info("catalog up to date", data_version=data_version, root=root)
@@ -199,7 +198,7 @@ def build(
         ranges = [r for r in pool.map(_day_range, files.values()) if r is not None]
         if not ranges:
             raise CatalogError(f"no readable source file in {source_dir}")
-        sessions = calendar.sessions(min(lo for lo, _ in ranges), max(hi for _, hi in ranges))
+        sessions = venue.sessions(min(lo for lo, _ in ranges), max(hi for _, hi in ranges))
         log.info("calendar", sessions=len(sessions), first=sessions.day[0], last=sessions.day[-1])
 
         tmp = root.with_name(f".{data_version}.{os.getpid()}.tmp")
@@ -222,8 +221,8 @@ def build(
                 schema_version=SCHEMA_VERSION,
                 data_version=data_version,
                 built_at=datetime.now(UTC),
-                calendar=calendar.CALENDAR,
-                calendar_library=calendar.LIBRARY,
+                calendar=venue.value,
+                calendar_library=venue.library,
                 reference=reference,
                 first_session=sessions.day[0].item(),
                 last_session=sessions.day[-1].item(),

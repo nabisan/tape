@@ -13,6 +13,7 @@ from tape.core.hashing import digest
 from tape.features.catalog import Entry, FeatureCatalog, Origin
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.log import Log
+from tape.venues import Venue
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -67,8 +68,9 @@ def build(
     tickers: Sequence[Ticker] | None = None,
     workers: int = 1,
     force: bool = False,
+    venue: Venue = Venue.XNYS,
 ) -> int:
-    store = Store.open(store_dir)
+    store = Store.open(store_dir, venue=venue)
     catalog = FeatureCatalog(store)
     universe = list(tickers) if tickers else store.manifest.available
     jobs = []

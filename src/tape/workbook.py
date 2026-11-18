@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final
 
 import xlsxwriter
 
 from tape.engine import tables
+from tape.venues import VolumeKind
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -13,7 +15,9 @@ if TYPE_CHECKING:
 
     import pyarrow as pa
 
+    from tape.core.instruments import Instrument
     from tape.engine.ledger import TradeSummary
+    from tape.venues import Venue
 
 FONT: Final = "JetBrains Mono"
 SIZE: Final = 9
@@ -92,6 +96,23 @@ class LedgerTooLargeError(ValueError):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class Notation:
+    price: str = PRICE
+    digits: int = 4
+    volume: str = "Volume"
+
+
+STOCK: Final = Notation()
+
+
+def notation(instrument: Instrument, venue: Venue) -> Notation:
+    digits = max(STOCK.digits, instrument.price_precision)
+    price = STOCK.price if digits == STOCK.digits else f"#,##0.{'0' * digits}"
+    volume = STOCK.volume if venue.volume is VolumeKind.TRADED else "Tick volume"
+    return Notation(price=price, digits=digits, volume=volume)
+
+
 def title(name: str) -> str:
     if name in TITLES:
         return TITLES[name]
@@ -104,16 +125,17 @@ def kind(name: str) -> str:
 
 
 class Styles:
-    def __init__(self, book: Any) -> None:
+    def __init__(self, book: Any, notation: Notation) -> None:
         self.book = book
+        self.formats = {**NUMBER_FORMATS, "price": notation.price}
         self.cache: dict[tuple[str, str, int], Any] = {}
 
     def get(self, k: str, tone: str = "", indent: int = 0) -> Any:
         key = (k, tone, indent)
         if key not in self.cache:
             spec: dict[str, Any] = {"font_name": FONT, "font_size": SIZE, "font_color": INK}
-            if k in NUMBER_FORMATS:
-                spec["num_format"] = NUMBER_FORMATS[k]
+            if k in self.formats:
+                spec["num_format"] = self.formats[k]
             spec["align"] = "left" if k in {"text", "time"} else "right"
             if indent:
                 spec["indent"] = indent
@@ -130,16 +152,22 @@ def _tone(value: float) -> str:
     return "gain" if value > 0 else "loss" if value < 0 else ""
 
 
-def band_text(t: TradeSummary) -> str:
+def band_text(t: TradeSummary, digits: int = STOCK.digits) -> str:
     side = "Long" if t.long else "Short"
-    exit_part = "open" if t.open else f"exit {t.exit_price:,.4f}"
+    exit_part = "open" if t.open else f"exit {t.exit_price:,.{digits}f}"
     sign = "+" if t.net_pnl > 0 else MINUS if t.net_pnl < 0 else ""
     result = "" if t.open else f" · net {sign}${abs(t.net_pnl):,.2f}"
-    return f"Trade {t.id} · {side} {t.quantity:,} · entry {t.entry_price:,.4f} → {exit_part}{result}"
+    return f"Trade {t.id} · {side} {t.quantity:,} · entry {t.entry_price:,.{digits}f} → {exit_part}{result}"
 
 
 def ledger(
-    path: Path, table: pa.Table, trades: Mapping[int, TradeSummary], heading: str, subtitle: str
+    path: Path,
+    table: pa.Table,
+    trades: Mapping[int, TradeSummary],
+    heading: str,
+    subtitle: str,
+    *,
+    notation: Notation = STOCK,
 ) -> int:
     names = table.schema.names
     trade_ids = table["trade"].to_pylist()
@@ -151,7 +179,7 @@ def ledger(
         )
     book = xlsxwriter.Workbook(str(path), {"constant_memory": True})
     ws = book.add_worksheet("MTM ledger")
-    styles = Styles(book)
+    styles = Styles(book, notation)
     base = {"font_name": FONT, "font_size": SIZE}
     heading_style = book.add_format({**base, "font_size": 12, "bold": True, "font_color": BLACK})
     ws.write_string(0, 0, heading, heading_style)
@@ -163,7 +191,7 @@ def ledger(
     band_fill = book.add_format({**base, "bg_color": BAND})
     kinds = [kind(n) for n in names]
     for c, (n, k) in enumerate(zip(names, kinds, strict=True)):
-        ws.write_string(3, c, title(n), header)
+        ws.write_string(3, c, notation.volume if n == "volume" else title(n), header)
         ws.set_column(c, c, EVENT_WIDTH if n == "event" else WIDTHS.get(k, 11))
     ws.freeze_panes(FIRST_DATA_ROW, 1)
     row = FIRST_DATA_ROW
@@ -175,7 +203,7 @@ def ledger(
         for i in range(batch.num_rows):
             trade = trade_col[i]
             if trade is not None and trade != previous and trade in trades:
-                ws.write_string(row, 0, band_text(trades[trade]), band)
+                ws.write_string(row, 0, band_text(trades[trade], notation.digits), band)
                 for c in range(1, len(names)):
                     ws.write_blank(row, c, None, band_fill)
                 row += 1

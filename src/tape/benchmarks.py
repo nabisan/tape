@@ -10,7 +10,7 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict
 
 from tape.core.types import Ticker, Timeframe
-from tape.engine.reports import Measure, annualized
+from tape.engine.reports import TRADING_DAYS, Measure, annualized
 
 if TYPE_CHECKING:
     from tape.catalog.store import Store
@@ -78,11 +78,11 @@ def exposure(r: F64, reference: F64) -> Exposure:
     )
 
 
-def hold(ticker: Ticker, p: Prices, reference: F64) -> Benchmark:
+def hold(ticker: Ticker, p: Prices, reference: F64, periods: int = TRADING_DAYS) -> Benchmark:
     r = p.returns()
     path = np.r_[p.open, p.close]
     growth = float(path[-1] / path[0])
-    vol, cagr, sharpe = annualized(r, growth)
+    vol, cagr, sharpe = annualized(r, growth, periods)
     return Benchmark(
         ticker=ticker,
         total_return_pct=100 * (growth - 1),
@@ -102,5 +102,5 @@ def compare(store: Store, ticker: Ticker, eq: pd.DataFrame) -> Comparison:
     return Comparison(
         reference=REFERENCE,
         run=exposure(eq["return"].to_numpy(dtype=float), ref_r),
-        benchmarks=[hold(t, p, ref_r) for t, p in series.items()],
+        benchmarks=[hold(t, p, ref_r, store.venue.periods) for t, p in series.items()],
     )

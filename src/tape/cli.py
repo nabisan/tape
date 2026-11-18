@@ -20,7 +20,10 @@ import pyarrow.compute as pc
 import uvicorn
 
 from tape import log
-from tape.catalog.build import REFERENCE, CatalogError, build
+from tape.catalog.adapters import ingest_fx
+from tape.catalog.build import CatalogError, build
+from tape.catalog.catalogs import Catalogs
+from tape.catalog.source import SourceError
 from tape.catalog.store import Status, Store
 from tape.config import Settings
 from tape.core.hashing import Digest, Json
@@ -32,7 +35,7 @@ from tape.fundamentals import load as load_fundamentals
 from tape.fundamentals import save as save_fundamentals
 from tape.service.api import create_app
 from tape.service.results import ResultStore
-from tape.service.worker import execute_run, init_worker
+from tape.service.worker import execute_run, init_worker, versions
 from tape.sweep import SUMMARY, SweepSpec, expand, summary
 from tape.universe import (
     CONTACT,
@@ -47,6 +50,7 @@ from tape.universe import (
     save_classifications,
     sic,
 )
+from tape.venues import Venue
 
 PACKAGES = ("tape", "numpy", "pandas", "pyarrow", "numba", "ta-lib", "pydantic", "exchange-calendars")
 
@@ -104,10 +108,11 @@ def env(settings: Settings) -> int:
 def catalog_build(settings: Settings, args: argparse.Namespace) -> int:
     try:
         build(
-            settings.source_dir,
+            args.source or settings.source_dir,
             settings.store_dir,
+            venue=args.venue,
             tickers=[ticker(t) for t in args.ticker] or None,
-            reference=ticker(args.reference),
+            reference=ticker(args.reference) if args.reference else None,
             workers=args.workers,
         )
     except CatalogError as e:
@@ -116,9 +121,23 @@ def catalog_build(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def ingest_fx_files(settings: Settings, args: argparse.Namespace) -> int:
+    out = log.Log("Ingest")
+    try:
+        written = ingest_fx(args.files, args.out, args.start)
+    except SourceError as e:
+        out.error("ingest failed", reason=e)
+        return 1
+    for symbol, path in written.items():
+        out.info("written", symbol=symbol, path=path)
+    return 0
+
+
 def catalog_show(settings: Settings, args: argparse.Namespace) -> int:
     out = log.Log("Catalog")
-    m = Store.open(settings.store_dir, Digest(args.data_version) if args.data_version else None).manifest
+    m = Store.open(
+        settings.store_dir, Digest(args.data_version) if args.data_version else None, args.venue
+    ).manifest
     out.info(
         "catalog",
         data_version=m.data_version,
@@ -164,6 +183,7 @@ def features_build(settings: Settings, args: argparse.Namespace) -> int:
         tickers=[ticker(t) for t in args.ticker] or None,
         workers=args.workers,
         force=args.force,
+        venue=args.venue,
     )
     return 0
 
@@ -201,7 +221,7 @@ def _assignments(items: list[str]) -> dict[str, tuple[Json, ...]]:
 
 def sweep(settings: Settings, args: argparse.Namespace) -> int:
     out = log.Log("Sweep")
-    store = Store.open(settings.store_dir)
+    store = Store.open(settings.store_dir, venue=args.venue)
     m = store.manifest
     spec = SweepSpec(
         tickers=tuple(ticker(t) for t in args.ticker) or tuple(m.available),
@@ -221,7 +241,12 @@ def sweep(settings: Settings, args: argparse.Namespace) -> int:
     out.info(
         "sweep", key=spec.key[:12], runs=len(keys), cached=len(keys) - len(pending), workers=args.workers
     )
-    initargs = (str(settings.store_dir), m.data_version, str(settings.results_dir), settings.log_level)
+    initargs = (
+        str(settings.store_dir),
+        versions(Catalogs({store.venue: store})),
+        str(settings.results_dir),
+        settings.log_level,
+    )
     with ProcessPoolExecutor(max_workers=args.workers, initializer=init_worker, initargs=initargs) as pool:
         for i, _ in enumerate(pool.map(execute_run, pending), 1):
             if i % 50 == 0 or i == len(pending):
@@ -309,6 +334,7 @@ COMMANDS: Final[dict[tuple[str, str | None], Handler]] = {
     ("env", None): lambda s, _: env(s),
     ("catalog", "build"): catalog_build,
     ("catalog", "show"): catalog_show,
+    ("ingest", "fx"): ingest_fx_files,
     ("features", "adopt"): features_adopt,
     ("features", "build"): features_build,
     ("sweep", None): sweep,
@@ -318,19 +344,37 @@ COMMANDS: Final[dict[tuple[str, str | None], Handler]] = {
 }
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="tape", description="bar-level US equity backtesting")
-    commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("env", help="verify interpreter, native libraries and configured paths")
+def _catalog_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     catalog = commands.add_parser("catalog", help="build and inspect the bar store").add_subparsers(
         dest="action", required=True
     )
     b = catalog.add_parser("build", help="validate the source and build a versioned store")
     b.add_argument("--ticker", action="append", default=[], help="repeatable; default every source file")
-    b.add_argument("--reference", default=REFERENCE)
+    b.add_argument("--venue", type=Venue, choices=list(Venue), default=Venue.XNYS)
+    b.add_argument("--source", type=Path, help="source directory; default TAPE_SOURCE_DIR")
+    b.add_argument("--reference", help="ticker that must cover every session; default the venue's")
     b.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     s = catalog.add_parser("show", help="summarise a store and list rejected or gapped tickers")
     s.add_argument("--data-version")
+    s.add_argument("--venue", type=Venue, choices=list(Venue), default=Venue.XNYS)
+
+
+def _ingest_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    ingest = commands.add_parser("ingest", help="convert vendor files to the source schema").add_subparsers(
+        dest="action", required=True
+    )
+    fx = ingest.add_parser("fx", help="vendor FX minute files (EUR_USD_forex_1m_*.parquet)")
+    fx.add_argument("files", nargs="+", type=Path)
+    fx.add_argument("--out", type=Path, required=True)
+    fx.add_argument("--start", type=date.fromisoformat, help="first FX session to keep, YYYY-MM-DD")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="tape", description="bar-level backtesting")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("env", help="verify interpreter, native libraries and configured paths")
+    _catalog_parser(commands)
+    _ingest_parser(commands)
     features = commands.add_parser("features", help="feature store").add_subparsers(
         dest="action", required=True
     )
@@ -342,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
     fb.add_argument("--ticker", action="append", default=[], help="repeatable; default every ticker")
     fb.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     fb.add_argument("--force", action="store_true", help="rebuild entries already in the catalog")
+    fb.add_argument("--venue", type=Venue, choices=list(Venue), default=Venue.XNYS)
     sw = commands.add_parser("sweep", help="run a strategy over a parameter grid and tickers")
     sw.add_argument("--strategy", required=True)
     sw.add_argument("--timeframe", required=True, choices=[tf.value for tf in Timeframe])
@@ -352,6 +397,7 @@ def main(argv: list[str] | None = None) -> int:
     sw.add_argument("--param", action="append", default=[], help="name=value held fixed")
     sw.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     sw.add_argument("--top", type=int, default=10)
+    sw.add_argument("--venue", type=Venue, choices=list(Venue), default=Venue.XNYS)
     universes = commands.add_parser("universes", help="index membership reference data").add_subparsers(
         dest="action", required=True
     )

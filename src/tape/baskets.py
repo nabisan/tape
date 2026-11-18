@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from tape.core.types import DATE, Ticker
 from tape.universe import sic_division
+from tape.venues import Venue
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -30,6 +31,7 @@ class Scheme(StrEnum):
 class BasketQuery(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    venue: Venue = Venue.XNYS
     universe: str = ALL
     custom: tuple[Ticker, ...] = ()
     scheme: Scheme = Scheme.GICS
@@ -151,4 +153,15 @@ def basket(
             "window": window,
             "notes": [note, *class_notes, *vol_notes],
         }
+    )
+
+
+def listing(q: BasketQuery, catalog: Sequence[str]) -> Basket:
+    universes = [Choice(key=ALL, title=f"All {q.venue.label}"), Choice(key=CUSTOM, title="Custom")]
+    if q.universe == CUSTOM:
+        available = set(catalog)
+        chosen = [str(t) for t in dict.fromkeys(q.custom) if t in available]
+        return Basket(universes=universes, tickers=chosen, notes=["custom selection"])
+    return Basket(
+        universes=universes, tickers=list(catalog), notes=[f"all {len(catalog):,} {q.venue.label} tickers"]
     )

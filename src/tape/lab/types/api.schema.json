@@ -96,6 +96,9 @@
           "default": "all",
           "type": "string"
         },
+        "venue": {
+          "$ref": "#/$defs/Venue"
+        },
         "volatility": {
           "default": [],
           "items": {
@@ -129,13 +132,20 @@
             "$ref": "#/$defs/TickerInfo"
           },
           "type": "array"
+        },
+        "venues": {
+          "items": {
+            "$ref": "#/$defs/VenueInfo"
+          },
+          "type": "array"
         }
       },
       "required": [
         "data_version",
         "first_session",
         "last_session",
-        "tickers"
+        "tickers",
+        "venues"
       ],
       "title": "Catalog",
       "type": "object"
@@ -1197,14 +1207,22 @@
           "format": "date",
           "type": "string"
         },
+        "price_precision": {
+          "type": "integer"
+        },
         "ticker": {
           "type": "string"
+        },
+        "venue": {
+          "$ref": "#/$defs/Venue"
         }
       },
       "required": [
         "ticker",
         "first_session",
-        "last_session"
+        "last_session",
+        "venue",
+        "price_precision"
       ],
       "title": "TickerInfo",
       "type": "object"
@@ -1219,6 +1237,64 @@
         "1d"
       ],
       "title": "Timeframe",
+      "type": "string"
+    },
+    "Venue": {
+      "enum": [
+        "XNYS",
+        "FX"
+      ],
+      "title": "Venue",
+      "type": "string"
+    },
+    "VenueInfo": {
+      "properties": {
+        "data_version": {
+          "type": "string"
+        },
+        "first_session": {
+          "format": "date",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "last_session": {
+          "format": "date",
+          "type": "string"
+        },
+        "periods": {
+          "type": "integer"
+        },
+        "venue": {
+          "$ref": "#/$defs/Venue"
+        },
+        "volume": {
+          "$ref": "#/$defs/VolumeKind"
+        },
+        "zone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "venue",
+        "label",
+        "data_version",
+        "zone",
+        "periods",
+        "volume",
+        "first_session",
+        "last_session"
+      ],
+      "title": "VenueInfo",
+      "type": "object"
+    },
+    "VolumeKind": {
+      "enum": [
+        "traded",
+        "ticks"
+      ],
+      "title": "VolumeKind",
       "type": "string"
     }
   },

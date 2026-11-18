@@ -11,12 +11,28 @@ from tape.engine.parameters import ResolvedSpace
 from tape.engine.reports import Metrics
 from tape.runner import RunSpec
 from tape.universe import Membership
+from tape.venues import Venue, VolumeKind
 
 
 class TickerInfo(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     ticker: str
+    first_session: date
+    last_session: date
+    venue: Venue
+    price_precision: int
+
+
+class VenueInfo(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    venue: Venue
+    label: str
+    data_version: str
+    zone: str
+    periods: int
+    volume: VolumeKind
     first_session: date
     last_session: date
 
@@ -28,6 +44,7 @@ class Catalog(BaseModel):
     first_session: date
     last_session: date
     tickers: list[TickerInfo]
+    venues: list[VenueInfo]
 
 
 class StrategyInfo(BaseModel):

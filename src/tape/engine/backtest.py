@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
     from tape.calendar import Sessions
     from tape.catalog.bars import Bars
+    from tape.core.instruments import Valuation
     from tape.core.types import F64, I32, I64
     from tape.engine.ledger import Ledger
     from tape.engine.strategy import Strategy, StrategyConfig
@@ -64,12 +65,17 @@ class Context:
     )
 
     def __init__(
-        self, bars: Bars, initial_cash: float, stored: Stored | None = None, align: Align | None = None
+        self,
+        bars: Bars,
+        initial_cash: float,
+        valuation: Valuation,
+        stored: Stored | None = None,
+        align: Align | None = None,
     ) -> None:
         self.bars = bars
         self.stored = stored
         self.align = align
-        self.portfolio = Portfolio(initial_cash)
+        self.portfolio = Portfolio(initial_cash, valuation)
         self.orders: list[Order] = []
         self.incoming: list[Order] = []
         self.working: list[Order] = []
@@ -220,6 +226,7 @@ class BacktestEngine:
         decision: Bars,
         sessions: Sessions,
         execution: ExecutionSpec,
+        valuation: Valuation,
         fast_forward: bool = True,
         stored: Stored | None = None,
         align: Align | None = None,
@@ -235,8 +242,8 @@ class BacktestEngine:
         self.ledger = ledger
         self.ends = ends
         self.decision = decision
-        self.ctx = Context(decision, execution.initial_cash, stored, align)
-        self.matcher = MatchingEngine(execution.fill)
+        self.ctx = Context(decision, execution.initial_cash, valuation, stored, align)
+        self.matcher = MatchingEngine(execution.fill, valuation)
         self.fills: list[Fill] = []
         self.marks: tuple[list[int], list[float], list[int], list[float]] = ([], [], [], [])
         self.bar_time: list[int] = []

@@ -5,6 +5,16 @@
 export type Scheme = "GICS" | "SIC";
 /**
  * This interface was referenced by `TapeApi`'s JSON-Schema
+ * via the `definition` "Venue".
+ */
+export type Venue = "XNYS" | "FX";
+/**
+ * This interface was referenced by `TapeApi`'s JSON-Schema
+ * via the `definition` "VolumeKind".
+ */
+export type VolumeKind = "traded" | "ticks";
+/**
+ * This interface was referenced by `TapeApi`'s JSON-Schema
  * via the `definition` "Json-Output".
  */
 export type JsonOutput =
@@ -85,6 +95,7 @@ export interface BasketQuery {
   sectors?: string[];
   start: string;
   universe?: string;
+  venue?: Venue;
   /**
    * @maxItems 5
    */
@@ -99,6 +110,7 @@ export interface Catalog {
   first_session: string;
   last_session: string;
   tickers: TickerInfo[];
+  venues: VenueInfo[];
 }
 /**
  * This interface was referenced by `TapeApi`'s JSON-Schema
@@ -107,7 +119,23 @@ export interface Catalog {
 export interface TickerInfo {
   first_session: string;
   last_session: string;
+  price_precision: number;
   ticker: string;
+  venue: Venue;
+}
+/**
+ * This interface was referenced by `TapeApi`'s JSON-Schema
+ * via the `definition` "VenueInfo".
+ */
+export interface VenueInfo {
+  data_version: string;
+  first_session: string;
+  label: string;
+  last_session: string;
+  periods: number;
+  venue: Venue;
+  volume: VolumeKind;
+  zone: string;
 }
 /**
  * This interface was referenced by `TapeApi`'s JSON-Schema

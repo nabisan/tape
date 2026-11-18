@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from tape.calendar import Sessions
     from tape.catalog.bars import Bars
+    from tape.core.instruments import Valuation
     from tape.engine.backtest import Context, Run
     from tape.engine.ledger import Ledger
     from tape.engine.orders import Order
@@ -75,7 +76,7 @@ def fills(run: Run) -> pd.DataFrame:
     )
 
 
-def trades(run: Run, m1: Bars) -> pd.DataFrame:
+def trades(run: Run, m1: Bars, valuation: Valuation) -> pd.DataFrame:
     rows = []
     last_ns, last_close = int(m1.time_ns[-1]), float(m1.close[-1])
     if len(run.sessions.close):
@@ -89,7 +90,7 @@ def trades(run: Run, m1: Bars) -> pd.DataFrame:
         lo = min(float(m1.low[a:b].min()) if b > a else exit_px, exit_px)
         adverse, favourable = (lo, hi) if t.sign > 0 else (hi, lo)
         qty = t.max_quantity
-        open_pnl = 0.0 if t.closed else t.sign * t.quantity * (last_close - t.entry_price)
+        open_pnl = 0.0 if t.closed else valuation.pnl(t.sign * t.quantity, t.entry_price, last_close)
         gross = t.realized + open_pnl
         rows.append(
             {
@@ -105,7 +106,7 @@ def trades(run: Run, m1: Bars) -> pd.DataFrame:
                 "gross_pnl": gross,
                 "commission": t.commission,
                 "net_pnl": gross - t.commission,
-                "return_pct": 100 * (gross - t.commission) / (t.entry_price * qty),
+                "return_pct": 100 * (gross - t.commission) / valuation.notional(qty, t.entry_price),
                 "mae_pct": 100 * t.sign * (adverse - t.entry_price) / t.entry_price,
                 "mfe_pct": 100 * t.sign * (favourable - t.entry_price) / t.entry_price,
                 "open": not t.closed,
@@ -213,11 +214,11 @@ def time_in_market_pct(bar_ns: npt.NDArray[np.int64], tr: pd.DataFrame) -> float
     return 100 * float((np.cumsum(held[:-1]) > 0).mean())
 
 
-def annualized(r: npt.NDArray[np.float64], growth: float) -> tuple[float, float, float]:
-    years = len(r) / TRADING_DAYS
-    vol = float(r.std(ddof=1) * math.sqrt(TRADING_DAYS)) if len(r) > 1 else math.nan
+def annualized(r: npt.NDArray[np.float64], growth: float, periods: int) -> tuple[float, float, float]:
+    years = len(r) / periods
+    vol = float(r.std(ddof=1) * math.sqrt(periods)) if len(r) > 1 else math.nan
     cagr = growth ** (1 / years) - 1 if years > 0 and growth > 0 else math.nan
-    sharpe = _ratio(float(r.mean()) * TRADING_DAYS, vol) if len(r) > 1 else math.nan
+    sharpe = _ratio(float(r.mean()) * periods, vol) if len(r) > 1 else math.nan
     return vol, cagr, sharpe
 
 
@@ -229,6 +230,8 @@ def metrics(
     first_open: float,
     *,
     bar_ns: npt.NDArray[np.int64],
+    periods: int,
+    valuation: Valuation,
 ) -> Metrics:
     signals = sorted(ns for o in orders if (ns := o.signal_ns) is not None)
     r = eq["return"].to_numpy(dtype=float)
@@ -243,7 +246,7 @@ def metrics(
     closed = tr[~tr["open"]] if len(tr) else tr
     pnl = closed["net_pnl"].to_numpy(dtype=float) if len(closed) else np.empty(0)
     wins, losses = pnl[pnl > 0], pnl[pnl <= 0]
-    vol, cagr, sharpe = annualized(r, final / initial_cash)
+    vol, cagr, sharpe = annualized(r, final / initial_cash, periods)
     max_dd = float(eq["drawdown_pct"].min()) if len(eq) else 0.0
     closes = eq["close"].to_numpy(dtype=float)
     return Metrics(
@@ -258,8 +261,8 @@ def metrics(
         volatility_pct=100 * vol,
         sharpe=sharpe,
         sortino=_ratio(
-            float(r.mean()) * TRADING_DAYS,
-            float(np.sqrt((downside**2).sum() / len(r)) * math.sqrt(TRADING_DAYS)),
+            float(r.mean()) * periods,
+            float(np.sqrt((downside**2).sum() / len(r)) * math.sqrt(periods)),
         )
         if len(r)
         else math.nan,
@@ -280,7 +283,9 @@ def metrics(
         avg_trade_return_pct=float(closed["return_pct"].mean()) if len(closed) else 0.0,
         avg_duration_hours=float(closed["duration"].dt.total_seconds().mean() / 3600) if len(closed) else 0.0,
         total_commission=float(tr["commission"].sum()) if len(tr) else 0.0,
-        buy_hold_return_pct=100 * (closes[-1] / first_open - 1) if len(closes) else math.nan,
+        buy_hold_return_pct=100 * valuation.conversion.growth(first_open, closes[-1])
+        if len(closes)
+        else math.nan,
         first_signal=_moment(signals[0]) if signals else None,
         last_signal=_moment(signals[-1]) if signals else None,
     )

@@ -1,6 +1,6 @@
 # tape
 
-Bar-level US equity backtesting service.
+Bar-level backtesting service for US equities and spot FX.
 
 Single run: benchmark comparison, equity and drawdown, performance.
 
@@ -33,6 +33,14 @@ uv run ruff format --check && uv run ruff check && uv run mypy src tests && uv r
 uv run tape catalog build
 uv run tape serve api
 uv run tape serve ui
+```
+
+FX minute files (`EUR_USD_forex_1m_<span>.parquet`) go through the adapter into their own source directory, then their own catalog and features:
+
+```bash
+uv run tape ingest fx ~/Downloads/*_forex_1m_*.parquet --out ~/tape/fx-source --start 2020-11-16
+uv run tape catalog build --venue FX --source ~/tape/fx-source
+uv run tape features build --venue FX
 ```
 
 The API and UI bind to `127.0.0.1`. From a laptop, reach a server's UI through a tunnel:

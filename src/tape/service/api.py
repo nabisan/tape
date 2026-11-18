@@ -18,9 +18,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
 from tape import log
-from tape.baskets import Basket, BasketQuery, basket
+from tape.baskets import Basket, BasketQuery, basket, listing
 from tape.benchmarks import Comparison, compare
 from tape.book import BookError
+from tape.catalog.catalogs import Catalogs
 from tape.catalog.store import Status, Store
 from tape.core.hashing import Digest
 from tape.core.types import Ticker, Timeframe
@@ -42,14 +43,16 @@ from tape.service.models import (
     StrategySpace,
     TickerInfo,
     UniverseInfo,
+    VenueInfo,
 )
 from tape.service.results import BARS_PER_ROW, STALE, ResultStore, StaleResultError, Table, thin
 from tape.service.sweeps import SweepManager, SweepStatus, book, paths
-from tape.service.worker import build_ledger, execute_run, init_ledger_worker, init_worker
+from tape.service.worker import build_ledger, execute_run, init_ledger_worker, init_worker, versions
 from tape.strategies.registry import STRATEGIES
 from tape.sweep import SweepSpec
 from tape.sweep import upgrade as upgrade_summary
 from tape.universe import Classification, Profiles, classifications, memberships, profiles
+from tape.venues import Venue
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -64,26 +67,66 @@ RECENT_BARS = 2_500
 GZIP_FROM = 1_024
 
 
-def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
+def _venue_info(store: Store) -> VenueInfo:
+    venue, m = store.venue, store.manifest
+    return VenueInfo(
+        venue=venue,
+        label=venue.label,
+        data_version=m.data_version,
+        zone=venue.zone,
+        periods=venue.periods,
+        volume=venue.volume,
+        first_session=m.first_session,
+        last_session=m.last_session,
+    )
+
+
+def _ticker_info(store: Store) -> list[TickerInfo]:
+    return [
+        TickerInfo(
+            ticker=r.ticker,
+            first_session=r.first_session,
+            last_session=r.last_session,
+            venue=store.venue,
+            price_precision=store.venue.instrument(r.ticker).price_precision,
+        )
+        for r in store.manifest.tickers.values()
+        if r.status is Status.OK and r.first_session is not None and r.last_session is not None
+    ]
+
+
+def _store_for(catalogs: Catalogs, ticker: Ticker) -> Store:
+    if not catalogs.has(ticker):
+        raise HTTPException(404, f"{ticker} is in no catalog")
+    return catalogs.store(ticker)
+
+
+def _comparable(catalogs: Catalogs, ticker: Ticker) -> Store:
+    store = catalogs.store(ticker) if catalogs.has(ticker) else catalogs.of(Venue.XNYS)
+    if store is None:
+        raise HTTPException(404, f"{ticker} is in no catalog")
+    return store
+
+
+def _catalog_routes(catalogs: Catalogs, grid: FeatureGrid) -> APIRouter:
     router = APIRouter()
-    manifest = store.manifest
-    sessions = store.sessions()
+    stores = [s for v in catalogs.venues if (s := catalogs.of(v)) is not None]
+    primary = stores[0]
+    equities = catalogs.of(Venue.XNYS)
+    listed = set(equities.manifest.available) if equities is not None else set()
 
     @router.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "data_version": manifest.data_version}
+        return {"status": "ok", "data_version": primary.manifest.data_version}
 
     @router.get("/catalog")
     def catalog() -> Catalog:
         return Catalog(
-            data_version=manifest.data_version,
-            first_session=manifest.first_session,
-            last_session=manifest.last_session,
-            tickers=[
-                TickerInfo(ticker=r.ticker, first_session=r.first_session, last_session=r.last_session)
-                for r in manifest.tickers.values()
-                if r.status is Status.OK and r.first_session is not None and r.last_session is not None
-            ],
+            data_version=primary.manifest.data_version,
+            first_session=min(s.manifest.first_session for s in stores),
+            last_session=max(s.manifest.last_session for s in stores),
+            tickers=[t for s in stores for t in _ticker_info(s)],
+            venues=[_venue_info(s) for s in stores],
         )
 
     @router.get("/strategies")
@@ -101,17 +144,17 @@ def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
 
     @lru_cache(maxsize=256)
     def _bars(ticker: Ticker, timeframe: Timeframe) -> Bars:
-        return store.bars(ticker, timeframe)
+        return catalogs.store(ticker).bars(ticker, timeframe)
 
     @router.get("/strategies/{name}/space")
     def space(name: str, ticker: str, end: date | None = None) -> StrategySpace:
         if name not in STRATEGIES:
             raise HTTPException(404, f"unknown strategy {name}")
-        if ticker not in manifest.available:
-            raise HTTPException(404, f"{ticker} not in catalog {manifest.data_version}")
         cls = STRATEGIES[name]
+        store = _store_for(catalogs, Ticker(ticker))
         resolved = cls.parameters.resolve(FeatureCatalog(store), Ticker(ticker), grid)
         if end is not None:
+            sessions = store.sessions()
             resolved = warm(resolved, cls.parameters, lambda tf: _bars(Ticker(ticker), tf), sessions, end)
         return StrategySpace(
             name=name,
@@ -123,7 +166,7 @@ def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
 
     @router.get("/universes")
     def universes() -> list[UniverseInfo]:
-        available = set(manifest.available)
+        available = listed
         return [
             UniverseInfo(
                 membership=m,
@@ -135,14 +178,16 @@ def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
 
     @router.get("/universes/classification")
     def classification() -> list[Classification]:
-        available = set(manifest.available)
+        available = listed
         found = classifications()
         known = {e.ticker: e for e in found.entries} if found is not None else {}
         return [known.get(t, Classification(ticker=t)) for t in sorted(available)]
 
     @lru_cache(maxsize=32)
     def _profiles(before: date) -> Profiles:
-        return profiles(store, before)
+        if equities is None:
+            raise HTTPException(404, "no equity catalog")
+        return profiles(equities, before)
 
     @router.get("/universes/profiles")
     def universe_profiles(before: date) -> Profiles:
@@ -150,9 +195,12 @@ def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
 
     @router.post("/universes/basket")
     def universe_basket(query: BasketQuery) -> Basket:
+        if query.venue is not Venue.XNYS:
+            store = catalogs.of(query.venue)
+            return listing(query, store.manifest.available if store is not None else [])
         found = classifications()
         entries = {str(e.ticker): e for e in found.entries} if found is not None else {}
-        return basket(query, list(manifest.available), memberships(), entries, _profiles(query.start))
+        return basket(query, sorted(listed), memberships(), entries, _profiles(query.start))
 
     @router.get("/execution/schema")
     def execution_schema() -> dict[str, Any]:
@@ -162,10 +210,9 @@ def _catalog_routes(store: Store, grid: FeatureGrid) -> APIRouter:
 
 
 def _run_routes(
-    store: Store, results: ResultStore, pool: Callable[[], Executor], grid: FeatureGrid
+    catalogs: Catalogs, results: ResultStore, pool: Callable[[], Executor], grid: FeatureGrid
 ) -> APIRouter:
     router = APIRouter()
-    manifest = store.manifest
     inflight: dict[Digest, asyncio.Future[Digest]] = {}
     out = log.Log("Api")
 
@@ -173,10 +220,9 @@ def _run_routes(
     async def submit(spec: RunSpec) -> RunSummary:
         if spec.strategy not in STRATEGIES:
             raise HTTPException(404, f"unknown strategy {spec.strategy}")
-        if spec.ticker not in manifest.available:
-            raise HTTPException(404, f"{spec.ticker} not in catalog {manifest.data_version}")
+        store = _store_for(catalogs, spec.ticker)
         try:
-            key = spec.key(manifest.data_version)
+            key = spec.key(store.manifest.data_version)
         except ValidationError as e:
             raise HTTPException(422, e.errors(include_url=False, include_context=False)) from e
         if reasons := cold(store, spec):
@@ -210,7 +256,8 @@ def _run_routes(
     @router.get("/runs/{key}/comparison")
     def comparison(key: str) -> Comparison:
         k = _known(results, key)
-        return compare(store, Ticker(results.spec(k).ticker), results.frame(k, Table.EQUITY))
+        ticker = Ticker(results.spec(k).ticker)
+        return compare(_comparable(catalogs, ticker), ticker, results.frame(k, Table.EQUITY))
 
     @lru_cache(maxsize=64)
     def _days(key: Digest, recent: int) -> RunDays:
@@ -247,7 +294,7 @@ def _run_routes(
     return router
 
 
-def _sweep_routes(store: Store, results: ResultStore, sweeps: SweepManager) -> APIRouter:
+def _sweep_routes(results: ResultStore, sweeps: SweepManager) -> APIRouter:
     router = APIRouter()
 
     @router.get("/sweeps")
@@ -334,7 +381,7 @@ def _sweep_routes(store: Store, results: ResultStore, sweeps: SweepManager) -> A
     return router
 
 
-def _path_routes(store: Store, results: ResultStore) -> APIRouter:
+def _path_routes(catalogs: Catalogs, results: ResultStore) -> APIRouter:
     router = APIRouter()
 
     def stored_paths(key: str) -> Path:
@@ -342,7 +389,7 @@ def _path_routes(store: Store, results: ResultStore) -> APIRouter:
         if not results.sweep_summary(k).is_file():
             raise HTTPException(404, f"sweep {key} has no summary yet")
         if not results.sweep_paths(k).is_file():
-            results.save_paths(k, paths(store, results, k))
+            results.save_paths(k, paths(catalogs, results, k))
         return results.sweep_paths(k)
 
     @router.get("/sweeps/{key}/paths")
@@ -371,15 +418,14 @@ def _path_routes(store: Store, results: ResultStore) -> APIRouter:
 
 def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRID) -> FastAPI:
     out = log.Log("Api")
-    store = Store.open(settings.store_dir)
+    catalogs = Catalogs.open(settings.store_dir)
     results = ResultStore(settings.results_dir)
-    manifest = store.manifest
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         initargs = (
             str(settings.store_dir),
-            manifest.data_version,
+            versions(catalogs),
             str(settings.results_dir),
             settings.log_level,
             grid.model_dump_json(),
@@ -388,9 +434,9 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         app.state.ledger_pool = ProcessPoolExecutor(
             max_workers=1, initializer=init_ledger_worker, initargs=initargs
         )
-        out.info(
-            "ready", data_version=manifest.data_version, tickers=len(manifest.available), workers=workers
-        )
+        for venue, version in catalogs.versions.items():
+            out.info("catalog", venue=venue, data_version=version)
+        out.info("ready", tickers=len(catalogs.available), workers=workers)
         yield
         app.state.pool.shutdown(cancel_futures=True)
         app.state.ledger_pool.shutdown(cancel_futures=True)
@@ -411,14 +457,14 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         return executor
 
     sweeps = SweepManager(
-        store, results, pool=pool, execute=execute_run, concurrency=max(1, workers) * 2, grid=grid
+        catalogs, results, pool=pool, execute=execute_run, concurrency=max(1, workers) * 2, grid=grid
     )
-    app.include_router(_catalog_routes(store, grid))
+    app.include_router(_catalog_routes(catalogs, grid))
     app.include_router(_valuation_routes(results, Fundamentals.open(settings.store_dir)))
     app.include_router(_ledger_routes(results, Ledgers(results, ledger_pool, build_ledger)))
-    app.include_router(_run_routes(store, results, pool, grid))
-    app.include_router(_sweep_routes(store, results, sweeps))
-    app.include_router(_path_routes(store, results))
+    app.include_router(_run_routes(catalogs, results, pool, grid))
+    app.include_router(_sweep_routes(results, sweeps))
+    app.include_router(_path_routes(catalogs, results))
     mount(app)
     return app
 

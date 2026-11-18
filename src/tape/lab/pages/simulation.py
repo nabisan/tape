@@ -37,6 +37,7 @@ def _():
 def _():
     params = mo.query_params()
     strategies = api.strategies()
+    catalog = api.catalog()
     _stored = api.stored_sweeps()
     _first = str(params["sweep"]) if params["sweep"] else (_stored[0].key if _stored else None)
     form = Form(page="simulation", pages=PAGES)
@@ -45,7 +46,17 @@ def _():
     get_current, set_current = mo.state(_first)
     get_finished, set_finished = mo.state(0)
     sidebar(form)
-    return form, get_current, get_finished, get_submission, params, set_current, set_finished, strategies
+    return (
+        catalog,
+        form,
+        get_current,
+        get_finished,
+        get_submission,
+        params,
+        set_current,
+        set_finished,
+        strategies,
+    )
 
 
 @app.cell
@@ -202,7 +213,7 @@ def _(best, info, returns, spec):
 
 
 @app.cell
-def _(best, key, runs, spec):
+def _(best, catalog, key, runs, spec):
     _picked = not runs.value.empty
     _run = str(runs.value["key"].iloc[0]) if _picked else str(best["key"].iloc[0])
     _row = best[best["key"] == _run].iloc[0]
@@ -231,7 +242,7 @@ def _(best, key, runs, spec):
                     + markup.key_line("Drawdown from capital", MUTED),
                 )
             ),
-            mo.Html(views.book_stats(book.stats(_curve))),
+            mo.Html(views.book_stats(book.stats(_curve, views.venue(catalog, spec.tickers[0]).periods))),
             mo.ui.plotly(views.still(charts.book(_curve)), config=charts.CONFIG),
         ]
     )

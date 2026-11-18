@@ -141,3 +141,18 @@ def test_both_underwater_panels_share_one_scale() -> None:
     assert list(fig.data[2].y) == pytest.approx([0.0, 0.0, -5.0])
     assert fig.layout.yaxis2.range == fig.layout.yaxis3.range
     assert fig.layout.yaxis2.range[0] <= float(frame["drawdown_pct"].min())
+
+
+def test_a_run_equity_chart_shows_drawdown_from_peak_and_from_capital() -> None:
+    eq = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04"]),
+            "equity": [130.0, 104.0, 95.0],
+            "drawdown_pct": [0.0, -20.0, 100 * (95 / 130 - 1)],
+        }
+    )
+    fig = charts.equity({"A": eq}, {"A": 100.0})
+    assert [t.name for t in fig.data] == ["A", "A drawdown from peak", "A drawdown from capital"]
+    assert list(fig.data[2].y) == pytest.approx([0.0, 0.0, -5.0])
+    assert fig.layout.yaxis2.range == fig.layout.yaxis3.range
+    assert fig.layout.height == charts.BOOK_HEIGHT

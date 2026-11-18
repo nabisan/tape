@@ -8,10 +8,11 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 from tape.lab import nav
-from tape.lab.contract import SCHEMA, ConfigSchema, FormModel, LedgerModel, PathsModel, render
+from tape.lab.contract import SCHEMA, ConfigSchema, FormModel, LedgerModel, PathsModel, PriceModel, render
 from tape.lab.form.model import Form
 from tape.lab.widgets.ledger import Ledger
 from tape.lab.widgets.paths import Paths
+from tape.lab.widgets.price import PriceChart
 from tape.strategies.registry import STRATEGIES
 
 if TYPE_CHECKING:
@@ -43,7 +44,7 @@ def test_the_committed_schema_matches_the_pydantic_models() -> None:
 
 @pytest.mark.parametrize(
     ("widget", "model"),
-    [(Form, FormModel), (Paths, PathsModel), (Ledger, LedgerModel)],
+    [(Form, FormModel), (Paths, PathsModel), (PriceChart, PriceModel), (Ledger, LedgerModel)],
 )
 def test_every_widget_syncs_exactly_its_typed_model(
     widget: type[anywidget.AnyWidget], model: type[BaseModel]
@@ -57,6 +58,7 @@ def test_every_widget_syncs_exactly_its_typed_model(
         (Form(page="run", pages=nav.PAGES), FormModel),
         (Form(page="simulation", pages=nav.PAGES), FormModel),
         (Paths.of("abc", ["a", "b"], {"a": "AAPL 5/20"}, "QQQ"), PathsModel),
+        (PriceChart.of("abc", intraday=True), PriceModel),
         (Ledger(key="abc"), LedgerModel),
     ],
 )

@@ -45,6 +45,7 @@ from tape.service.models import (
     UniverseInfo,
     VenueInfo,
 )
+from tape.service.prices import POINTS, PriceWindow, price
 from tape.service.results import BARS_PER_ROW, STALE, ResultStore, StaleResultError, Table, thin
 from tape.service.sweeps import SweepManager, SweepStatus, book, paths
 from tape.service.worker import build_ledger, execute_run, init_ledger_worker, init_worker, versions
@@ -462,6 +463,7 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
     app.include_router(_catalog_routes(catalogs, grid))
     app.include_router(_valuation_routes(results, Fundamentals.open(settings.store_dir)))
     app.include_router(_ledger_routes(results, Ledgers(results, ledger_pool, build_ledger)))
+    app.include_router(_price_routes(results))
     app.include_router(_run_routes(catalogs, results, pool, grid))
     app.include_router(_sweep_routes(results, sweeps))
     app.include_router(_path_routes(catalogs, results))
@@ -507,6 +509,18 @@ def _ledger_routes(results: ResultStore, ledgers: Ledgers) -> APIRouter:
         if not path.is_file():
             raise HTTPException(404, f"the ledger for run {key[:8]} is not built yet")
         return FileResponse(path, media_type=MEDIA, filename=filename(results.spec(k)))
+
+    return router
+
+
+def _price_routes(results: ResultStore) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/runs/{key}/price")
+    def run_price(
+        key: str, first: int | None = None, last: int | None = None, points: int = POINTS
+    ) -> PriceWindow:
+        return price(results, _known(results, key), first, last, points)
 
     return router
 

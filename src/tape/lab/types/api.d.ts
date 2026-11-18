@@ -33,6 +33,11 @@ export type JsonOutput =
 export type Exit = "signal" | "stop_loss" | "take_profit";
 /**
  * This interface was referenced by `TapeApi`'s JSON-Schema
+ * via the `definition` "OrderSide".
+ */
+export type OrderSide = "buy" | "sell";
+/**
+ * This interface was referenced by `TapeApi`'s JSON-Schema
  * via the `definition` "Timeframe".
  */
 export type Timeframe = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
@@ -188,6 +193,18 @@ export interface ExecutionChoice {
 }
 /**
  * This interface was referenced by `TapeApi`'s JSON-Schema
+ * via the `definition` "FillMark".
+ */
+export interface FillMark {
+  index: number;
+  price: number;
+  quantity: number;
+  side: OrderSide;
+  tag: string;
+  time: number;
+}
+/**
+ * This interface was referenced by `TapeApi`'s JSON-Schema
  * via the `definition` "FormModel".
  */
 export interface FormModel {
@@ -337,6 +354,42 @@ export interface PathsModel {
   key: string;
   plotly: string;
   runs: string[];
+}
+/**
+ * This interface was referenced by `TapeApi`'s JSON-Schema
+ * via the `definition` "PriceModel".
+ */
+export interface PriceModel {
+  api: string;
+  figure: PathsFigure;
+  intraday: boolean;
+  key: string;
+  labels: {
+    [k: string]: string;
+  };
+  plotly: string;
+}
+/**
+ * This interface was referenced by `TapeApi`'s JSON-Schema
+ * via the `definition` "PriceWindow".
+ */
+export interface PriceWindow {
+  close: number[];
+  count: number;
+  factor: number;
+  fill_limit?: number;
+  fills: FillMark[];
+  fills_in_range: number;
+  first: number;
+  high: number[];
+  index: number[];
+  indicators: {
+    [k: string]: (number | null)[];
+  };
+  last: number;
+  low: number[];
+  open: number[];
+  time: number[];
 }
 /**
  * This interface was referenced by `TapeApi`'s JSON-Schema

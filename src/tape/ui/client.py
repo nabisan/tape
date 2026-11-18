@@ -23,6 +23,7 @@ from tape.service.models import (
     StrategySpace,
     UniverseInfo,
 )
+from tape.service.prices import PriceWindow
 from tape.service.results import BARS_PER_ROW
 from tape.service.sweeps import SweepStatus
 from tape.sweep import SweepSpec
@@ -170,6 +171,9 @@ class Client:
 
     def valuation(self, key: str) -> Valuation:
         return Valuation.model_validate(self._get(f"/runs/{key}/valuation").json())
+
+    def price(self, key: str, points: int) -> PriceWindow:
+        return PriceWindow.model_validate(self._get(f"/runs/{key}/price?points={points}").json())
 
     def days(self, key: str) -> RunDays:
         return RunDays.model_validate(self._get(f"/runs/{key}/days").json())

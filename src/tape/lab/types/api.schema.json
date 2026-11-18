@@ -386,6 +386,38 @@
       "title": "FieldSchema",
       "type": "object"
     },
+    "FillMark": {
+      "properties": {
+        "index": {
+          "type": "integer"
+        },
+        "price": {
+          "type": "number"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "time": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "time",
+        "side",
+        "price",
+        "quantity",
+        "tag"
+      ],
+      "title": "FillMark",
+      "type": "object"
+    },
     "FormModel": {
       "additionalProperties": false,
       "properties": {
@@ -605,6 +637,14 @@
       "title": "LegOutput",
       "type": "object"
     },
+    "OrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "OrderSide",
+      "type": "string"
+    },
     "Ordered": {
       "additionalProperties": false,
       "properties": {
@@ -729,6 +769,140 @@
         "meta"
       ],
       "title": "PathsTrace",
+      "type": "object"
+    },
+    "PriceModel": {
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "type": "string"
+        },
+        "figure": {
+          "$ref": "#/$defs/PathsFigure"
+        },
+        "intraday": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "plotly": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "api",
+        "key",
+        "plotly",
+        "intraday",
+        "labels",
+        "figure"
+      ],
+      "title": "PriceModel",
+      "type": "object"
+    },
+    "PriceWindow": {
+      "properties": {
+        "close": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "factor": {
+          "type": "integer"
+        },
+        "fill_limit": {
+          "default": 4000,
+          "type": "integer"
+        },
+        "fills": {
+          "items": {
+            "$ref": "#/$defs/FillMark"
+          },
+          "type": "array"
+        },
+        "fills_in_range": {
+          "type": "integer"
+        },
+        "first": {
+          "type": "integer"
+        },
+        "high": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "index": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "indicators": {
+          "additionalProperties": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "last": {
+          "type": "integer"
+        },
+        "low": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "open": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "time": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "count",
+        "first",
+        "last",
+        "factor",
+        "index",
+        "time",
+        "open",
+        "high",
+        "low",
+        "close",
+        "indicators",
+        "fills",
+        "fills_in_range"
+      ],
+      "title": "PriceWindow",
       "type": "object"
     },
     "ResolvedSpace": {

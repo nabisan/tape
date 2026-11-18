@@ -158,8 +158,8 @@ def formats(
     }
 
 
-def still(fig: go.Figure) -> go.Figure:
-    fig.update_layout(dragmode=False)
+def zoomable(fig: go.Figure) -> go.Figure:
+    fig.update_layout(dragmode="zoom")
     return fig
 
 

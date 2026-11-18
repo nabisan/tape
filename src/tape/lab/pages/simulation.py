@@ -243,7 +243,7 @@ def _(best, catalog, key, runs, spec):
                 )
             ),
             mo.Html(views.book_stats(book.stats(_curve, views.venue(catalog, spec.tickers[0]).periods))),
-            mo.ui.plotly(views.still(charts.book(_curve)), config=charts.CONFIG),
+            mo.ui.plotly(views.zoomable(charts.book(_curve)), config=charts.CONFIG),
         ]
     )
     return

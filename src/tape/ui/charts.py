@@ -26,6 +26,8 @@ from tape.ui.theme import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     import pandas as pd
 
 
@@ -80,9 +82,13 @@ def _style(fig: go.Figure, height: int) -> go.Figure:
     return fig
 
 
-def equity(curves: dict[str, pd.DataFrame]) -> go.Figure:
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.72, 0.28], vertical_spacing=0.04)
+def equity(curves: dict[str, pd.DataFrame], capital: Mapping[str, float]) -> go.Figure:
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.6, 0.2, 0.2], vertical_spacing=0.04)
+    floor = -1.0
     for i, ((label, eq), (color, dash)) in enumerate(zip(curves.items(), SERIES, strict=False)):
+        first = i == 0
+        below = 100 * np.minimum(0.0, eq["equity"] / capital[label] - 1)
+        floor = min(floor, float(eq["drawdown_pct"].min()))
         fig.add_trace(
             go.Scattergl(
                 x=eq["date"], y=eq["equity"], name=label, line={"color": color, "width": 1.5, "dash": dash}
@@ -90,22 +96,27 @@ def equity(curves: dict[str, pd.DataFrame]) -> go.Figure:
             1,
             1,
         )
-        fig.add_trace(
-            go.Scattergl(
-                x=eq["date"],
-                y=eq["drawdown_pct"],
-                name=f"{label} drawdown",
-                line={"color": DOWN if i == 0 else color, "width": 1, "dash": dash},
-                fill="tozeroy" if i == 0 else None,
-                fillcolor=DOWN_FILL,
-            ),
-            2,
-            1,
-        )
+        for row, values, name, line, fill in (
+            (2, eq["drawdown_pct"], "drawdown from peak", DOWN, DOWN_FILL),
+            (3, below, "drawdown from capital", MUTED, FAINT_FILL),
+        ):
+            fig.add_trace(
+                go.Scattergl(
+                    x=eq["date"],
+                    y=values,
+                    name=f"{label} {name}",
+                    line={"color": line if first else color, "width": 1, "dash": dash},
+                    fill="tozeroy" if first else None,
+                    fillcolor=fill,
+                ),
+                row,
+                1,
+            )
     fig.update_xaxes(hoverformat=DATE)
     fig.update_yaxes(tickprefix="$", tickformat=",.0f", row=1, col=1)
-    fig.update_yaxes(ticksuffix="%", tickformat=".0f", nticks=3, row=2, col=1)
-    return _style(fig, EQUITY_HEIGHT)
+    for row in (2, 3):
+        fig.update_yaxes(ticksuffix="%", tickformat=".0f", nticks=3, range=[1.05 * floor, 0], row=row, col=1)
+    return _style(fig, BOOK_HEIGHT)
 
 
 def book(frame: pd.DataFrame) -> go.Figure:

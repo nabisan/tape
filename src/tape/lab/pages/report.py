@@ -5,6 +5,7 @@ app = marimo.App(width="full", app_title="tape · Run")
 
 with app.setup:
     import os
+    from itertools import cycle
 
     import marimo as mo
 
@@ -12,15 +13,14 @@ with app.setup:
     from tape.lab import blotter, markup, report, schema, views
     from tape.lab.layout import split
     from tape.lab.widgets.ledger import Ledger
+    from tape.lab.widgets.price import PriceChart
     from tape.service.results import Table
     from tape.ui import charts
     from tape.ui.client import Client
-    from tape.ui.theme import DOWN, INDICATORS, INK, SERIES
+    from tape.ui.theme import DOWN, INDICATORS, INK, MUTED, SERIES
 
     api = Client(os.environ.get("TAPE_API_URL", "http://127.0.0.1:8000"))
-    MAX_CANDLES = 3_000
     BUY, SELL = "&#9650;", "&#9661;"
-    OHLCV = frozenset({"time", "open", "high", "low", "close", "volume", "equity"})
 
 
 @app.cell
@@ -50,9 +50,12 @@ def _(catalog, keys, strategies):
     worth = api.valuation(next(iter(keys.values())))
     if len(results) == 2:
         _keys = "".join(markup.key_line(lb, c, d) for lb, (c, d) in zip(curves, SERIES, strict=False))
-        _keys += markup.key_line("Drawdown A", DOWN)
+        _keys += markup.key_line("Drawdown from peak A", DOWN) + markup.key_line(
+            "Drawdown from capital A", MUTED
+        )
     else:
-        _keys = markup.key_line("Equity", INK) + markup.key_line("Drawdown", DOWN)
+        _keys = markup.key_line("Equity", INK) + markup.key_line("Drawdown from peak", DOWN)
+        _keys += markup.key_line("Drawdown from capital", MUTED)
     mo.vstack(
         [
             mo.Html(report.header(specs, results, names, catalog.data_version, markets)),
@@ -60,7 +63,12 @@ def _(catalog, keys, strategies):
                 mo.vstack(
                     [
                         mo.Html(markup.title("Equity", "session closes", _keys)),
-                        mo.ui.plotly(views.still(charts.equity(curves)), config=charts.CONFIG),
+                        mo.ui.plotly(
+                            views.zoomable(
+                                charts.equity(curves, {lg: m.initial_cash for lg, (_, m) in results.items()})
+                            ),
+                            config=charts.CONFIG,
+                        ),
                     ]
                 ),
                 mo.Html(report.performance(results, worth, exits, charged)),
@@ -85,38 +93,23 @@ def _(names, results):
 @app.cell
 def _(leg, results):
     key = results[leg.value][0]
-    found = api.days(key)
-    mo.stop(not found.days, mo.Html(markup.notice("No bars were stored for this run.")))
-    window = mo.ui.date_range(
-        start=found.days[0],
-        stop=found.days[-1],
-        value=(found.recent or found.days[0], found.days[-1]),
-        label="Window",
-        full_width=True,
-    )
-    return key, window
+    return (key,)
 
 
 @app.cell
-def _(catalog, key, leg, specs, window):
+def _(catalog, key, leg, specs):
     _spec = specs[leg.value]
-    _bars, _factor = api.window(key, Table.BARS, window.value[0], window.value[1], MAX_CANDLES)
-    _fills, _ = api.window(key, Table.FILLS, window.value[0], window.value[1], MAX_CANDLES)
-    _indicators = [c for c in _bars.columns if c not in OHLCV]
+    _names = sorted(api.price(key, 1).indicators)
     _keys = "".join(
-        markup.key_line(schema.label(n), c, d) for n, (c, d) in zip(_indicators, INDICATORS, strict=False)
+        markup.key_line(schema.label(n), c, d) for n, (c, d) in zip(_names, cycle(INDICATORS), strict=False)
     )
     _keys += markup.key_marker("Buy", BUY) + markup.key_marker("Sell", SELL)
     _zone = views.venue(catalog, _spec.ticker).zone.split("/")[-1].replace("_", " ")
-    _caption = f"{_spec.ticker} &middot; {_spec.timeframe} &middot; {len(_bars):,} candles &middot; {_zone}"
-    if _factor > 1:
-        _caption += f" &middot; each aggregates {_factor:,} bars"
-    _chart = charts.price(_bars, _fills, _indicators, _spec.timeframe is not Timeframe.D1)
+    _caption = f"{_spec.ticker} &middot; {_spec.timeframe} &middot; {_zone}"
     mo.vstack(
         [
             mo.Html(markup.title("Price", _caption, _keys)),
-            mo.ui.plotly(views.still(_chart), config=charts.CONFIG),
-            window,
+            PriceChart.of(key, _spec.timeframe is not Timeframe.D1, {n: schema.label(n) for n in _names}),
         ]
     )
 

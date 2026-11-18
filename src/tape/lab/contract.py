@@ -12,6 +12,7 @@ from tape.core.hashing import Json
 from tape.lab.form.model import RunRequest, Seed, SweepRequest
 from tape.service.ledgers import LedgerStatus
 from tape.service.models import Catalog, PathsMeta, StrategyInfo, StrategySpace
+from tape.service.prices import PriceWindow
 from tape.service.sweeps import SweepStatus
 
 SCHEMA: Final = Path(__file__).with_name("types") / "api.schema.json"
@@ -79,6 +80,17 @@ class PathsModel(BaseModel):
     figure: PathsFigure
 
 
+class PriceModel(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    api: str
+    key: str
+    plotly: str
+    intraday: bool
+    labels: dict[str, str]
+    figure: PathsFigure
+
+
 class LedgerModel(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -98,6 +110,8 @@ READ: Final[tuple[type[BaseModel], ...]] = (
     LedgerStatus,
     FormModel,
     PathsModel,
+    PriceModel,
+    PriceWindow,
     LedgerModel,
 )
 

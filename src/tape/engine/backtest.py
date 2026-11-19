@@ -286,6 +286,7 @@ class BacktestEngine:
         self.squareoff = squareoff_ns.tolist()
 
         self.fast_forward = fast_forward
+        self.j = self.j1 = self.k = self.k0 = self.k1 = 0
         self.high, self.low = stream.high, stream.low
         boundary = decision_end | np.r_[stream.session[1:] != stream.session[:-1], True]
         if execution.intraday:
@@ -296,40 +297,52 @@ class BacktestEngine:
         self.next_boundary: list[int] = marks[np.searchsorted(marks, np.arange(len(stream)))].tolist()
 
     def run(self, first_session: int, last_session: int) -> Run:
-        k0, k1 = window(self.decision, first_session, last_session)
-        j0 = int(self.ends[k0 - 1]) + 1 if k0 else 0
-        j1 = int(self.ends[k1])
+        self.begin(first_session, last_session)
+        while self.pending() is not None:
+            self.advance()
+        return self.finish()
+
+    def begin(self, first_session: int, last_session: int) -> None:
+        self.k0, self.k1 = window(self.decision, first_session, last_session)
+        j0 = int(self.ends[self.k0 - 1]) + 1 if self.k0 else 0
+        self.j, self.j1, self.k = j0, int(self.ends[self.k1]), self.k0
         self.strategy.attach(self.ctx)
         self.ctx.now_ns, self.ctx.session = self.time[j0], self.sess[j0]
         self.strategy.on_start()
-        k = k0
-        intraday = self.execution.intraday
-        j = j0
-        while j <= j1:
-            ctx = self.ctx
-            if ctx.incoming:
-                ctx.working.extend(ctx.incoming)
-                ctx.incoming.clear()
-            if self.fast_forward and ctx.working:
-                j = self._next_event(j)
-            t, s = self.time[j], self.sess[j]
-            self.ctx.session = s
-            if intraday and self.squared != s and t >= self.squareoff[s]:
-                self._square_off(s, t, self.ohlc[j][0])
-            if ctx.working:
-                for f in self.matcher.process(ctx.working, t, self.ohlc[j], self._bias()):
-                    self._book(f)
-                ctx.working = [w for w in ctx.working if w.working]
-            if self.decision_end[j]:
-                self._decision_bar(k, j, t, s)
-                k += 1
-            if self.session_end[j]:
-                self._session_end(j, t, s)
-            j += 1
+
+    def pending(self) -> int | None:
+        if self.j > self.j1:
+            return None
+        ctx = self.ctx
+        if ctx.incoming:
+            ctx.working.extend(ctx.incoming)
+            ctx.incoming.clear()
+        if self.fast_forward and ctx.working:
+            self.j = self._next_event(self.j)
+        return int(self.time[self.j])
+
+    def advance(self) -> None:
+        ctx, j = self.ctx, self.j
+        t, s = self.time[j], self.sess[j]
+        ctx.session = s
+        if self.execution.intraday and self.squared != s and t >= self.squareoff[s]:
+            self._square_off(s, t, self.ohlc[j][0])
+        if ctx.working:
+            for f in self.matcher.process(ctx.working, t, self.ohlc[j], self._bias()):
+                self._book(f)
+            ctx.working = [w for w in ctx.working if w.working]
+        if self.decision_end[j]:
+            self._decision_bar(self.k, j, t, s)
+            self.k += 1
+        if self.session_end[j]:
+            self._session_end(j, t, s)
+        self.j = j + 1
+
+    def finish(self) -> Run:
         self.strategy.on_stop()
         if self.ledger is not None:
             self.ledger.settle(self.fills, self.ctx)
-        return self._result(k0, k1)
+        return self._result(self.k0, self.k1)
 
     def _next_event(self, j: int) -> int:
         b = self.next_boundary[j]

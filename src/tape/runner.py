@@ -15,6 +15,7 @@ from tape.core.instruments import Valuation
 from tape.core.types import DATE, Ticker, Timeframe
 from tape.engine import reports
 from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec
+from tape.engine.books import BookEngine
 from tape.engine.ledger import Ledger
 from tape.features.align import as_of
 from tape.features.build import materialize
@@ -23,7 +24,7 @@ from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.strategies.registry import STRATEGIES, create
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     import pyarrow as pa
 
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
     from tape.catalog.bars import Bars
     from tape.catalog.store import Store
     from tape.core.types import F64
+    from tape.engine.backtest import Run
     from tape.engine.ledger import TradeSummary
     from tape.engine.parameters import ParameterSpace, ResolvedSpace
     from tape.features.kinds import FeatureSpec
@@ -252,8 +254,25 @@ def record(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Rec
 
 def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Result:
     p = prepare(store, spec, grid)
-    engine, sessions, m1, decision, first, last = p.engine, p.sessions, p.m1, p.decision, p.first, p.last
-    run = engine.run(first, last)
+    return assemble(store, spec, p, p.engine.run(p.first, p.last))
+
+
+def execute_book(
+    store: Store, specs: Sequence[RunSpec], grid: FeatureGrid = DEFAULT_GRID
+) -> dict[Ticker, Result]:
+    if len({s.ticker for s in specs}) != len(specs):
+        raise ValueError("a book holds each ticker once")
+    prepared = {s.ticker: (s, prepare(store, s, grid)) for s in specs}
+    windows = {(p.first, p.last) for _, p in prepared.values()}
+    if len(windows) != 1:
+        raise ValueError("every sleeve of a book must cover the same sessions")
+    first, last = windows.pop()
+    runs = BookEngine({t: p.engine for t, (_, p) in prepared.items()}).run(first, last)
+    return {t: assemble(store, s, p, runs[t]) for t, (s, p) in prepared.items()}
+
+
+def assemble(store: Store, spec: RunSpec, p: Prepared, run: Run) -> Result:
+    engine, sessions, m1, decision = p.engine, p.sessions, p.m1, p.decision
 
     equity = reports.equity(run, sessions, spec.execution.initial_cash)
     trades = reports.trades(run, m1, engine.ctx.portfolio.valuation)

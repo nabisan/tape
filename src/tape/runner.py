@@ -14,7 +14,7 @@ from tape.core.hashing import Digest, Json, digest
 from tape.core.instruments import Valuation
 from tape.core.types import DATE, Ticker, Timeframe
 from tape.engine import reports
-from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec
+from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec, FillOn
 from tape.engine.books import BookEngine
 from tape.engine.ledger import Ledger
 from tape.features.align import as_of
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from tape.catalog.store import Store
     from tape.core.types import F64
     from tape.engine.backtest import Run
+    from tape.engine.books import AccountReport
     from tape.engine.ledger import TradeSummary
     from tape.engine.parameters import ParameterSpace, ResolvedSpace
     from tape.features.kinds import FeatureSpec
@@ -196,7 +197,14 @@ class Prepared:
     last: int
 
 
-def prepare(store: Store, spec: RunSpec, grid: FeatureGrid, ledger: Ledger | None = None) -> Prepared:
+def prepare(
+    store: Store,
+    spec: RunSpec,
+    grid: FeatureGrid,
+    ledger: Ledger | None = None,
+    *,
+    fast_forward: bool = True,
+) -> Prepared:
     if reasons := cold(store, spec):
         raise ColdFeaturesError(f"{spec.ticker}: {'; '.join(reasons)}")
     strategy = create(spec.strategy, spec.params)
@@ -237,6 +245,7 @@ def prepare(store: Store, spec: RunSpec, grid: FeatureGrid, ledger: Ledger | Non
         stored=stored,
         align=align,
         ledger=ledger,
+        fast_forward=fast_forward,
     )
     return Prepared(engine, sessions, m1, decision, first, last)
 
@@ -257,18 +266,31 @@ def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Re
     return assemble(store, spec, p, p.engine.run(p.first, p.last))
 
 
+@dataclass(frozen=True, slots=True)
+class BookResult:
+    sleeves: dict[Ticker, Result]
+    account: AccountReport | None
+
+
 def execute_book(
-    store: Store, specs: Sequence[RunSpec], grid: FeatureGrid = DEFAULT_GRID
-) -> dict[Ticker, Result]:
+    store: Store, specs: Sequence[RunSpec], grid: FeatureGrid = DEFAULT_GRID, *, fast_forward: bool = True
+) -> BookResult:
     if len({s.ticker for s in specs}) != len(specs):
         raise ValueError("a book holds each ticker once")
-    prepared = {s.ticker: (s, prepare(store, s, grid)) for s in specs}
+    margins = {s.execution.margin for s in specs}
+    if len(margins) != 1:
+        raise ValueError("every sleeve of a book must share one margin setting")
+    margin = margins.pop()
+    if margin is not None and any(s.execution.fill_on is not FillOn.MINUTE for s in specs):
+        raise ValueError("a margin book fills on minute bars")
+    prepared = {s.ticker: (s, prepare(store, s, grid, fast_forward=fast_forward)) for s in specs}
     windows = {(p.first, p.last) for _, p in prepared.values()}
     if len(windows) != 1:
         raise ValueError("every sleeve of a book must cover the same sessions")
     first, last = windows.pop()
-    runs = BookEngine({t: p.engine for t, (_, p) in prepared.items()}).run(first, last)
-    return {t: assemble(store, s, p, runs[t]) for t, (s, p) in prepared.items()}
+    book = BookEngine({t: p.engine for t, (_, p) in prepared.items()}, margin).run(first, last)
+    sleeves = {t: assemble(store, s, p, book.sleeves[t]) for t, (s, p) in prepared.items()}
+    return BookResult(sleeves, book.account)
 
 
 def assemble(store: Store, spec: RunSpec, p: Prepared, run: Run) -> Result:

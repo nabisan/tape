@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+from bisect import bisect_right
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Annotated
@@ -31,6 +33,7 @@ ENGINE_VERSION = 6
 
 type Stored = Callable[[FeatureSpec], F64 | None]
 type Align = Callable[[FeatureSpec, Timeframe], F64]
+type Gate = Callable[[Order], str | None]
 
 
 def adverse_bias(held: int, working: Sequence[Order]) -> int:
@@ -69,6 +72,7 @@ class Context:
         "align",
         "allow_entries",
         "bars",
+        "gate",
         "incoming",
         "index",
         "now_ns",
@@ -98,6 +102,7 @@ class Context:
         self.now_ns = 0
         self.session = 0
         self.allow_entries = True
+        self.gate: Gate | None = None
         self._features: dict[str, tuple[FeatureSpec | Aligned, F64]] = {}
 
     def feature(self, spec: FeatureSpec) -> F64:
@@ -151,10 +156,13 @@ class Context:
         self.orders.append(order)
         held = self.portfolio.quantity
         increases = held == 0 or (side.sign > 0) == (held > 0) or quantity > abs(held) or notional is not None
-        if increases and not self.allow_entries:
+        refused = "outside entry window" if increases and not self.allow_entries else None
+        if refused is None and increases and self.gate is not None:
+            refused = self.gate(order)
+        if refused is not None:
             order.status = OrderStatus.REJECTED
             order.closed_ns = self.now_ns
-            order.reason = "outside entry window"
+            order.reason = refused
         else:
             self.incoming.append(order)
         return order
@@ -286,7 +294,9 @@ class BacktestEngine:
         self.squareoff = squareoff_ns.tolist()
 
         self.fast_forward = fast_forward
-        self.j = self.j1 = self.k = self.k0 = self.k1 = 0
+        self.done = self.next_j = self.floor = self.j1 = self.k = self.k0 = self.k1 = 0
+        self.last_close = math.nan
+        self.wake: tuple[float, bool] | None = None
         self.high, self.low = stream.high, stream.low
         boundary = decision_end | np.r_[stream.session[1:] != stream.session[:-1], True]
         if execution.intraday:
@@ -305,24 +315,28 @@ class BacktestEngine:
     def begin(self, first_session: int, last_session: int) -> None:
         self.k0, self.k1 = window(self.decision, first_session, last_session)
         j0 = int(self.ends[self.k0 - 1]) + 1 if self.k0 else 0
-        self.j, self.j1, self.k = j0, int(self.ends[self.k1]), self.k0
+        self.done, self.next_j, self.floor = j0, j0, 0
+        self.j1, self.k = int(self.ends[self.k1]), self.k0
         self.strategy.attach(self.ctx)
         self.ctx.now_ns, self.ctx.session = self.time[j0], self.sess[j0]
+        self.last_close = self.ohlc[j0][0]
         self.strategy.on_start()
 
     def pending(self) -> int | None:
-        if self.j > self.j1:
+        base = max(self.done, self.floor)
+        if base > self.j1:
             return None
         ctx = self.ctx
         if ctx.incoming:
             ctx.working.extend(ctx.incoming)
             ctx.incoming.clear()
-        if self.fast_forward and ctx.working:
-            self.j = self._next_event(self.j)
-        return int(self.time[self.j])
+        if self.fast_forward and (ctx.working or self.wake is not None):
+            base = self._next_event(base)
+        self.next_j = base
+        return int(self.time[base])
 
     def advance(self) -> None:
-        ctx, j = self.ctx, self.j
+        ctx, j = self.ctx, self.next_j
         t, s = self.time[j], self.sess[j]
         ctx.session = s
         if self.execution.intraday and self.squared != s and t >= self.squareoff[s]:
@@ -336,7 +350,34 @@ class BacktestEngine:
             self.k += 1
         if self.session_end[j]:
             self._session_end(j, t, s)
-        self.j = j + 1
+        self.last_close = self.ohlc[j][3]
+        self.done = j + 1
+
+    def mark_at(self, t: int) -> float:
+        i = bisect_right(self.time, t) - 1
+        return float(self.ohlc[i][3]) if i >= 0 else self.last_close
+
+    def liquidate(self, t: int) -> None:
+        ctx = self.ctx
+        ctx.now_ns = t
+        ctx.cancel_all()
+        held = ctx.portfolio.quantity
+        if not held:
+            return
+        order = Order(
+            len(ctx.orders) + 1,
+            OrderSide.of(-held),
+            OrderType.MARKET,
+            abs(held),
+            TimeInForce.GTC,
+            t,
+            ctx.session,
+            tag="liquidation",
+            origin=OrderOrigin.LIQUIDATION,
+        )
+        ctx.orders.append(order)
+        if (fill := self.matcher.market(order, t, self.mark_at(t))) is not None:
+            self._book(fill)
 
     def finish(self) -> Run:
         self.strategy.on_stop()
@@ -354,6 +395,11 @@ class BacktestEngine:
             assert w.price is not None
             rising = (w.side is OrderSide.BUY) == (w.type is OrderType.STOP_MARKET)
             reached = self.high[j:hit] >= w.price if rising else self.low[j:hit] <= w.price
+            if reached.any():
+                hit = j + int(reached.argmax())
+        if self.wake is not None:
+            level, falling = self.wake
+            reached = self.low[j:hit] <= level if falling else self.high[j:hit] >= level
             if reached.any():
                 hit = j + int(reached.argmax())
         return hit

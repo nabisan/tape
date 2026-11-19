@@ -32,6 +32,7 @@ class OrderOrigin(StrEnum):
     STRATEGY = "strategy"
     STOP_LOSS = "stop_loss"
     SQUARE_OFF = "square_off"
+    LIQUIDATION = "liquidation"
 
 
 class OrderStatus(StrEnum):

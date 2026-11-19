@@ -29,7 +29,11 @@ class BarState(StrEnum):
 IN_POSITION: Final = frozenset(
     {BarState.OPENED, BarState.HELD, BarState.RESIZED, BarState.REOPENED, BarState.REVERSED}
 )
-ORIGIN_LABEL: Final = {OrderOrigin.STOP_LOSS: "stop-loss", OrderOrigin.SQUARE_OFF: "square-off"}
+ORIGIN_LABEL: Final = {
+    OrderOrigin.STOP_LOSS: "stop-loss",
+    OrderOrigin.SQUARE_OFF: "square-off",
+    OrderOrigin.LIQUIDATION: "liquidation",
+}
 
 
 @dataclass(frozen=True, slots=True)

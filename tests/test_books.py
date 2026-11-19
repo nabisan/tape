@@ -14,6 +14,7 @@ from tests.test_fx import stores
 
 if TYPE_CHECKING:
     from tape.catalog.store import Store
+    from tape.engine.margin import MarginSpec
 
 __all__ = ["store", "stores"]
 FRAMES = ("equity", "trades", "orders", "fills", "bars")
@@ -44,9 +45,9 @@ def test_a_book_of_separate_accounts_matches_each_pair_run_alone(
 ) -> None:
     specs = sleeves(spec(strategy, fill_on=fill_on, intraday=intraday), ["SPY", "AAPL"])
     book = execute_book(store, specs)
-    assert sorted(book) == ["AAPL", "SPY"]
+    assert sorted(book.sleeves) == ["AAPL", "SPY"] and book.account is None
     for s in specs:
-        same(book[s.ticker], execute(store, s))
+        same(book.sleeves[s.ticker], execute(store, s))
 
 
 @pytest.mark.parametrize("fill_on", ["bar", "minute"])
@@ -66,7 +67,7 @@ def test_an_fx_book_matches_each_pair_alone(stores: tuple[Store, Store], fill_on
     specs = sleeves(base, ["USDJPY", "EURUSD"])
     book = execute_book(fx, specs)
     for s in specs:
-        same(book[s.ticker], execute(fx, s))
+        same(book.sleeves[s.ticker], execute(fx, s))
 
 
 def test_the_book_steps_every_bar_once_in_time_order(store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -74,7 +75,7 @@ def test_the_book_steps_every_bar_once_in_time_order(store: Store, monkeypatch: 
     original = BacktestEngine.advance
 
     def record(engine: BacktestEngine) -> None:
-        steps.append((id(engine), int(engine.time[engine.j])))
+        steps.append((id(engine), int(engine.time[engine.next_j])))
         original(engine)
 
     monkeypatch.setattr(BacktestEngine, "advance", record)
@@ -101,11 +102,13 @@ def test_ties_are_taken_in_ticker_order(store: Store, monkeypatch: pytest.Monkey
     advance, init = BacktestEngine.advance, BookEngine.__init__
 
     def record(engine: BacktestEngine) -> None:
-        steps.append((id(engine), int(engine.time[engine.j])))
+        steps.append((id(engine), int(engine.time[engine.next_j])))
         advance(engine)
 
-    def named(book: BookEngine, sleeves: dict[Ticker, BacktestEngine]) -> None:
-        init(book, sleeves)
+    def named(
+        book: BookEngine, sleeves: dict[Ticker, BacktestEngine], margin: MarginSpec | None = None
+    ) -> None:
+        init(book, sleeves, margin)
         names.update({id(e): t for t, e in book.sleeves})
 
     monkeypatch.setattr(BacktestEngine, "advance", record)

@@ -297,6 +297,7 @@ class BacktestEngine:
         self.done = self.next_j = self.floor = self.j1 = self.k = self.k0 = self.k1 = 0
         self.last_close = math.nan
         self.wake: tuple[float, bool] | None = None
+        self.session_closed: int | None = None
         self.high, self.low = stream.high, stream.low
         boundary = decision_end | np.r_[stream.session[1:] != stream.session[:-1], True]
         if execution.intraday:
@@ -338,6 +339,7 @@ class BacktestEngine:
     def advance(self) -> None:
         ctx, j = self.ctx, self.next_j
         t, s = self.time[j], self.sess[j]
+        self.session_closed = None
         ctx.session = s
         if self.execution.intraday and self.squared != s and t >= self.squareoff[s]:
             self._square_off(s, t, self.ohlc[j][0])
@@ -350,6 +352,7 @@ class BacktestEngine:
             self.k += 1
         if self.session_end[j]:
             self._session_end(j, t, s)
+            self.session_closed = s
         self.last_close = self.ohlc[j][3]
         self.done = j + 1
 

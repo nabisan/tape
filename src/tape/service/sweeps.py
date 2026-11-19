@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, Literal
 
@@ -11,11 +12,12 @@ from tape.benchmarks import REFERENCE, prices
 from tape.book import combine, encode, members
 from tape.engine.backtest import ENGINE_VERSION
 from tape.log import Log
+from tape.runner import pair_key
 from tape.service.results import Table
 from tape.sweep import Plan, Skipped, SweepSpec, expand, summary
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from concurrent.futures import Executor
 
     from tape.catalog.catalogs import Catalogs
@@ -79,12 +81,14 @@ class SweepManager:
         execute: Callable[[str], Digest],
         concurrency: int,
         grid: FeatureGrid,
+        execute_book: Callable[[str], Digest] | None = None,
     ) -> None:
         self._grid = grid
         self._catalogs = catalogs
         self._results = results
         self._pool = pool
         self._execute = execute
+        self._execute_book = execute_book
         self._limit = asyncio.Semaphore(concurrency)
         self._sweeps: dict[Digest, _Progress] = {}
         self._log = Log("Sweeps")
@@ -131,15 +135,42 @@ class SweepManager:
         return SweepStatus(key=key, state="done", total=rows, done=rows, failed=0, skipped=[])
 
     async def _run(self, spec: SweepSpec, plan: Plan, progress: _Progress, version: Digest) -> None:
-        keys = [r.key(version) for r in plan.runs]
         try:
-            await asyncio.gather(*(self._one(r, k, progress) for r, k in zip(plan.runs, keys, strict=True)))
+            if spec.execution.margin is None:
+                keys = [r.key(version) for r in plan.runs]
+                await asyncio.gather(
+                    *(self._one(r, k, progress) for r, k in zip(plan.runs, keys, strict=True))
+                )
+            else:
+                books = grouped(plan.runs)
+                owner = {id(r): b[0].book_key([s.ticker for s in b], version) for b in books for r in b}
+                keys = [pair_key(owner[id(r)], r.ticker) for r in plan.runs]
+                await asyncio.gather(*(self._book(b, version, progress) for b in books))
             self._results.save_sweep(spec.key, spec, summary(plan, keys, self._results))
             progress.state = "done"
             self._log.info("sweep done", sweep=progress.key[:12], runs=progress.total, failed=progress.failed)
         except Exception as e:
             progress.state, progress.error = "failed", str(e)
             self._log.error("sweep failed", sweep=progress.key[:12], reason=e)
+
+    async def _book(self, specs: list[RunSpec], version: Digest, progress: _Progress) -> None:
+        key = specs[0].book_key([s.ticker for s in specs], version)
+        if not (
+            self._results.has_book(key) and all(self._results.exists(pair_key(key, s.ticker)) for s in specs)
+        ):
+            if self._execute_book is None:
+                raise RuntimeError("this service cannot run margin books")
+            async with self._limit:
+                try:
+                    payload = json.dumps([s.model_dump(mode="json") for s in specs])
+                    await asyncio.get_running_loop().run_in_executor(
+                        self._pool(), self._execute_book, payload
+                    )
+                except Exception as e:
+                    progress.failed += len(specs)
+                    self._log.warn("sweep book failed", sweep=progress.key[:12], book=key[:12], reason=e)
+                    return
+        progress.done += len(specs)
 
     async def _one(self, run: RunSpec, key: Digest, progress: _Progress) -> None:
         if not self._results.exists(key):
@@ -153,6 +184,13 @@ class SweepManager:
                     self._log.warn("sweep run failed", sweep=progress.key[:12], ticker=run.ticker, reason=e)
                     return
         progress.done += 1
+
+
+def grouped(runs: Sequence[RunSpec]) -> list[list[RunSpec]]:
+    books: dict[str, list[RunSpec]] = {}
+    for r in runs:
+        books.setdefault(json.dumps(r.params, sort_keys=True), []).append(r)
+    return list(books.values())
 
 
 def book(results: ResultStore, key: Digest, run: str) -> bytes:

@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from tape.core.types import Timeframe
+from tape.engine.books import AccountReport
 from tape.engine.exits import Exit
 from tape.engine.parameters import ResolvedSpace
 from tape.engine.reports import Metrics
@@ -108,6 +109,20 @@ class StoredSweep(BaseModel):
     start: date
     end: date
     saved: datetime
+    engine: int | None = None
+    margin: bool = False
+
+
+class AccountView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    book: str
+    report: AccountReport
+    date: list[date]
+    equity: list[float]
+    locked: list[float]
+    free: list[float]
+    maintenance: list[float]
 
 
 class PathsMeta(BaseModel):

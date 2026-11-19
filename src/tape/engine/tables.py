@@ -82,6 +82,15 @@ TRADES: Final = declare(
         ("open", pa.bool_()),
     ]
 )
+ACCOUNT: Final = declare(
+    [
+        ("date", TIME),
+        ("equity", F64),
+        ("locked", F64),
+        ("free", F64),
+        ("maintenance", F64),
+    ]
+)
 EQUITY: Final = declare(
     [
         ("date", TIME),

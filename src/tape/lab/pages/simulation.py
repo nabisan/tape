@@ -10,6 +10,7 @@ with app.setup:
     import os
 
     import marimo as mo
+    import pandas as pd
     from pydantic import ValidationError
 
     from tape import book
@@ -251,6 +252,7 @@ def _(best, catalog, key, pins, runs, shortlist, spec):
     try:
         _curve = api.sweep_book(key, _run)
         _sleeves = book.members(best, _run)
+        _account = api.account(_run) if spec.execution.margin is not None else None
     except (ApiError, book.BookError) as _e:
         mo.stop(True, mo.Html(markup.notice(str(_e))))
     _cash = spec.execution.initial_cash
@@ -259,10 +261,16 @@ def _(best, catalog, key, pins, runs, shortlist, spec):
     _named = views.book_parameters(_row, best)
     _parts = [html.escape(_named)] if _named else []
     _parts += [
-        f"{len(_sleeves):,} tickers &times; ${_cash:,.0f} each, cash not shared",
+        f"{len(_sleeves):,} tickers &times; ${_cash:,.0f} each, "
+        + ("one shared margin account" if _account is not None else "cash not shared"),
         f"parameters of {_source}",
     ]
     _caption = " &middot; ".join(_parts)
+    _liquidated = (
+        pd.Timestamp(_account.report.liquidated_ns, unit="ns")
+        if _account is not None and _account.report.liquidated_ns is not None
+        else None
+    )
     mo.vstack(
         [
             mo.Html(
@@ -275,7 +283,10 @@ def _(best, catalog, key, pins, runs, shortlist, spec):
                 )
             ),
             mo.Html(views.book_stats(book.stats(_curve, _periods), _periods)),
-            mo.ui.plotly(views.zoomable(charts.book(_curve)), config=charts.CONFIG),
+            mo.Html(views.account_stats(_account, spec.execution.margin))
+            if _account is not None and spec.execution.margin is not None
+            else None,
+            mo.ui.plotly(views.zoomable(charts.book(_curve, _liquidated)), config=charts.CONFIG),
         ]
     )
     return

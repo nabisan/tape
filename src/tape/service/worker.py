@@ -9,7 +9,7 @@ from tape import log
 from tape.catalog.catalogs import Catalogs
 from tape.core.hashing import Digest
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
-from tape.runner import RunSpec, execute
+from tape.runner import RunSpec, execute, execute_book
 from tape.service.ledgers import build
 from tape.service.results import ResultStore
 from tape.venues import Venue
@@ -43,6 +43,14 @@ def execute_run(payload: str) -> Digest:
     result = execute(catalogs.store(spec.ticker), spec, grid)
     results.save(result)
     return result.key
+
+
+def execute_book_run(payload: str) -> Digest:
+    catalogs, results, grid = _STATE["state"]
+    specs = [RunSpec.model_validate(item) for item in json.loads(payload)]
+    book = execute_book(catalogs.common([s.ticker for s in specs]), specs, grid)
+    results.save_book(book)
+    return book.key
 
 
 def init_ledger_worker(

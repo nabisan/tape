@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from tape.core.types import Timeframe
+from tape.engine.backtest import ENGINE_VERSION
 from tape.engine.costs import Cost
 from tape.engine.exits import Exit
 from tape.lab import blotter, nav, views
@@ -107,6 +108,7 @@ def test_simulation_choices_read_like_the_header() -> None:
         start=date(2024, 2, 1),
         end=date(2024, 6, 28),
         saved=datetime(2026, 1, 1, tzinfo=UTC),
+        engine=ENGINE_VERSION,
     )
     assert (
         views.choice(s, "SMA cross")

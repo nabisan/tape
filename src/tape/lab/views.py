@@ -9,6 +9,7 @@ import pandas as pd
 
 from tape.book import parameters
 from tape.core.types import DATE
+from tape.engine.backtest import ENGINE_VERSION
 from tape.engine.exits import applies
 from tape.lab.markup import EN_DASH, MINUS, day, fmt
 from tape.lab.schema import label
@@ -22,7 +23,8 @@ if TYPE_CHECKING:
 
     from tape.book import BookStats
     from tape.engine.exits import Exit
-    from tape.service.models import Catalog, StoredSweep, TickerInfo, VenueInfo
+    from tape.engine.margin import MarginSpec
+    from tape.service.models import AccountView, Catalog, StoredSweep, TickerInfo, VenueInfo
     from tape.service.sweeps import SweepStatus
     from tape.sweep import SweepSpec
 
@@ -79,7 +81,12 @@ def stamp(moment: datetime | None) -> str:
 
 def choice(s: StoredSweep, strategy: str) -> str:
     tickers = f"{s.tickers} ticker{'s' if s.tickers != 1 else ''}"
-    return f"{strategy} · {s.timeframe} · {tickers} · {day(s.start)} {EN_DASH} {day(s.end)} · {s.key[:8]}"
+    parts = [strategy, s.timeframe, tickers, f"{day(s.start)} {EN_DASH} {day(s.end)}", s.key[:8]]
+    if s.margin:
+        parts.append("margin")
+    if s.engine != ENGINE_VERSION:
+        parts.append("outdated engine")
+    return " · ".join(parts)
 
 
 def swept(frame: pd.DataFrame, spec: SweepSpec) -> list[str]:
@@ -226,6 +233,33 @@ def book_stats(stats: BookStats, periods: int) -> str:
     cells = f"<td>{period}</td><td>{fmt(stats.sessions / periods, '{:.2f}')}</td>"
     cells += "".join(f"<td>{fmt(fn(stats), pattern)}</td>" for _, fn, pattern in BOOK_STATS)
     return table(head, cells + f"<td>{day(stats.trough)}</td>")
+
+
+def account_stats(view: AccountView, margin: MarginSpec) -> str:
+    r = view.report
+    at = pd.Timestamp(r.liquidated_ns, unit="ns") if r.liquidated_ns is not None else None
+    head = "".join(
+        f"<th>{h}</th>"
+        for h in (
+            "Leverage",
+            "Maintenance",
+            "Liquidated",
+            "Liquidated at",
+            "Margin rejections",
+            "Max locked",
+            "Lowest free",
+        )
+    )
+    cells = (
+        f"<td>{fmt(margin.leverage, '{:.0f}x')}</td>"
+        f"<td>{fmt(100 * margin.maintenance, '{:.0f}%')}</td>"
+        f"<td>{'Yes' if at is not None else 'No'}</td>"
+        f"<td>{DASH if at is None else f'{at:{DATE} %H:%M}'}</td>"
+        f"<td>{fmt(float(r.rejections), '{:,.0f}')}</td>"
+        f"<td>{fmt(r.max_locked, '${:,.2f}')}</td>"
+        f"<td>{fmt(r.min_free, '${:,.2f}')}</td>"
+    )
+    return table(head, cells)
 
 
 def listed(catalog: Catalog, ticker: str) -> TickerInfo:

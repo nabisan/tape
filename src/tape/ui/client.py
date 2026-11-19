@@ -14,6 +14,7 @@ from tape.fundamentals import Valuation
 from tape.log import Log
 from tape.service.ledgers import LedgerStatus
 from tape.service.models import (
+    AccountView,
     Catalog,
     RunDays,
     RunDetail,
@@ -49,6 +50,10 @@ class ApiError(Exception):
 
 
 class GoneError(ApiError):
+    pass
+
+
+class NotFoundError(ApiError):
     pass
 
 
@@ -91,6 +96,8 @@ class Client:
             self._log.warn("slow", method=method, path=path, ms=round(1000 * elapsed))
         if r.status_code == 410:
             raise GoneError(_detail(r))
+        if r.status_code == 404:
+            raise NotFoundError(f"{method} {path}: 404 {_detail(r)}")
         if r.status_code != 200:
             raise ApiError(f"{method} {path}: {r.status_code} {_detail(r)}")
         return r
@@ -141,6 +148,12 @@ class Client:
 
     def sweep_book(self, key: str, run: str) -> pd.DataFrame:
         return decode(self._send("GET", f"/sweeps/{key}/book", params={"run": run}).content)
+
+    def account(self, run: str) -> AccountView | None:
+        try:
+            return AccountView.model_validate(self._get(f"/runs/{run}/account").json())
+        except NotFoundError:
+            return None
 
     def sweep_paths(self, key: str) -> pd.DataFrame:
         return pd.read_parquet(io.BytesIO(self._get(f"/sweeps/{key}/paths").content))

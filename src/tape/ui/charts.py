@@ -119,7 +119,7 @@ def equity(curves: dict[str, pd.DataFrame], capital: Mapping[str, float]) -> go.
     return _style(fig, BOOK_HEIGHT)
 
 
-def book(frame: pd.DataFrame) -> go.Figure:
+def book(frame: pd.DataFrame, liquidated: pd.Timestamp | None = None) -> go.Figure:
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.6, 0.2, 0.2], vertical_spacing=0.04)
     x = frame["date"]
     fig.add_trace(go.Scattergl(x=x, y=frame["equity"], name="Book", line={"color": INK, "width": 1.5}), 1, 1)
@@ -140,6 +140,8 @@ def book(frame: pd.DataFrame) -> go.Figure:
             1,
         )
     floor = min(float(frame["drawdown_pct"].min()), -1.0)
+    if liquidated is not None:
+        fig.add_vline(x=liquidated, line={"color": DOWN, "width": 1, "dash": "dot"})
     fig.update_xaxes(hoverformat=DATE)
     fig.update_yaxes(tickprefix="$", tickformat=",.0f", row=1, col=1)
     for row in (2, 3):

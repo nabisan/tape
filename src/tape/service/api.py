@@ -33,6 +33,7 @@ from tape.lab.mount import mount
 from tape.runner import MissingFeaturesError, RunSpec, cold, missing_features, unbuildable, warm
 from tape.service.ledgers import MEDIA, Ledgers, LedgerStatus, filename
 from tape.service.models import (
+    AccountView,
     Catalog,
     PathsMeta,
     RunDays,
@@ -48,7 +49,14 @@ from tape.service.models import (
 from tape.service.prices import POINTS, PriceWindow, price
 from tape.service.results import BARS_PER_ROW, STALE, ResultStore, StaleResultError, Table, thin
 from tape.service.sweeps import SweepManager, SweepStatus, book, paths
-from tape.service.worker import build_ledger, execute_run, init_ledger_worker, init_worker, versions
+from tape.service.worker import (
+    build_ledger,
+    execute_book_run,
+    execute_run,
+    init_ledger_worker,
+    init_worker,
+    versions,
+)
 from tape.strategies.registry import STRATEGIES
 from tape.sweep import SweepSpec
 from tape.sweep import upgrade as upgrade_summary
@@ -210,6 +218,29 @@ def _catalog_routes(catalogs: Catalogs, grid: FeatureGrid) -> APIRouter:
     return router
 
 
+def _book_routes(results: ResultStore) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/runs/{key}/account")
+    def account(key: str) -> AccountView:
+        book = results.book_of(_known(results, key))
+        if book is None or not results.has_book(book):
+            raise HTTPException(404, f"run {key[:8]} is not part of a margin book")
+        report, table = results.account(book)
+        frame = table.to_pandas()
+        return AccountView(
+            book=book,
+            report=report,
+            date=[d.date() for d in frame["date"]],
+            equity=frame["equity"].tolist(),
+            locked=frame["locked"].tolist(),
+            free=frame["free"].tolist(),
+            maintenance=frame["maintenance"].tolist(),
+        )
+
+    return router
+
+
 def _run_routes(
     catalogs: Catalogs, results: ResultStore, pool: Callable[[], Executor], grid: FeatureGrid
 ) -> APIRouter:
@@ -320,6 +351,8 @@ def _sweep_routes(results: ResultStore, sweeps: SweepManager) -> APIRouter:
                     start=spec.start,
                     end=spec.end,
                     saved=saved,
+                    engine=results.sweep_engine(key),
+                    margin=spec.execution.margin is not None,
                 )
             )
         return out
@@ -458,12 +491,19 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         return executor
 
     sweeps = SweepManager(
-        catalogs, results, pool=pool, execute=execute_run, concurrency=max(1, workers) * 2, grid=grid
+        catalogs,
+        results,
+        pool=pool,
+        execute=execute_run,
+        execute_book=execute_book_run,
+        concurrency=max(1, workers) * 2,
+        grid=grid,
     )
     app.include_router(_catalog_routes(catalogs, grid))
     app.include_router(_valuation_routes(results, Fundamentals.open(settings.store_dir)))
     app.include_router(_ledger_routes(results, Ledgers(results, ledger_pool, build_ledger)))
     app.include_router(_price_routes(results))
+    app.include_router(_book_routes(results))
     app.include_router(_run_routes(catalogs, results, pool, grid))
     app.include_router(_sweep_routes(results, sweeps))
     app.include_router(_path_routes(catalogs, results))

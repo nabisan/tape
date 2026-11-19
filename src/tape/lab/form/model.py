@@ -10,7 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from tape.core.hashing import Json
 from tape.core.types import Ticker, Timeframe
-from tape.engine.backtest import ExecutionSpec
+from tape.engine.backtest import ExecutionSpec, FillOn
+from tape.engine.margin import MarginSpec
 from tape.engine.matching import FillModel
 from tape.lab.schema import capital
 from tape.runner import RunSpec
@@ -36,6 +37,10 @@ class ExecutionChoice(BaseModel):
     intraday: bool = False
     entry_delay_minutes: int = Field(default=0, ge=0)
     squareoff_minutes_before_close: int = Field(default=SQUAREOFF, ge=1)
+    minute_fills: bool = False
+    margin: bool = False
+    leverage: float = Field(default=MarginSpec().leverage, gt=1)
+    maintenance: float = Field(default=MarginSpec().maintenance, gt=0, le=1)
 
     def spec(self) -> ExecutionSpec:
         return ExecutionSpec(
@@ -47,6 +52,8 @@ class ExecutionChoice(BaseModel):
             intraday=self.intraday,
             entry_delay_minutes=self.entry_delay_minutes if self.intraday else 0,
             squareoff_minutes_before_close=self.squareoff_minutes_before_close,
+            fill_on=FillOn.MINUTE if self.minute_fills or self.margin else FillOn.BAR,
+            margin=MarginSpec(leverage=self.leverage, maintenance=self.maintenance) if self.margin else None,
         )
 
     @classmethod
@@ -61,6 +68,10 @@ class ExecutionChoice(BaseModel):
             intraday=execution.intraday,
             entry_delay_minutes=execution.entry_delay_minutes,
             squareoff_minutes_before_close=execution.squareoff_minutes_before_close,
+            minute_fills=execution.fill_on is FillOn.MINUTE,
+            margin=execution.margin is not None,
+            leverage=(execution.margin or MarginSpec()).leverage,
+            maintenance=(execution.margin or MarginSpec()).maintenance,
         )
 
 

@@ -42,6 +42,10 @@ export const EXECUTION = {
   intraday: false,
   entry_delay_minutes: 0,
   squareoff_minutes_before_close: 5,
+  minute_fills: false,
+  margin: false,
+  leverage: 30,
+  maintenance: 0.5,
 };
 const PAGES = { run: "Single line", simulation: "Simulation" };
 const SCHEMES = /** @type {const} */ (["GICS", "SIC"]);
@@ -399,9 +403,10 @@ const select = (options, value, onchange) =>
  * @param {string} title
  * @param {boolean} checked
  * @param {(v: boolean) => void} onchange
+ * @param {boolean} [disabled]
  */
-const toggle = (title, checked, onchange) => {
-  const box = h("input", { type: "checkbox", onchange: (e) => onchange(target(e).checked) });
+const toggle = (title, checked, onchange, disabled = false) => {
+  const box = h("input", { type: "checkbox", disabled, onchange: (e) => onchange(target(e).checked) });
   box.checked = checked;
   return h("label", { className: "tf-toggle" }, box, h("span", {}, title));
 };
@@ -629,11 +634,13 @@ function input(params, name, prop, redraw) {
  * @param {boolean} allowed
  * @param {Ui} ui
  * @param {() => void} redraw
+ * @param {boolean} [marginable]
  */
-function execution(state, allowed, ui, redraw) {
+function execution(state, allowed, ui, redraw, marginable = false) {
   const e = state.execution;
   if (!allowed) e.intraday = false;
-  /** @param {"commission" | "slippage" | "intraday"} k */
+  if (!marginable) e.margin = false;
+  /** @param {"commission" | "slippage" | "intraday" | "minute_fills" | "margin"} k */
   const set = (k) => /** @param {boolean} v */ (v) => ((e[k] = v), redraw());
   const body = h(
     "div",
@@ -648,6 +655,13 @@ function execution(state, allowed, ui, redraw) {
       grid([
         field("Entry delay (min)", number(e.entry_delay_minutes, { min: 0, max: 390, step: 5 }, (v) => (e.entry_delay_minutes = Math.round(v)))),
         field("Square-off (min)", number(e.squareoff_minutes_before_close, { min: 1, max: 390, step: 1 }, (v) => (e.squareoff_minutes_before_close = Math.round(v)))),
+      ]),
+    toggle("Fill on minute bars", Boolean(e.minute_fills || e.margin), set("minute_fills"), Boolean(e.margin)),
+    marginable && toggle("Shared margin account", Boolean(e.margin), set("margin")),
+    e.margin &&
+      grid([
+        field("Leverage", number(e.leverage ?? 30, { min: 1.5, max: 100, step: 1 }, (v) => (e.leverage = v))),
+        field("Maintenance (share of initial)", number(e.maintenance ?? 0.5, { min: 0.05, max: 1, step: 0.05 }, (v) => (e.maintenance = v))),
       ]),
   );
   const details = h(
@@ -1038,7 +1052,7 @@ function simulationForm({ model, api, catalog, tickers: listed, strategies, name
     const b = basket;
     if (b === null || "error" in b) {
       const status = b === null ? h("div", { className: "tf-note" }, "Loading the universe…") : h("div", { className: "tf-error" }, b.error);
-      return nodes(status, range.parts, strategyView([], end).parts, execution(state, Boolean(strategies[state.strategy]?.intraday), ui, redraw), submitButton(model, "Run simulation", null));
+      return nodes(status, range.parts, strategyView([], end).parts, execution(state, Boolean(strategies[state.strategy]?.intraday), ui, redraw, state.venue === "FX"), submitButton(model, "Run simulation", null));
     }
     const tickers = chosen(b);
     const strategy = strategyView(tickers, end);
@@ -1063,7 +1077,7 @@ function simulationForm({ model, api, catalog, tickers: listed, strategies, name
       tickersView(b, tickers),
       summaryView(b, tickers),
       strategy.parts,
-      execution(state, Boolean(strategies[state.strategy]?.intraday), ui, redraw),
+      execution(state, Boolean(strategies[state.strategy]?.intraday), ui, redraw, state.venue === "FX"),
       submitButton(model, "Run simulation", request),
     );
   };

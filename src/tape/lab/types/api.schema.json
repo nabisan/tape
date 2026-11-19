@@ -210,6 +210,25 @@
           "default": false,
           "type": "boolean"
         },
+        "leverage": {
+          "default": 30.0,
+          "exclusiveMinimum": 1,
+          "type": "number"
+        },
+        "maintenance": {
+          "default": 0.5,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        "margin": {
+          "default": false,
+          "type": "boolean"
+        },
+        "minute_fills": {
+          "default": false,
+          "type": "boolean"
+        },
         "prob_fill_on_limit": {
           "default": 1.0,
           "maximum": 1,

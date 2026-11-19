@@ -186,6 +186,10 @@ export interface ExecutionChoice {
   commission_per_share?: number;
   entry_delay_minutes?: number;
   intraday?: boolean;
+  leverage?: number;
+  maintenance?: number;
+  margin?: boolean;
+  minute_fills?: boolean;
   prob_fill_on_limit?: number;
   slippage?: boolean;
   slippage_bps?: number;

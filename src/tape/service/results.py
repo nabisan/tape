@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from tape.core.hashing import Digest
 from tape.engine import tables
 from tape.engine.backtest import ENGINE_VERSION
+from tape.engine.books import AccountReport
 from tape.engine.orders import OrderOrigin
 from tape.engine.reports import Metrics, capital_loss_pct, time_in_market_pct
 from tape.runner import RunSpec
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     import pandas as pd
     from pydantic import BaseModel
 
-    from tape.runner import Result
+    from tape.runner import BookResult, Result
 
 
 class Table(StrEnum):
@@ -59,6 +60,7 @@ CAPITAL_LOSS: Final = "max_capital_loss_pct"
 TIME_IN_MARKET: Final = "time_in_market_pct"
 LEGACY_ORIGIN: Final = {"stop": OrderOrigin.STOP_LOSS, "squareoff": OrderOrigin.SQUARE_OFF}
 ENGINE_KEY: Final = b"tape.engine_version"
+BOOK_REF: Final = "book.json"
 
 
 def stamped(summary: pa.Table, version: int | None) -> pa.Table:
@@ -117,7 +119,7 @@ class ResultStore:
     def exists(self, key: Digest) -> bool:
         return (self.root / key / "metrics.json").is_file()
 
-    def save(self, result: Result) -> None:
+    def save(self, result: Result, book: Digest | None = None) -> None:
         final = self.root / result.key
         if final.exists():
             return
@@ -136,6 +138,8 @@ class ResultStore:
                 pq.write_table(arrow, tmp / f"{table}.parquet", compression="zstd")
             (tmp / "spec.json").write_text(result.spec.model_dump_json(indent=2))
             (tmp / "metrics.json").write_text(result.metrics.model_dump_json(indent=2))
+            if book is not None:
+                (tmp / BOOK_REF).write_text(json.dumps({"book": book}))
             tmp.rename(final)
         except OSError, tables.SchemaError:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -195,6 +199,40 @@ class ResultStore:
             return tables.conform(found, schema(table, found.schema.names))
         except tables.SchemaError as e:
             raise StaleResultError(f"run {key[:8]} {table} was {STALE}") from e
+
+    def book_folder(self, key: Digest) -> Path:
+        return self.root / "books" / key
+
+    def has_book(self, key: Digest) -> bool:
+        return (self.book_folder(key) / "report.json").is_file()
+
+    def save_book(self, book: BookResult) -> None:
+        for result in book.sleeves.values():
+            self.save(result, book.key)
+        if book.account is None or book.ledger is None or self.has_book(book.key):
+            return
+        final = self.book_folder(book.key)
+        final.parent.mkdir(parents=True, exist_ok=True)
+        tmp = scratch(final)
+        tmp.mkdir()
+        try:
+            arrow = tables.table(book.ledger, tables.ACCOUNT)
+            pq.write_table(arrow, tmp / "account.parquet", compression="zstd")
+            (tmp / "report.json").write_text(book.account.model_dump_json(indent=2))
+            tmp.rename(final)
+        except OSError, tables.SchemaError:
+            shutil.rmtree(tmp, ignore_errors=True)
+            if not final.exists():
+                raise
+
+    def book_of(self, run: Digest) -> Digest | None:
+        path = self.root / run / BOOK_REF
+        return Digest(json.loads(path.read_text())["book"]) if path.is_file() else None
+
+    def account(self, book: Digest) -> tuple[AccountReport, pa.Table]:
+        folder = self.book_folder(book)
+        report = AccountReport.model_validate_json((folder / "report.json").read_bytes())
+        return report, tables.conform(pq.read_table(folder / "account.parquet"), tables.ACCOUNT)
 
     def stored_sweeps(self) -> list[tuple[Digest, Path]]:
         folder = self.root / "sweeps"

@@ -5,6 +5,8 @@ from bisect import bisect_right
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
+from pydantic import BaseModel, ConfigDict
+
 from tape.core.instruments import AssetClass, Conversion
 from tape.engine.orders import OrderOrigin
 
@@ -19,8 +21,9 @@ if TYPE_CHECKING:
 SHORT_OF_MARGIN: Final = "insufficient margin"
 
 
-@dataclass(frozen=True, slots=True)
-class AccountReport:
+class AccountReport(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     liquidated_ns: int | None
     liquidations: int
     rejections: int
@@ -29,9 +32,18 @@ class AccountReport:
 
 
 @dataclass(frozen=True, slots=True)
+class AccountMark:
+    session: int
+    locked: float
+    free: float
+    maintenance: float
+
+
+@dataclass(frozen=True, slots=True)
 class BookRun:
     sleeves: dict[Ticker, Run]
     account: AccountReport | None
+    marks: list[AccountMark]
 
 
 def opening(engine: BacktestEngine, order: Order) -> tuple[float, bool]:
@@ -64,7 +76,16 @@ def wake_price(engine: BacktestEngine, share: float, mark: float) -> tuple[float
 
 
 class SharedAccount:
-    __slots__ = ("engines", "liquidated_ns", "liquidations", "max_locked", "min_free", "rejections", "spec")
+    __slots__ = (
+        "engines",
+        "liquidated_ns",
+        "liquidations",
+        "marks",
+        "max_locked",
+        "min_free",
+        "rejections",
+        "spec",
+    )
 
     def __init__(self, engines: list[BacktestEngine], spec: MarginSpec) -> None:
         for e in engines:
@@ -77,6 +98,7 @@ class SharedAccount:
         self.rejections = 0
         self.max_locked = 0.0
         self.min_free = math.inf
+        self.marks: dict[int, AccountMark] = {}
 
     def balance(self) -> float:
         return sum(
@@ -125,11 +147,16 @@ class SharedAccount:
         self.max_locked = max(self.max_locked, locked)
         self.min_free = min(self.min_free, max(0.0, self.balance() - locked))
         held = [e for e in self.engines if e.ctx.portfolio.quantity]
+        maintenance = sum(self.maintenance(e) for e in held)
         for e in self.engines:
             e.wake = None
+            if e.session_closed is not None:
+                self.marks[e.session_closed] = AccountMark(
+                    e.session_closed, locked, max(0.0, self.balance() - locked), maintenance
+                )
+                e.session_closed = None
         if not held:
             return
-        maintenance = sum(self.maintenance(e) for e in held)
         cushion = self.equity(now) - maintenance
         if cushion <= 0:
             for e in self.engines:
@@ -181,4 +208,8 @@ class BookEngine:
             for _, engine in self.sleeves:
                 engine.floor = bisect_right(engine.time, now)
         runs = {ticker: engine.finish() for ticker, engine in self.sleeves}
-        return BookRun(runs, self.account.report() if self.account is not None else None)
+        if self.account is None:
+            return BookRun(runs, None, [])
+        return BookRun(
+            runs, self.account.report(), sorted(self.account.marks.values(), key=lambda m: m.session)
+        )

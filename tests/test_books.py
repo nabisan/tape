@@ -127,7 +127,7 @@ def test_a_book_refuses_duplicate_tickers_and_mismatched_windows(store: Store) -
     with pytest.raises(ValueError, match="each ticker once"):
         execute_book(store, [base, base])
     shorter = base.model_copy(update={"ticker": Ticker("SPY"), "end": pd.Timestamp("2024-05-31").date()})
-    with pytest.raises(ValueError, match="same sessions"):
+    with pytest.raises(ValueError, match="one spec apart from its ticker"):
         execute_book(store, [base, shorter])
     with pytest.raises(ValueError, match="at least one sleeve"):
         BookEngine({})

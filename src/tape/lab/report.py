@@ -10,6 +10,7 @@ import numpy.typing as npt
 import pandas as pd
 
 from tape.core.types import DATE
+from tape.engine.backtest import FillOn
 from tape.engine.costs import charged
 from tape.engine.exits import applies
 from tape.lab.markup import day, fmt, mark, title, value_text
@@ -119,7 +120,13 @@ def execution_line(execution: ExecutionSpec) -> str:
         f"commission ${commission:g}/share" if commission else "no commission",
         f"slippage {slippage:g} bps" if slippage else "no slippage",
         f"limit fill {fill.prob_fill_on_limit:.0%}",
+        "fills on minute bars" if execution.fill_on is FillOn.MINUTE else "fills on its own bars",
     ]
+    if execution.margin is not None:
+        parts.append(
+            f"shared margin {execution.margin.leverage:g}x, "
+            f"maintenance {execution.margin.maintenance:.0%} of initial"
+        )
     if execution.intraday:
         parts.append(
             f"intraday, enter {execution.entry_delay_minutes} min after open, "

@@ -13,7 +13,7 @@ from tape.catalog.bars import bar_ends
 from tape.core.hashing import Digest, Json, digest
 from tape.core.instruments import Valuation
 from tape.core.types import DATE, Ticker, Timeframe
-from tape.engine import reports
+from tape.engine import reports, tables
 from tape.engine.backtest import ENGINE_VERSION, BacktestEngine, ExecutionSpec, FillOn
 from tape.engine.books import BookEngine
 from tape.engine.ledger import Ledger
@@ -24,7 +24,7 @@ from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.strategies.registry import STRATEGIES, create
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     import pyarrow as pa
 
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from tape.catalog.store import Store
     from tape.core.types import F64
     from tape.engine.backtest import Run
-    from tape.engine.books import AccountReport
+    from tape.engine.books import AccountMark, AccountReport
     from tape.engine.ledger import TradeSummary
     from tape.engine.parameters import ParameterSpace, ResolvedSpace
     from tape.features.kinds import FeatureSpec
@@ -89,6 +89,20 @@ class RunSpec(BaseModel):
         if cls is not None and self.execution.intraday and not cls.intraday:
             raise ValueError(f"{cls.title} holds overnight; intraday runs are not supported")
         return self
+
+    def book_key(self, tickers: Sequence[Ticker], data_version: Digest) -> Digest:
+        cls = STRATEGIES[self.strategy]
+        config = cls.config_type.model_validate(self.params)
+        return digest(
+            {
+                "book": [str(t) for t in sorted(tickers)],
+                "run": self.model_dump(mode="json", exclude={"ticker", "params", "features"}),
+                "config": config.model_dump(mode="json"),
+                "strategy_version": cls.version,
+                "engine_version": ENGINE_VERSION,
+                "data_version": data_version,
+            }
+        )
 
     def key(self, data_version: Digest) -> Digest:
         cls = STRATEGIES[self.strategy]
@@ -262,14 +276,39 @@ def record(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Rec
 
 
 def execute(store: Store, spec: RunSpec, grid: FeatureGrid = DEFAULT_GRID) -> Result:
+    if spec.execution.margin is not None:
+        raise ValueError("a margin account belongs to a book: run it with execute_book")
     p = prepare(store, spec, grid)
     return assemble(store, spec, p, p.engine.run(p.first, p.last))
 
 
+def pair_key(book: Digest, ticker: Ticker) -> Digest:
+    return digest({"book": book, "ticker": ticker})
+
+
 @dataclass(frozen=True, slots=True)
 class BookResult:
+    key: Digest
     sleeves: dict[Ticker, Result]
     account: AccountReport | None
+    ledger: pd.DataFrame | None
+
+
+def account_frame(
+    sleeves: Mapping[Ticker, Result], marks: Sequence[AccountMark], sessions: Sessions
+) -> pd.DataFrame:
+    equity = pd.concat([r.equity.set_index("date")["equity"] for r in sleeves.values()], axis=1).sum(axis=1)
+    found = pd.DataFrame(
+        {
+            "date": pd.to_datetime(sessions.day[[m.session for m in marks]]),
+            "locked": [m.locked for m in marks],
+            "free": [m.free for m in marks],
+            "maintenance": [m.maintenance for m in marks],
+        }
+    ).set_index("date")
+    frame = found.reindex(equity.index).ffill().fillna(0.0)
+    frame.insert(0, "equity", equity)
+    return tables.table(frame.rename_axis("date").reset_index(), tables.ACCOUNT).to_pandas()
 
 
 def execute_book(
@@ -277,6 +316,8 @@ def execute_book(
 ) -> BookResult:
     if len({s.ticker for s in specs}) != len(specs):
         raise ValueError("a book holds each ticker once")
+    if len({s.model_dump_json(exclude={"ticker"}) for s in specs}) != 1:
+        raise ValueError("every sleeve of a book shares one spec apart from its ticker")
     margins = {s.execution.margin for s in specs}
     if len(margins) != 1:
         raise ValueError("every sleeve of a book must share one margin setting")
@@ -289,11 +330,17 @@ def execute_book(
         raise ValueError("every sleeve of a book must cover the same sessions")
     first, last = windows.pop()
     book = BookEngine({t: p.engine for t, (_, p) in prepared.items()}, margin).run(first, last)
-    sleeves = {t: assemble(store, s, p, book.sleeves[t]) for t, (s, p) in prepared.items()}
-    return BookResult(sleeves, book.account)
+    key = specs[0].book_key([s.ticker for s in specs], store.manifest.data_version)
+    sleeves = {
+        t: assemble(store, s, p, book.sleeves[t], pair_key(key, t) if margin is not None else None)
+        for t, (s, p) in prepared.items()
+    }
+    sessions = next(iter(prepared.values()))[1].sessions
+    ledger = account_frame(sleeves, book.marks, sessions) if margin is not None else None
+    return BookResult(key, sleeves, book.account, ledger)
 
 
-def assemble(store: Store, spec: RunSpec, p: Prepared, run: Run) -> Result:
+def assemble(store: Store, spec: RunSpec, p: Prepared, run: Run, key: Digest | None = None) -> Result:
     engine, sessions, m1, decision = p.engine, p.sessions, p.m1, p.decision
 
     equity = reports.equity(run, sessions, spec.execution.initial_cash)
@@ -313,7 +360,7 @@ def assemble(store: Store, spec: RunSpec, p: Prepared, run: Run) -> Result:
     for feature, values in engine.ctx.features():
         frame[feature.name] = values[k0:k1]
     return Result(
-        key=spec.key(store.manifest.data_version),
+        key=key if key is not None else spec.key(store.manifest.data_version),
         spec=spec,
         metrics=reports.metrics(
             equity,

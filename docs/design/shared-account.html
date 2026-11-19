@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tape: shared margin account (book engine) design</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --ink:#1f1e1c; --muted:#6b6a65; --line:#e4e2da; --bg:#fbfaf7; --hi:#fcebeb; --hi-ink:#791f1f; --ok:#e1f5ee; --ok-ink:#085041; --new:#eeedfe; --new-ink:#3c3489; --chg:#faeeda; --chg-ink:#633806; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14.5px/1.65 "JetBrains Mono", ui-monospace, Menlo, monospace; }
+  main { max-width:1120px; margin:0 auto; padding:40px 28px 90px; }
+  h1 { font-size:22px; font-weight:500; margin:0 0 4px; }
+  h2 { font-size:17px; font-weight:500; margin:46px 0 8px; padding-top:10px; border-top:0.5px solid var(--line); }
+  h3 { font-size:15px; font-weight:500; margin:22px 0 6px; }
+  p { margin:6px 0; }
+  .muted { color:var(--muted); }
+  .card { background:#fff; border:0.5px solid var(--line); border-radius:12px; padding:18px; overflow-x:auto; margin:10px 0; }
+  table { width:100%; border-collapse:collapse; font-size:13px; background:#fff; border:0.5px solid var(--line); border-radius:12px; overflow:hidden; margin:10px 0; }
+  th, td { text-align:left; padding:9px 11px; border-bottom:0.5px solid var(--line); vertical-align:top; }
+  th { font-weight:500; color:var(--muted); background:#f6f5f0; }
+  tr:last-child td { border-bottom:0; }
+  pre { background:#fff; border:0.5px solid var(--line); border-radius:12px; padding:16px; overflow-x:auto; font-size:13px; line-height:1.55; }
+  code { background:#f1efe8; padding:1px 5px; border-radius:4px; font-size:13px; }
+  pre code { background:none; padding:0; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:6px; font-size:12px; white-space:nowrap; }
+  .agreed { background:var(--ok); color:var(--ok-ink); }
+  .open { background:var(--hi); color:var(--hi-ink); }
+  .new { background:var(--new); color:var(--new-ink); }
+  .chg { background:var(--chg); color:var(--chg-ink); }
+  nav { font-size:13px; margin:14px 0 0; line-height:2; }
+  nav a { color:var(--muted); margin-right:14px; }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+  @media (max-width:780px) { .two { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Shared margin account per book: design</h1>
+<p class="muted">Status: design only, nothing implemented. Supersedes the per-pair parts of <code>margin.html</code>. Nautilus reference: local clone <code>27a8e54e7</code> (2026-08-02): <code>accounting/accounts/margin.pyx</code>, <code>accounting/manager.pyx</code>, <code>risk/engine.pyx</code>, <code>crates/backtest/src/exchange.rs</code>.</p>
+<nav><a href="#goal">Goal</a><a href="#nautilus">Nautilus model</a><a href="#decisions">Decisions</a><a href="#req">Requirements</a><a href="#cases">Use cases</a><a href="#uml">UML</a><a href="#pseudo">Pseudocode</a><a href="#map">System map</a><a href="#keys">Keys</a><a href="#tests">Tests</a><a href="#phases">Phases</a><a href="#impact">Impact</a><a href="#open">Open</a></nav>
+
+<h2 id="goal">1. Goal and non-goals</h2>
+<p><b>Goal.</b> Simulate a book the way a broker account and Nautilus do: every pair in the book trades from one shared account with one margin pool. A trade is accepted only if the account has the free margin for it; when the account's equity falls to its total maintenance margin, every position is closed.</p>
+<p><b>Why it is a real change.</b> Today each pair is an independent run and the book is added up afterwards. With a shared account the pairs affect each other (one pair's losses can block another pair's entry), so all pairs of a book must step through time together in one engine.</p>
+<p><b>Non-goals.</b> Costs (spread, commission, swap) stay out. Equities keep today's behaviour. Sizing stays a fixed notional per pair. No change to strategy logic.</p>
+
+<h2 id="nautilus">2. The Nautilus model we follow</h2>
+<table>
+<tr><th>Concept</th><th>Nautilus</th><th>Here</th></tr>
+<tr><td>Account scope</td><td>One account per venue, shared by every instrument on it</td><td>One account per book</td></tr>
+<tr><td>Balance</td><td>Realized cash only; unrealized P&amp;L is not in the balance</td><td>Same</td></tr>
+<tr><td>Locked margin</td><td>Sum of initial margin of open priced orders (limit, stop; not reduce-only) plus maintenance margin of open positions</td><td>Same</td></tr>
+<tr><td>Free margin</td><td>Balance minus locked, clamped at 0</td><td>Same</td></tr>
+<tr><td>Pre-trade check</td><td><code>RiskEngine</code> rejects when the order's margin exceeds free balance</td><td>Same, at submission</td></tr>
+<tr><td>Liquidation</td><td>Opt-in; when equity (balance + unrealized) &le; maintenance &times; ratio: cancel open orders, close all positions at market</td><td>On for margin books; ratio 1.0</td></tr>
+<tr><td>After liquidation</td><td>Account stays open; new orders face the pre-trade check</td><td>Same</td></tr>
+<tr><td>When checked</td><td>After every data timestamp</td><td>After every stream bar (minute bars, see D5)</td></tr>
+</table>
+
+<h2 id="decisions">3. Decision log</h2>
+<table>
+<tr><th>#</th><th>Decision</th><th>Chosen</th><th>Why</th><th></th></tr>
+<tr><td>D1</td><td>Model</td><td>Nautilus style margin account</td><td>Real-engine behaviour; margin is a broker setting like costs</td><td><span class="tag agreed">agreed</span></td></tr>
+<tr><td>D2</td><td>Leverage</td><td>30x: initial margin = notional / 30</td><td>Retail FX</td><td><span class="tag agreed">agreed</span></td></tr>
+<tr><td>D3</td><td>Maintenance</td><td>50% of initial</td><td>Common stop-out level</td><td><span class="tag agreed">agreed</span></td></tr>
+<tr><td>D4</td><td>Margin basis</td><td>Notional at entry</td><td>Deterministic; identical for USD-base pairs</td><td><span class="tag agreed">agreed</span></td></tr>
+<tr><td>D14</td><td>Engine version</td><td>Bump for today's bar-order fix, in this change</td><td>Stale results recompute instead of being served</td><td><span class="tag agreed">agreed</span></td></tr>
+<tr><td>D17</td><td>Account scope</td><td>One shared account per book (cross margin)</td><td>As Nautilus, one account per venue</td><td><span class="tag agreed">agreed</span></td></tr>
+<tr><td>D5</td><td>When liquidation is checked</td><td>After every stream bar, using every pair's latest close; margin books always use minute fills</td><td>With a shared account there is no single liquidation price (equity depends on all pairs), so the per-pair price-level idea from <code>margin.html</code> no longer works. Minute bars make the check fine-grained.</td><td><span class="tag chg">changed</span></td></tr>
+<tr><td>D18</td><td>Speed with fast-forward</td><td>Wake-up levels: split the account's cushion (equity minus maintenance) equally across open positions; each pair gets a price at which its own loss would use its share. While no pair crosses its level the account cannot reach maintenance, so bars are skipped safely. When one crosses, the loop stops, checks the exact equity, then recomputes the levels.</td><td>Exact, deterministic, and keeps runs fast. Without it every margin book would step through about 2.2 million minutes per pair.</td><td><span class="tag new">new</span></td></tr>
+<tr><td>D6</td><td>Liquidation price</td><td>Each pair closes at its latest close at the moment of the check (market), like Nautilus</td><td>Follows from D5</td><td><span class="tag chg">changed</span></td></tr>
+<tr><td>D7</td><td>On liquidation</td><td>Cancel every working order in every pair, close every position</td><td>Nautilus <code>liquidation_cancel_open_orders=True</code></td><td></td></tr>
+<tr><td>D8</td><td>After liquidation</td><td>Account stays open; entries go through the pre-trade check</td><td>Nautilus does not freeze</td><td></td></tr>
+<tr><td>D9</td><td>Pre-trade check</td><td>Reject, never shrink</td><td>Nautilus <code>NOTIONAL_EXCEEDS_FREE_BALANCE</code></td><td></td></tr>
+<tr><td>D10</td><td>Closing and flipping</td><td>Closing needs no margin; a flip releases the old position first</td><td>Broker netting</td><td></td></tr>
+<tr><td>D19</td><td>Free margin</td><td>Realized balance minus (initial of working priced entry orders + maintenance of open positions)</td><td>Exactly Nautilus <code>_recalculate_balance</code>; unrealized P&amp;L counts only for liquidation</td><td><span class="tag chg">changed</span></td></tr>
+<tr><td>D20</td><td>Book capital</td><td>Per-pair cash &times; number of pairs (5 &times; $10,000 = $50,000)</td><td>Keeps the workbook's capital column and per-pair sizing comparable</td><td><span class="tag new">new</span></td></tr>
+<tr><td>D21</td><td>Strategies</td><td>One strategy instance per pair, same parameters, unchanged code</td><td>No strategy rewrites; matches today's sleeves</td><td><span class="tag new">new</span></td></tr>
+<tr><td>D22</td><td>Same-time ordering</td><td>When pairs act at the same timestamp, they go in ticker order (AUDUSD, EURUSD, GBPUSD, USDCAD, USDJPY)</td><td>Who gets the last free margin must be deterministic. Nautilus orders by event arrival; we fix it explicitly.</td><td><span class="tag new">new</span></td></tr>
+<tr><td>D23</td><td>Per-pair results</td><td>Each pair still gets its own equity curve: its share of capital + its own realized and unrealized P&amp;L. The pairs' curves add up exactly to the account's equity.</td><td>The Individual sheet, single-run page and links keep working</td><td><span class="tag new">new</span></td></tr>
+<tr><td>D24</td><td>Storage</td><td>Each pair of a book is stored exactly like a run today, under a pair key derived from the book key and ticker; the book adds one account table (equity, balance, locked, free, maintenance, events)</td><td>Every per-run API route, the run page and the ledger keep working unchanged</td><td><span class="tag new">new</span></td></tr>
+<tr><td>D25</td><td>Two engines or one</td><td>Runs without margin keep today's single-pair path. Margin books use the new book engine. Phase 1 proves the book engine with separate accounts reproduces today's results byte for byte.</td><td>Zero risk to existing results; one engine core underneath (the book engine drives the same per-pair machinery)</td><td><span class="tag new">new</span></td></tr>
+<tr><td>D26</td><td>Venues</td><td>A book is one venue only; margin applies to FX; equities keep separate cash accounts with borrowing allowed</td><td>Same as today's <code>Catalogs.common</code> rule; equity margin is a later phase</td><td><span class="tag new">new</span></td></tr>
+<tr><td>D16</td><td>Reporting</td><td>Portfolio: liquidated (yes/no), liquidation date, margin rejections, max margin locked, lowest free margin. Individual: unchanged columns plus that pair's margin rejections</td><td>Liquidation is a book event now, not a pair event</td><td><span class="tag chg">changed</span></td></tr>
+<tr><td>D15</td><td>Silent order outcomes (G3)</td><td>Still out of scope</td><td>Rejected entries are expected after liquidation; the strategy waiting on them is harmless here</td><td></td></tr>
+</table>
+
+<h2 id="req">4. Requirements</h2>
+<table>
+<tr><th>#</th><th>Requirement</th><th>Tests</th></tr>
+<tr><td>S1</td><td>A margin book <b>shall</b> run all its pairs in one engine, in time order, against one account.</td><td>T13</td></tr>
+<tr><td>S2</td><td>The account balance <b>shall</b> change only by realized P&amp;L (and later by costs).</td><td>T14</td></tr>
+<tr><td>S3</td><td>Locked margin <b>shall</b> be the initial margin of working priced entry orders plus the maintenance margin of open positions; free margin = balance - locked, not below 0.</td><td>T2, T15</td></tr>
+<tr><td>S4</td><td>An order that opens or adds <b>shall</b> be rejected when its initial margin exceeds free margin at submission. Closing orders <b>shall</b> never be rejected for margin.</td><td>T1-T4</td></tr>
+<tr><td>S5</td><td>After every stream bar, if account equity &le; total maintenance margin, the engine <b>shall</b> cancel all working orders and close all positions at their latest close.</td><td>T5, T16</td></tr>
+<tr><td>S6</td><td>Skipping bars <b>shall</b> never skip a bar at which liquidation would have triggered.</td><td>T7</td></tr>
+<tr><td>S7</td><td>When pairs act at the same timestamp they <b>shall</b> be processed in ticker order.</td><td>T17</td></tr>
+<tr><td>S8</td><td>Each pair's equity curve <b>shall</b> be its capital share plus its own P&amp;L, and the pairs' curves <b>shall</b> sum to the account equity at every mark.</td><td>T18</td></tr>
+<tr><td>S9</td><td>The book engine with separate accounts and no margin <b>shall</b> reproduce today's per-pair results byte for byte.</td><td>T19</td></tr>
+<tr><td>S10</td><td>Runs and simulations without margin <b>shall</b> keep their keys and results, apart from the agreed engine version bump (D14).</td><td>T9</td></tr>
+<tr><td>S11</td><td>The report <b>shall</b> show liquidation, rejections, margin locked and free, and the execution assumptions.</td><td>T8, T10</td></tr>
+</table>
+
+<h2 id="cases">5. Use cases</h2>
+<h3>UC1 Run a margin book</h3>
+<p>Trigger: a simulation with a margin setting over N pairs. Main: the engine builds one account with N &times; $10,000, one strategy per pair, and steps every pair's minute bars in time order. Postcondition: one account table plus one result per pair.</p>
+<p>Alternates: <b>A1</b> two pairs decide at the same minute: ticker order (D22). <b>A2</b> a pair has no bar at a minute (FX holiday for one, not another): that pair is simply not advanced; its last close stays its mark.</p>
+<h3>UC2 Enter under a shared account</h3>
+<p>Main: initial margin fits in free margin, order accepted. Alternates: <b>B1</b> another pair's open positions and working stop entries have used the free margin: rejected. <b>B2</b> a working stop entry locks its initial margin until it fills or is cancelled. <b>B3</b> close or reduce: always accepted.</p>
+<h3>UC3 Losses across pairs</h3>
+<p>Main: account equity falls but stays above total maintenance. Alternates: <b>C1</b> a pair crosses its wake-up level: exact check; no liquidation; levels recomputed. <b>C2</b> exact check finds equity &le; maintenance: every order cancelled, every position closed at its latest close. <b>C3</b> a gap makes equity end below maintenance or below 0: recorded as is. <b>C4</b> after liquidation a strategy re-enters: rejected while free margin is short.</p>
+
+<h2 id="uml">6. UML</h2>
+<h3>6.1 Class diagram (purple new, amber changed)</h3>
+<div class="card"><div class="mermaid" id="cls"></div></div>
+<h3>6.2 State diagrams</h3>
+<div class="two">
+  <div class="card"><div class="muted" style="font-size:13px;margin-bottom:6px">Shared account</div><div class="mermaid" id="acct"></div></div>
+  <div class="card"><div class="muted" style="font-size:13px;margin-bottom:6px">Entry order under margin</div><div class="mermaid" id="ord"></div></div>
+</div>
+<h3>6.3 Sequence: one step of the book loop</h3>
+<div class="card"><div class="mermaid" id="loop"></div></div>
+<h3>6.4 Sequence: submitting an entry</h3>
+<div class="card"><div class="mermaid" id="submit"></div></div>
+
+<h2 id="pseudo">7. Pseudocode</h2>
+<pre><code>class MarginSpec(BaseModel, frozen):
+    leverage: float = 30.0                       # D2
+    maintenance: float = 0.5                     # D3
+    def initial(self, notional_usd) -&gt; float:     return notional_usd / self.leverage
+    def maint(self, notional_usd) -&gt; float:       return self.initial(notional_usd) * self.maintenance
+
+class ExecutionSpec:  ... margin: MarginSpec | None = None     # None: today's single-pair path (D25)
+
+class SharedAccount:                             # new, one per book (D17)
+    balance: float                               # realized only (S2, D19)
+    sleeves: list[Sleeve]                        # ticker order (D22)
+    margin: MarginSpec
+
+    def locked(self) -&gt; float:                   # S3, D19
+        return (sum(margin.initial(order_notional(o)) for s in sleeves for o in s.working if o.prices_an_entry)
+              + sum(margin.maint(s.entry_notional()) for s in sleeves if s.position))
+    def free(self) -&gt; float:        return max(0.0, balance - locked())
+    def equity(self) -&gt; float:      return balance + sum(s.unrealized(s.mark) for s in sleeves)
+    def maintenance(self) -&gt; float: return sum(margin.maint(s.entry_notional()) for s in sleeves if s.position)
+    def settle(self, realized):     balance += realized       # called by each sleeve's portfolio
+
+class Sleeve:                                    # today's per-pair machinery, account injected
+    ticker; context; matcher; strategy; stream; j (index); mark (latest close)
+    capital_share                                # D20, D23
+    def equity_curve_point(self) -&gt; float:       return capital_share + realized_own + unrealized(mark)
+
+class BookEngine:                                # new (S1)
+    def run(self):
+        while any sleeve has bars left:
+            t = min(next_event(s) for s in sleeves)          # fast-forward per sleeve + wake levels (D18)
+            for s in sleeves where s.next_time == t:          # ticker order (D22)
+                s.step(t)                                     # same per-bar code as today: fills, protect, on_bar, marks
+            if account has positions and (any wake level crossed or a fill happened):
+                if account.equity() &lt;= account.maintenance():   # S5
+                    liquidate(t)
+                set_wake_levels()
+
+    def set_wake_levels(self):                   # D18: exact safety bound
+        open = [s for s in sleeves if s.position]
+        cushion = account.equity() - account.maintenance()
+        for s in open:
+            s.wake = price where s.unrealized(price) = s.unrealized(s.mark) - cushion / len(open)
+                     # solved with the same closed forms as margin.html (identity / reciprocal)
+        # if no sleeve crosses its wake price, total loss &lt; cushion, so no liquidation is possible
+
+    def liquidate(self, t):                      # D6, D7
+        for s in sleeves: s.context.cancel_all()
+        for s in sleeves if s.position: s.close_at(s.mark, tag="liquidation", origin=LIQUIDATION)
+        account.liquidated_at = t
+
+# pre-trade (S4, D9, D10, D19), in Sleeve.context.submit
+if margin and opens_or_adds(order):
+    if margin.initial(opening_notional(order)) &gt; account.free_after_releasing(order):
+        order.status, order.reason = REJECTED, "insufficient margin"; s.rejections += 1</code></pre>
+
+<h2 id="map">8. System map: every part that changes</h2>
+<table>
+<tr><th>Area</th><th>Today</th><th>With margin books</th><th>Risk</th></tr>
+<tr><td>Engine</td><td><code>BacktestEngine</code> runs one pair</td><td>Per-pair step extracted into <code>Sleeve.step</code>; <code>BookEngine</code> drives N sleeves; <code>BacktestEngine</code> becomes a book of one</td><td>High: proven by T19 golden equality</td></tr>
+<tr><td>Account</td><td><code>Portfolio</code> owns a <code>CashAccount</code> or <code>MarginAccount</code></td><td><code>Portfolio</code> takes an injected account; <code>SharedAccount</code> new</td><td>Medium</td></tr>
+<tr><td>Orders</td><td><code>OrderOrigin</code>: strategy, stop-loss, square-off</td><td>+ liquidation; rejection reason "insufficient margin"</td><td>Low</td></tr>
+<tr><td>Runner</td><td><code>execute(store, RunSpec)</code></td><td>+ <code>execute_book(store, BookSpec)</code> returning per-pair results + account table</td><td>Medium</td></tr>
+<tr><td>Sweeps</td><td>One run per ticker &times; parameters</td><td>Margin: one book per parameter set; summary rows still per pair, carrying the book key</td><td>Medium</td></tr>
+<tr><td>Result store</td><td><code>results/&lt;run&gt;/</code></td><td>Pairs stored the same way under pair keys; <code>results/books/&lt;book&gt;/account.parquet</code> new (typed schema)</td><td>Low</td></tr>
+<tr><td>API</td><td><code>/runs/{key}/...</code>, <code>/sweeps/{key}/book</code> combines pairs</td><td>Run routes unchanged (pair keys); book route reads the account table for margin books</td><td>Low</td></tr>
+<tr><td>Lab, simulation page</td><td>Book panel from summed pairs</td><td>Book panel from the account: equity, plus margin locked and free, liquidation marker</td><td>Low</td></tr>
+<tr><td>Lab, run page</td><td>One run</td><td>Unchanged (a pair of a book is a run)</td><td>None</td></tr>
+<tr><td>Ledger</td><td>Per run</td><td>Per pair, unchanged</td><td>None</td></tr>
+<tr><td>Workbook</td><td>Books summed from pairs</td><td>Book values from the account; new Portfolio columns (D16)</td><td>Low</td></tr>
+<tr><td>Equities</td><td>Separate cash accounts</td><td>Unchanged (D26)</td><td>None</td></tr>
+</table>
+
+<h2 id="keys">9. Keys and caching</h2>
+<table>
+<tr><th>Item</th><th>Rule</th></tr>
+<tr><td>Run key (no margin)</td><td>Unchanged except the engine version bump (D14): <code>margin</code> is left out of the digest when absent</td></tr>
+<tr><td>Book key</td><td>digest of tickers (sorted), strategy, parameters, execution including margin, strategy version, engine version, data version</td></tr>
+<tr><td>Pair key inside a book</td><td>digest of (book key, ticker): a normal run key everywhere else in the system</td></tr>
+<tr><td>Simulation key</td><td>Unchanged rule; a margin simulation differs only by its margin block, so it gets a new key</td></tr>
+<tr><td>Workbook links</td><td>Margin books get new simulation keys; links updated once by the existing script</td></tr>
+</table>
+
+<h2 id="tests">10. Test plan</h2>
+<table>
+<tr><th>#</th><th>Input</th><th>Expected</th></tr>
+<tr><td>T1</td><td>Account $50,000, no positions, buy $10,000</td><td>Accepted; after fill locked = maintenance $166.67</td></tr>
+<tr><td>T2</td><td>Balance $400, locked $300, buy $10,000 (needs $333.33)</td><td>Rejected, "insufficient margin"</td></tr>
+<tr><td>T3</td><td>Free margin 0, sell to close</td><td>Accepted</td></tr>
+<tr><td>T4</td><td>Flip long to short</td><td>Old maintenance released before the check</td></tr>
+<tr><td>T5</td><td>Two pairs losing together until equity &le; maintenance</td><td>Both closed at their latest close, all orders cancelled, liquidation time recorded</td></tr>
+<tr><td>T7</td><td>Same book with fast-forward on and off</td><td>Identical results (wake levels never skip a liquidation)</td></tr>
+<tr><td>T8</td><td>Liquidated book</td><td>Report shows liquidated, date, rejections, max locked, lowest free</td></tr>
+<tr><td>T9</td><td>All existing run specs without margin</td><td>Same results; keys change only by D14</td></tr>
+<tr><td>T10</td><td>Report of a margin book</td><td>States 30x, maintenance 50%, costs excluded, minute fills</td></tr>
+<tr><td>T13</td><td>Book of 2 pairs with interleaved timestamps</td><td>Every bar processed once, in time order</td></tr>
+<tr><td>T14</td><td>Open and hold a losing position</td><td>Balance unchanged until the close realizes the loss</td></tr>
+<tr><td>T15</td><td>Working stop entry in pair A</td><td>Its initial margin is locked and reduces pair B's free margin</td></tr>
+<tr><td>T16</td><td>USDJPY in the book (reciprocal P&amp;L)</td><td>Account equity uses the USD-converted P&amp;L; wake level solved correctly</td></tr>
+<tr><td>T17</td><td>Two pairs submit at the same minute, margin for only one</td><td>The first in ticker order is accepted, the other rejected</td></tr>
+<tr><td>T18</td><td>Any margin book</td><td>Sum of pair equity curves = account equity at every mark, to 1e-9</td></tr>
+<tr><td>T19</td><td>Book engine, separate accounts, no margin, over today's FX and equity specs</td><td>Byte-identical tables to today's single-pair engine</td></tr>
+</table>
+
+<h2 id="phases">11. Phases</h2>
+<table>
+<tr><th>Phase</th><th>Delivers</th><th>Done when</th></tr>
+<tr><td>P0</td><td>Engine version bump (D14), margin left out of keys when absent</td><td>Full suite green; keys of no-margin runs change only by the version</td></tr>
+<tr><td>P1</td><td>Book engine with separate accounts, no margin</td><td>T13 and T19: byte-identical to today</td></tr>
+<tr><td>P2</td><td>Shared account, pre-trade check, liquidation, wake levels</td><td>T1-T5, T7, T14-T18 green</td></tr>
+<tr><td>P3</td><td>Storage, sweeps, API, lab book panel, report</td><td>T8, T10; a margin simulation runs end to end on EC2</td></tr>
+<tr><td>P4</td><td>Workbook columns (D16), re-run the 14 FX simulations with margin, update links</td><td>Workbook verified against the engine like today</td></tr>
+</table>
+
+<h2 id="impact">12. Expected impact</h2>
+<table>
+<tr><th>Group</th><th>Expected</th></tr>
+<tr><td>Equities</td><td>No change beyond recomputing after the version bump</td></tr>
+<tr><td>FX books that never came close to ruin</td><td>Same totals: margin is never binding with $50,000 and about $1,667 needed for five positions</td></tr>
+<tr><td>FX books with blown-up pairs (27-29, 34-36, 40-41)</td><td>Change: a failing pair keeps trading on the others' money until the whole account reaches maintenance, then everything closes. Some books may end liquidated, others may survive because the healthy pairs carry them.</td></tr>
+<tr><td>Individual rows</td><td>Same columns; a pair can still show negative own P&amp;L, now meaning it consumed other pairs' margin</td></tr>
+</table>
+
+<h2 id="open">13. Open questions</h2>
+<table>
+<tr><th>#</th><th>Question</th><th>Recommendation</th></tr>
+<tr><td>Q1</td><td>Margin books always use minute fills (D5)?</td><td>Yes: required for a fine-grained liquidation check, and it is the correct execution anyway</td></tr>
+<tr><td>Q2</td><td>Same-time ordering by ticker (D22)?</td><td>Yes: simple, deterministic, documented</td></tr>
+<tr><td>Q3</td><td>Should margin books be the default for FX simulations in the lab, or opt-in?</td><td>Opt-in at first (a switch in the form), default later once verified</td></tr>
+<tr><td>Q4</td><td>Portfolio columns per D16 (liquidated, date, rejections, max locked, lowest free)?</td><td>Yes</td></tr>
+</table>
+</main>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad:false, theme:'base', fontFamily:'"JetBrains Mono", monospace',
+  themeVariables:{ fontSize:'13px', fontFamily:'"JetBrains Mono", monospace', lineColor:'#73726c', textColor:'#3d3d3a',
+    primaryColor:'#f1efe8', primaryBorderColor:'#b4b2a9', primaryTextColor:'#2c2c2a' } });
+const neu = 'fill:#eeedfe,stroke:#534ab7,color:#3c3489';
+const chg = 'fill:#faeeda,stroke:#854f0b,color:#633806';
+const D = {
+  cls: `classDiagram
+    class BookEngine { sleeves; account; run(); set_wake_levels(); liquidate(t) }
+    class SharedAccount { balance; locked(); free(); equity(); maintenance(); settle(realized) }
+    class MarginSpec { leverage = 30; maintenance = 0.5; initial(); maint() }
+    class Sleeve { ticker; mark; wake; capital_share; step(t) }
+    class Context { submit(); protect(); cancel_all() }
+    class Portfolio { quantity; open; apply(fill) }
+    class MatchingEngine
+    class Strategy
+    class ExecutionSpec { margin: MarginSpec | None }
+    BookEngine *-- SharedAccount
+    BookEngine *-- "N" Sleeve
+    SharedAccount --> MarginSpec
+    Sleeve *-- Context
+    Sleeve *-- MatchingEngine
+    Sleeve o-- Strategy
+    Context *-- Portfolio
+    Portfolio --> SharedAccount : settles into
+    Context ..> SharedAccount : pre-trade check
+    ExecutionSpec *-- MarginSpec
+    classDef n ${neu}
+    classDef c ${chg}
+    cssClass "BookEngine,SharedAccount,MarginSpec,Sleeve" n
+    cssClass "Context,Portfolio,ExecutionSpec" c`,
+  acct: `stateDiagram-v2
+    [*] --> Healthy
+    Healthy --> Constrained: free margin below one entry
+    Constrained --> Healthy: realized gains or positions closed
+    Healthy --> Liquidating: equity <= maintenance
+    Constrained --> Liquidating: equity <= maintenance
+    Liquidating --> Constrained: all orders cancelled, all positions closed
+    classDef n ${neu}
+    class Constrained,Liquidating n`,
+  ord: `stateDiagram-v2
+    [*] --> Rejected: initial margin > free
+    [*] --> Incoming: accepted
+    Incoming --> Working: next bar, priced entries lock initial margin
+    Working --> Filled: price touched, lock becomes maintenance
+    Working --> Canceled: liquidation or strategy
+    classDef n ${neu}
+    class Rejected n`,
+  loop: `sequenceDiagram
+    participant B as BookEngine
+    participant A as Sleeve AUDUSD
+    participant E as Sleeve EURUSD
+    participant X as SharedAccount
+    B->>B: t = earliest next event across sleeves (wake levels included)
+    B->>A: step(t): fills, stops, on_bar, mark
+    A->>X: settle(realized) on closing fills
+    B->>E: step(t) (ticker order)
+    E->>X: settle(realized)
+    B->>X: equity() vs maintenance()
+    alt equity <= maintenance
+      B->>A: cancel_all, close at mark (liquidation)
+      B->>E: cancel_all, close at mark (liquidation)
+    end
+    B->>B: set_wake_levels()`,
+  submit: `sequenceDiagram
+    participant S as Strategy (EURUSD)
+    participant C as Context
+    participant X as SharedAccount
+    S->>C: enter(BUY, notional 10000)
+    C->>X: free() after releasing any closed side
+    X-->>C: balance - (initial of working entries + maintenance of positions)
+    alt 333.33 > free
+      C-->>S: Rejected, insufficient margin
+    else
+      C-->>S: accepted, incoming
+    end`
+};
+for (const [id, src] of Object.entries(D)) {
+  document.getElementById(id).innerHTML = (await mermaid.render('m-' + id, src)).svg;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tape: margin and liquidation design (G1)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --ink:#1f1e1c; --muted:#6b6a65; --line:#e4e2da; --bg:#fbfaf7; --hi:#fcebeb; --hi-ink:#791f1f; --ok:#e1f5ee; --ok-ink:#085041; --new:#eeedfe; --new-ink:#3c3489; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14.5px/1.65 "JetBrains Mono", ui-monospace, Menlo, monospace; }
+  main { max-width:1100px; margin:0 auto; padding:40px 28px 90px; }
+  h1 { font-size:22px; font-weight:500; margin:0 0 4px; }
+  h2 { font-size:17px; font-weight:500; margin:46px 0 8px; padding-top:10px; border-top:0.5px solid var(--line); }
+  h3 { font-size:15px; font-weight:500; margin:22px 0 6px; }
+  p { margin:6px 0; }
+  .muted { color:var(--muted); }
+  .card { background:#fff; border:0.5px solid var(--line); border-radius:12px; padding:18px; overflow-x:auto; margin:10px 0; }
+  table { width:100%; border-collapse:collapse; font-size:13px; background:#fff; border:0.5px solid var(--line); border-radius:12px; overflow:hidden; margin:10px 0; }
+  th, td { text-align:left; padding:9px 11px; border-bottom:0.5px solid var(--line); vertical-align:top; }
+  th { font-weight:500; color:var(--muted); background:#f6f5f0; }
+  tr:last-child td { border-bottom:0; }
+  pre { background:#fff; border:0.5px solid var(--line); border-radius:12px; padding:16px; overflow-x:auto; font-size:13px; line-height:1.55; }
+  code { background:#f1efe8; padding:1px 5px; border-radius:4px; font-size:13px; }
+  pre code { background:none; padding:0; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:6px; font-size:12px; white-space:nowrap; }
+  .open { background:var(--hi); color:var(--hi-ink); }
+  .done { background:var(--ok); color:var(--ok-ink); }
+  .new { background:var(--new); color:var(--new-ink); }
+  nav { font-size:13px; margin:14px 0 0; }
+  nav a { color:var(--muted); margin-right:14px; }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+  @media (max-width:780px) { .two { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Margin and liquidation (G1): design</h1>
+<p style="background:#faeeda;color:#633806;padding:10px 14px;border-radius:8px">Superseded in part by <a href="shared-account.html">shared-account.html</a>: the account is now shared per book (cross margin), so liquidation is checked per bar against all pairs instead of a per-pair price level.</p>
+<p class="muted">Status: design only, nothing implemented. Approach agreed: Nautilus style, 30x leverage for FX. Source of truth for the Nautilus behaviour: local clone <code>27a8e54e7</code> (2026-08-02).</p>
+<nav><a href="#goal">Goal</a><a href="#decisions">Decisions</a><a href="#req">Requirements</a><a href="#cases">Use cases</a><a href="#uml">UML</a><a href="#pseudo">Pseudocode</a><a href="#keys">Keys</a><a href="#tests">Tests</a><a href="#impact">Impact</a><a href="#plan">Plan</a><a href="#open">Open</a></nav>
+
+<h2 id="goal">1. Goal and non-goals</h2>
+<p><b>Problem.</b> A pair's account can fall below zero and keep trading a fixed $10,000, with no check that it can afford the trade. Nine FX pairs ended below $0 (worst AUDUSD, -$2,290).</p>
+<p><b>Goal.</b> Model the account the way a margin broker and Nautilus do: a trade needs margin before it is accepted, and a position is liquidated when equity falls to the maintenance level.</p>
+<p><b>Non-goals for this phase.</b> Costs (spread, commission, swap) stay out by choice. No shared cash across pairs (each pair keeps its own account). No change to how equities (XNYS) behave. No change to sizing (fixed notional stays).</p>
+
+<h2 id="decisions">2. Decision log</h2>
+<p class="muted">Each decision with the option chosen, what was rejected, and why. Anything marked open needs your answer before code.</p>
+<table>
+<tr><th>#</th><th>Decision</th><th>Chosen</th><th>Rejected</th><th>Why</th></tr>
+<tr><td>D1</td><td>Overall model</td><td>Nautilus style: pre-trade margin check + liquidation at maintenance</td><td>Ruin-stop-and-freeze; flag only</td><td>Mirrors a real engine; margin becomes a broker setting next to costs later. <span class="tag done">agreed</span></td></tr>
+<tr><td>D2</td><td>FX leverage</td><td>30x, so initial margin = notional / 30 = 3.33%</td><td>50x, 20x, no leverage</td><td>Typical retail FX. With no leverage, fixed $10,000 sizing would be rejected after the first loss. <span class="tag done">agreed</span></td></tr>
+<tr><td>D3</td><td>Maintenance margin</td><td>50% of initial (1.67% of notional), liquidation when equity &le; maintenance (Nautilus trigger ratio 1.0)</td><td>100% of initial; 0 (liquidate at $0)</td><td>50% stop-out is the common retail level. <span class="tag open">confirm</span></td></tr>
+<tr><td>D4</td><td>Margin basis</td><td>Notional at entry, fixed while the position is open</td><td>Notional marked to current price</td><td>Deterministic, gives a closed-form liquidation price. For USD-base pairs (USDJPY, USDCAD) notional in USD is the quantity, so both are identical; for USD-quote pairs the difference is small. <span class="tag open">confirm</span></td></tr>
+<tr><td>D5</td><td>How liquidation is detected</td><td>An engine-owned stop order at the liquidation price, recomputed after every fill</td><td>Check equity at each bar close</td><td>The engine skips quiet bars (fast-forward); a price level is never skipped and reuses gap, bar-order and minute-fill logic. Nautilus checks every event because it never skips.</td></tr>
+<tr><td>D6</td><td>Liquidation price</td><td>The level, or the open if the bar gaps through it (same as any stop)</td><td>Bar close</td><td>Consistent with stop-loss handling. Equity can end slightly below maintenance or even below 0 after a gap, which is realistic.</td></tr>
+<tr><td>D7</td><td>On liquidation</td><td>Cancel all working orders, close the position</td><td>Close only</td><td>Nautilus <code>liquidation_cancel_open_orders=True</code> default. Prevents an orphan stop reopening a position (overlaps G2).</td></tr>
+<tr><td>D8</td><td>After liquidation</td><td>The pair stays alive; every new entry goes through the margin check (which will reject it while free margin is too small)</td><td>Freeze the pair</td><td>Nautilus does not freeze. In practice equity after liquidation (about $167) cannot cover $333 initial margin, so it stops trading by itself.</td></tr>
+<tr><td>D9</td><td>Pre-trade check</td><td>Reject (status Rejected, reason "insufficient margin"); never shrink the order</td><td>Shrink to fit</td><td>Nautilus <code>NOTIONAL_EXCEEDS_FREE_BALANCE</code> rejects.</td></tr>
+<tr><td>D10</td><td>Closing and flipping</td><td>Closing needs no margin. A flip first releases the old position's margin, then needs margin for the new side only</td><td>Treat a flip as a fresh order</td><td>Matches how a broker nets the position.</td></tr>
+<tr><td>D11</td><td>Equities (XNYS)</td><td>Unchanged: cash account with borrowing allowed and no liquidation, now stated explicitly</td><td>Apply margin to equities now</td><td>Keeps every equity result and key identical. Nautilus equivalent: <code>allow_cash_borrowing=True</code>. Equity margin (Reg T) is a later phase.</td></tr>
+<tr><td>D12</td><td>Where the setting lives</td><td>Optional <code>margin</code> block in <code>ExecutionSpec</code>; absent means today's behaviour</td><td>Hidden venue default</td><td>Explicit, reproducible, visible in every run spec and in the UI.</td></tr>
+<tr><td>D13</td><td>Run keys</td><td>Omit <code>margin</code> from the key when it is absent</td><td>Always include it</td><td>No existing key changes; only runs that opt in get new keys. See section 7.</td></tr>
+<tr><td>D14</td><td><code>ENGINE_VERSION</code> for today's bar-order fix</td><td>Bump it in the same change</td><td>Leave it</td><td>Today's fix changed results under unchanged keys. Bumping makes every stale result recompute on demand instead of being served. Cost: every run recomputes the first time it is requested. <span class="tag open">decide</span></td></tr>
+<tr><td>D15</td><td>Order outcomes reaching the strategy (G3)</td><td>Out of scope here; rejected entries stay silent</td><td>Fix G3 first</td><td>Harmless for G1 because a liquidated pair cannot afford new entries anyway. G3 stays next on the list.</td></tr>
+<tr><td>D16</td><td>Reporting</td><td>Per run: liquidated (yes/no), liquidation time, count of margin rejections. Liquidation fills tagged <code>liquidation</code></td><td>No new fields</td><td>A reader must see that a run was liquidated, not infer it. <span class="tag open">confirm columns</span></td></tr>
+</table>
+
+<h2 id="req">3. Requirements</h2>
+<table>
+<tr><th>#</th><th>Requirement</th><th>Test</th></tr>
+<tr><td>M1</td><td>When a run has a margin setting, every order that opens or adds to a position <b>shall</b> be rejected if its initial margin exceeds the account's free margin at submission.</td><td>T1, T2</td></tr>
+<tr><td>M2</td><td>Initial margin <b>shall</b> be the order's notional in USD divided by the leverage.</td><td>T1</td></tr>
+<tr><td>M3</td><td>Free margin <b>shall</b> be equity at the latest mark minus initial margin used by the open position, never below zero.</td><td>T2</td></tr>
+<tr><td>M4</td><td>Orders that only reduce or close a position <b>shall</b> never be rejected for margin. A flip <b>shall</b> need margin for the new side only, after releasing the old side.</td><td>T3, T4</td></tr>
+<tr><td>M5</td><td>When equity at a price reaches the maintenance margin, the engine <b>shall</b> cancel all working orders and close the position at that price, or at the open if the bar gaps through it.</td><td>T5, T6</td></tr>
+<tr><td>M6</td><td>Liquidation <b>shall</b> be detected at the same price resolution as other stops, including bars skipped by fast-forward.</td><td>T7</td></tr>
+<tr><td>M7</td><td>A liquidation fill <b>shall</b> be recorded with origin <code>liquidation</code>, and the run <b>shall</b> report whether and when it was liquidated, and how many orders were rejected for margin.</td><td>T8</td></tr>
+<tr><td>M8</td><td>A run without a margin setting <b>shall</b> produce byte-identical results and the same key as today.</td><td>T9</td></tr>
+<tr><td>M9</td><td>The engine <b>shall</b> state its execution assumptions in the run report: margin setting, costs excluded, all-or-nothing fills.</td><td>T10</td></tr>
+</table>
+
+<h2 id="cases">4. Use cases</h2>
+<h3>UC1 Open a position under margin</h3>
+<p>Trigger: the strategy submits an entry. Main: engine computes initial margin, free margin covers it, order accepted, fills next bar. Postcondition: used margin = notional / 30.</p>
+<p>Alternates: <b>A1</b> free margin too small: order rejected with reason, no fill. <b>A2</b> order only closes: accepted without a margin check. <b>A3</b> flip: old margin released, new side checked.</p>
+<h3>UC2 Hold a position through losses</h3>
+<p>Trigger: price moves against the position. Main: equity falls but stays above maintenance; nothing happens.</p>
+<p>Alternates: <b>B1</b> price touches the liquidation level inside a bar: liquidation fills at the level, working orders cancelled. <b>B2</b> price gaps through the level at the open: fills at the open, equity may end below maintenance or below 0. <b>B3</b> the strategy's own stop-loss and the liquidation level are both in the same bar: the bar-order rule decides which fills first; the nearer one fills, the other is cancelled with the position. <b>B4</b> after liquidation the strategy tries to re-enter: UC1 A1 rejects it while free margin is short.</p>
+
+<h2 id="uml">5. UML</h2>
+<h3>5.1 Class diagram (purple = new)</h3>
+<div class="card"><div class="mermaid" id="cls"></div></div>
+
+<h3>5.2 State diagrams</h3>
+<div class="two">
+  <div class="card"><div class="muted" style="font-size:13px;margin-bottom:6px">Margin account (per pair)</div><div class="mermaid" id="acct"></div></div>
+  <div class="card"><div class="muted" style="font-size:13px;margin-bottom:6px">Order (new paths in purple)</div><div class="mermaid" id="ord"></div></div>
+</div>
+
+<h3>5.3 Sequence: submitting an entry</h3>
+<div class="card"><div class="mermaid" id="seq1"></div></div>
+
+<h3>5.4 Sequence: a bar that reaches the liquidation level</h3>
+<div class="card"><div class="mermaid" id="seq2"></div></div>
+
+<h2 id="pseudo">6. Pseudocode</h2>
+<p class="muted">Typed, matches existing names. Not final code.</p>
+<pre><code>class MarginSpec(BaseModel, frozen):
+    leverage: float = 30.0            # D2, &gt; 1
+    maintenance: float = 0.5          # D3, fraction of initial, 0 &lt; m &le; 1
+
+    def initial(self, notional_usd) -&gt; float:      return notional_usd / self.leverage
+    def maintenance_margin(self, notional_usd) -&gt; float: return self.initial(notional_usd) * self.maintenance
+
+class ExecutionSpec(BaseModel, frozen):
+    ...existing fields...
+    margin: MarginSpec | None = None  # D12, None = today's behaviour
+
+class OrderOrigin(StrEnum):
+    STRATEGY, STOP_LOSS, SQUARE_OFF, LIQUIDATION   # new: LIQUIDATION
+
+class Margin:                                      # new, owned by Context, pure arithmetic
+    spec: MarginSpec
+    valuation: Valuation
+
+    def used(self, portfolio) -&gt; float:            # D4: entry notional
+        if portfolio.open is None: return 0
+        return spec.initial(valuation.notional(abs(portfolio.quantity), portfolio.open.entry_price))
+
+    def free(self, portfolio, mark) -&gt; float:      # M3
+        return max(0.0, portfolio.equity(mark) - self.used(portfolio))
+
+    def required(self, order, portfolio, mark) -&gt; float:   # M2, M4, D10
+        opening = opening_quantity(order, portfolio.quantity)   # 0 for pure closes
+        if opening == 0 and order.notional is None: return 0
+        notional = order.notional if order.notional is not None else valuation.notional(opening, mark)
+        return spec.initial(notional)
+
+    def liquidation_price(self, portfolio) -&gt; float | None:     # D5, solve equity(L) = maintenance
+        if portfolio.open is None: return None
+        q, e, cash = portfolio.quantity, portfolio.open.entry_price, portfolio.cash
+        m = spec.maintenance_margin(valuation.notional(abs(q), e))
+        k = q * valuation.instrument.multiplier
+        match valuation.conversion:
+            case IDENTITY:   L = e - (cash - m) / k                 # cash + k(L - e) = m
+            case RECIPROCAL: d = cash - m + k                       # cash + k(L - e)/L = m
+                             L = k * e / d if d &gt; 0 else None
+        return L if L is not None and L &gt; 0 else None             # None: level unreachable
+
+# Context.submit (pre-trade check, M1)
+order = Order(...)
+if margin and increases and margin.required(order, portfolio, mark) &gt; margin.free(portfolio, mark):
+    order.status, order.reason = REJECTED, "insufficient margin"
+    rejections += 1
+elif ...existing entry-window check...
+
+# BacktestEngine._book, after portfolio.apply(fill)   (D5, D7)
+if fill.order is liquidation: cancel_all(); liquidated_at = fill.time
+refresh_liquidation_order()     # cancel the old level, place STOP at the new one, or none when flat
+
+def refresh_liquidation_order():
+    cancel(existing liquidation order) if any
+    L = margin.liquidation_price(portfolio)
+    if L is not None:
+        working.append(Order(side=opposite(position), type=STOP_MARKET, quantity=|position|,
+                             price=L, tif=GTC, origin=LIQUIDATION, tag="liquidation"))
+
+# Context.mark: last stream close, set before strategy.on_bar (needed by the pre-trade check)
+</code></pre>
+
+<h2 id="keys">7. Keys, caching and versions</h2>
+<table>
+<tr><th>Item</th><th>Today</th><th>After this change</th></tr>
+<tr><td>Run key</td><td>digest of the whole <code>ExecutionSpec</code> + <code>ENGINE_VERSION</code></td><td><code>margin</code> omitted from the digest when absent (D13), so runs without margin keep their key</td></tr>
+<tr><td>Simulation key</td><td>digest of <code>SweepSpec</code>, which contains <code>ExecutionSpec</code></td><td>Same omission rule, so existing simulation keys and workbook links stay valid</td></tr>
+<tr><td>FX books with margin</td><td>n/a</td><td>New keys (new simulations); the workbook's 138 links are updated once, as today</td></tr>
+<tr><td><code>ENGINE_VERSION</code></td><td>5, not bumped for today's bar-order fix</td><td>D14: bump to 6, which recomputes every run on its next request</td></tr>
+</table>
+
+<h2 id="tests">8. Test plan</h2>
+<table>
+<tr><th>#</th><th>Input</th><th>Expected</th></tr>
+<tr><td>T1</td><td>Equity $10,000, margin 30x, buy $10,000 notional</td><td>Accepted, used margin $333.33</td></tr>
+<tr><td>T2</td><td>Equity $300, no position, buy $10,000 notional</td><td>Rejected, reason "insufficient margin", rejections = 1</td></tr>
+<tr><td>T3</td><td>Equity $300, long, sell to close</td><td>Accepted (close needs no margin)</td></tr>
+<tr><td>T4</td><td>Long $10,000, equity $400, flip to short $10,000</td><td>Old $333.33 released, free $400 &ge; $333.33, accepted</td></tr>
+<tr><td>T5</td><td>EURUSD long 8,438 units at 1.18499, cash $10,000: liquidation level by hand; a bar whose low crosses it</td><td>Fills exactly at the level, working orders cancelled, origin liquidation</td></tr>
+<tr><td>T6</td><td>Same, bar opens below the level</td><td>Fills at the open; equity below maintenance allowed</td></tr>
+<tr><td>T7</td><td>Level crossed on a bar the engine would fast-forward over</td><td>Same fill as with fast-forward off (exactness, like the existing fast-forward test)</td></tr>
+<tr><td>T8</td><td>Run liquidated mid-way</td><td>Run metrics: liquidated = yes, time = fill time, rejections counted</td></tr>
+<tr><td>T9</td><td>Every existing run spec without margin</td><td>Same key, byte-identical tables (golden check)</td></tr>
+<tr><td>T10</td><td>Report for a margin run</td><td>Shows "30x, maintenance 50%, costs excluded"</td></tr>
+<tr><td>T11</td><td>USDJPY short and long (reciprocal pair)</td><td>Level from the reciprocal formula; equity at the level equals maintenance to 1e-9</td></tr>
+<tr><td>T12</td><td>Stop-loss and liquidation in the same bar</td><td>Bar-order rule decides; position closed once, the other order cancelled</td></tr>
+</table>
+
+<h2 id="impact">9. Expected impact on results</h2>
+<table>
+<tr><th>Group</th><th>Expected change</th></tr>
+<tr><td>Equities (all)</td><td>None (D11, T9)</td></tr>
+<tr><td>FX pairs that never fell near $167</td><td>None: margin check passes, level never reached</td></tr>
+<tr><td>FX pairs that ended below $0 (9 pairs in books 27-29, 34-36, 40-41) and near-ruin pairs (for example GBPUSD book 35 at $37.67)</td><td>Liquidated near $167, then rejected entries; final equity around $167 or slightly lower after gaps</td></tr>
+<tr><td>Book totals for those books</td><td>Higher than today (the impossible negative equity is gone), drawdown capped by liquidation</td></tr>
+</table>
+
+<h2 id="plan">10. Implementation plan (after you approve)</h2>
+<ol>
+<li>Tests T1-T12 written first; T1-T8 and T11-T12 fail, T9 passes.</li>
+<li><code>MarginSpec</code>, <code>Margin</code>, <code>OrderOrigin.LIQUIDATION</code>, key omission rule.</li>
+<li>Pre-trade check in <code>Context.submit</code>, liquidation order in <code>_book</code>.</li>
+<li>Metrics and tables: liquidated, liquidation time, margin rejections (typed schema, zero-row tests).</li>
+<li>Report and workbook columns per D16.</li>
+<li>Full suite, golden check, deploy, re-run the 14 FX simulations with margin on EC2, update the workbook.</li>
+</ol>
+
+<h2 id="open">11. Open questions for you</h2>
+<table>
+<tr><th>#</th><th>Question</th><th>Recommendation</th></tr>
+<tr><td>D3</td><td>Maintenance at 50% of initial?</td><td>Yes</td></tr>
+<tr><td>D4</td><td>Margin on entry notional?</td><td>Yes</td></tr>
+<tr><td>D14</td><td>Bump <code>ENGINE_VERSION</code> for today's bar-order fix?</td><td>Yes, in the same change</td></tr>
+<tr><td>D16</td><td>Which new columns in the workbook: liquidated, liquidation date, margin rejections?</td><td>Liquidated and liquidation date on Individual; count of liquidated pairs on Portfolio</td></tr>
+</table>
+</main>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad:false, theme:'base', fontFamily:'"JetBrains Mono", monospace',
+  themeVariables:{ fontSize:'13px', fontFamily:'"JetBrains Mono", monospace', lineColor:'#73726c', textColor:'#3d3d3a',
+    primaryColor:'#f1efe8', primaryBorderColor:'#b4b2a9', primaryTextColor:'#2c2c2a' } });
+const neu = 'fill:#eeedfe,stroke:#534ab7,color:#3c3489';
+const D = {
+  cls: `classDiagram
+    class ExecutionSpec { initial_cash; fill; fill_on; margin: MarginSpec | None }
+    class MarginSpec { leverage = 30; maintenance = 0.5; initial(notional); maintenance_margin(notional) }
+    class Margin { used(portfolio); free(portfolio, mark); required(order, portfolio, mark); liquidation_price(portfolio) }
+    class Context { mark; rejections; liquidated_ns; submit(); protect(); cancel_all() }
+    class Portfolio { quantity; open; cash; equity(mark) }
+    class Valuation { conversion; notional(); pnl() }
+    class OrderOrigin { <<enum>> STRATEGY; STOP_LOSS; SQUARE_OFF; LIQUIDATION }
+    ExecutionSpec *-- MarginSpec
+    Context *-- Margin
+    Context *-- Portfolio
+    Margin --> MarginSpec
+    Margin --> Valuation
+    Margin ..> Portfolio : reads
+    classDef n ${neu}
+    cssClass "MarginSpec,Margin" n`,
+  acct: `stateDiagram-v2
+    [*] --> Flat
+    Flat --> Open: entry, margin ok
+    Flat --> Flat: entry rejected, margin short
+    Open --> Open: adverse move, equity above maintenance
+    Open --> Flat: strategy closes
+    Open --> Liquidated: price reaches liquidation level
+    Liquidated --> Flat: orders cancelled, position closed
+    classDef n ${neu}
+    class Liquidated n`,
+  ord: `stateDiagram-v2
+    [*] --> Rejected: margin short
+    [*] --> Incoming: submit, margin ok
+    Incoming --> Working: next bar
+    [*] --> Working: liquidation level placed
+    Working --> Filled: price touched
+    Working --> Canceled: liquidation or cancel_all
+    Working --> Canceled: level replaced after a fill
+    classDef n ${neu}
+    class Rejected n`,
+  seq1: `sequenceDiagram
+    participant S as Strategy
+    participant C as Context
+    participant G as Margin
+    participant P as Portfolio
+    S->>C: enter(BUY, notional 10000)
+    C->>G: required(order, portfolio, mark)
+    G-->>C: 333.33
+    C->>G: free(portfolio, mark)
+    G->>P: equity(mark), open position
+    G-->>C: free
+    alt required > free
+      C-->>S: Order Rejected, insufficient margin
+    else
+      C-->>S: Order accepted, incoming
+    end`,
+  seq2: `sequenceDiagram
+    participant L as Engine loop
+    participant M as MatchingEngine
+    participant P as Portfolio
+    participant C as Context
+    participant G as Margin
+    L->>M: process(working incl. liquidation stop, bar, bias)
+    M-->>L: Fill at level (or open if gapped)
+    L->>P: apply(fill)
+    L->>C: cancel_all(), liquidated_ns = t
+    L->>G: liquidation_price(portfolio)
+    G-->>L: None (flat)
+    Note over L,G: later entries meet the margin check and are rejected while free margin is short`
+};
+for (const [id, src] of Object.entries(D)) {
+  document.getElementById(id).innerHTML = (await mermaid.render('m-' + id, src)).svg;
+}
+</script>
+</body>
+</html>

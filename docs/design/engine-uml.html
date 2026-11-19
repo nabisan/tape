@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tape engine: UML review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --ink:#1f1e1c; --muted:#6b6a65; --line:#e4e2da; --bg:#fbfaf7; --gap-bg:#fcebeb; --gap-ink:#791f1f; --ok-bg:#e1f5ee; --ok-ink:#085041; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+  main { max-width:1080px; margin:0 auto; padding:40px 28px 80px; }
+  h1 { font-size:22px; font-weight:500; margin:0 0 4px; }
+  h2 { font-size:17px; font-weight:500; margin:44px 0 6px; }
+  p.lead { color:var(--muted); margin:0 0 8px; }
+  p.note { color:var(--muted); font-size:13px; margin:10px 0 0; }
+  .card { background:#fff; border:0.5px solid var(--line); border-radius:12px; padding:20px; overflow-x:auto; }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+  .two .label { font-size:13px; color:var(--muted); margin-bottom:8px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; background:#fff; border:0.5px solid var(--line); border-radius:12px; overflow:hidden; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:0.5px solid var(--line); vertical-align:top; }
+  th { font-weight:500; color:var(--muted); background:#f6f5f0; }
+  tr:last-child td { border-bottom:0; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:6px; font-size:12px; white-space:nowrap; }
+  .yes { background:var(--gap-bg); color:var(--gap-ink); }
+  .no { background:var(--ok-bg); color:var(--ok-ink); }
+  .legend { font-size:12px; color:var(--muted); margin-top:10px; }
+  .sw { display:inline-block; width:10px; height:10px; background:var(--gap-bg); border:0.5px solid #a32d2d; vertical-align:-1px; margin-right:6px; }
+  code { background:#f1efe8; padding:1px 5px; border-radius:4px; font-size:13px; }
+  @media (max-width:760px) { .two { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>tape engine: UML review</h1>
+  <p class="lead">Drawn from <code>src/tape/engine</code> and <code>src/tape/strategies</code> as they stand. Each state, transition and alternate path was checked against the code.</p>
+
+  <h2>1. Order and position lifecycles</h2>
+  <div class="two">
+    <div class="card"><div class="label">Order</div><div class="mermaid" id="order"></div></div>
+    <div class="card"><div class="label">Position and account</div><div class="mermaid" id="position"></div></div>
+  </div>
+  <p class="legend"><span class="sw"></span>gap: the strategy is not told, or the state is missing from the code</p>
+  <p class="note">Every order transition maps to a method, but only Filled reaches the strategy (<code>on_fill</code>). Rejected, Canceled and Expired are silent. The account has no Liquidated state: equity at or below zero keeps trading.</p>
+
+  <h2>2. One bar of the simulation</h2>
+  <div class="card"><div class="mermaid" id="sequence"></div></div>
+  <p class="note">A protective stop created mid-bar only sees the points after the entry. The order of the two middle points decides a same-bar stop-out. This is the diagram that would have shown today's bug before it shipped.</p>
+
+  <h2>3. Classes</h2>
+  <div class="card"><div class="mermaid" id="classes"></div></div>
+  <p class="note">Missing links: a protective stop is not tied to the parent order or the trade it protects, and the strategy hears about nothing but fills.</p>
+
+  <h2>4. Use case: run a breakout backtest</h2>
+  <table>
+    <tr><th>#</th><th>Sequence</th><th>Handled</th></tr>
+    <tr><td>Main</td><td>Decision bar sets level, price crosses, buy, later stop or exit</td><td><span class="tag no">yes</span></td></tr>
+    <tr><td>A1</td><td>Entry and stop both reachable in one bar</td><td><span class="tag no">yes, since today</span></td></tr>
+    <tr><td>A2</td><td>Price gaps through the entry or the stop at the open</td><td><span class="tag no">yes, fills at the open</span></td></tr>
+    <tr><td>A3</td><td>Weekend or holiday gap (FX)</td><td><span class="tag no">yes</span></td></tr>
+    <tr><td>A4</td><td>Position closed by a signal while its stop is still working</td><td><span class="tag yes">only if the strategy cancels</span></td></tr>
+    <tr><td>A5</td><td>Entry rejected or expired before filling</td><td><span class="tag yes">strategy not told</span></td></tr>
+    <tr><td>A6</td><td>Equity falls to zero</td><td><span class="tag yes">not handled</span></td></tr>
+    <tr><td>A7</td><td>Order larger than the market can absorb</td><td><span class="tag yes">not modelled</span></td></tr>
+  </table>
+
+  <h2>5. Gaps</h2>
+  <table>
+    <tr><th>#</th><th>Gap</th><th>Moves today's numbers</th></tr>
+    <tr><td>G1</td><td><b>No zero-equity rule.</b> Equity can go below zero and the pair keeps trading at full notional. Sizing ignores current equity, so leverage grows as losses mount. Cash accounts can spend cash they don't have.</td><td><span class="tag yes">yes, books 27-29, 34-36, 40-41</span></td></tr>
+    <tr><td>G2</td><td><b>Orphan stop.</b> A stop-loss is not linked to its position. If another order closes the position, the stop stays live and can open a reverse trade, even in a long-only strategy.</td><td><span class="tag no">no, latent</span></td></tr>
+    <tr><td>G3</td><td><b>Silent order outcomes.</b> A rejected, canceled or expired entry is never reported, so a strategy can wait on it forever.</td><td><span class="tag no">no, latent</span></td></tr>
+    <tr><td>G4</td><td><b>Unprotected position.</b> Cancelling all orders also cancels the stop-loss.</td><td><span class="tag no">no, latent</span></td></tr>
+    <tr><td>G5</td><td><b>Fill times on bar fills.</b> Stamped at the bar's start, up to a full bar early. Prices are right; times and durations are not.</td><td><span class="tag no">times only</span></td></tr>
+    <tr><td>G6</td><td><b>Unstated assumptions.</b> No costs (intentional), all-or-nothing fills at any size, stop fill rule.</td><td><span class="tag no">documentation</span></td></tr>
+  </table>
+
+  <h2>6. Requirements these imply</h2>
+  <table>
+    <tr><th>#</th><th>Requirement</th><th>Closes</th></tr>
+    <tr><td>R1</td><td>The simulator shall stop a pair from opening or adding to positions when its equity is at or below zero.</td><td>G1</td></tr>
+    <tr><td>R2</td><td>Closing a position shall cancel every protective stop attached to it.</td><td>G2, G4</td></tr>
+    <tr><td>R3</td><td>The strategy shall be notified of every terminal order outcome: filled, rejected, canceled, expired.</td><td>G3</td></tr>
+    <tr><td>R4</td><td>Reported fill times shall be the time the price was reached, to the resolution of the fill data.</td><td>G5</td></tr>
+    <tr><td>R5</td><td>The report shall state its execution assumptions: costs, fill size, stop fill rule.</td><td>G6</td></tr>
+  </table>
+</main>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad:false, theme:'base', fontFamily:'"JetBrains Mono", monospace',
+  themeVariables:{ fontSize:'13px', fontFamily:'"JetBrains Mono", monospace', lineColor:'#73726c', textColor:'#3d3d3a',
+    primaryColor:'#f1efe8', primaryBorderColor:'#b4b2a9', primaryTextColor:'#2c2c2a' } });
+const gap = 'fill:#fcebeb,stroke:#a32d2d,color:#791f1f';
+const diagrams = {
+  order: `stateDiagram-v2
+    [*] --> Incoming: submit()
+    [*] --> Rejected: outside window
+    [*] --> Working: protect() stop
+    Incoming --> Working: next bar
+    Working --> Filled: price touched
+    Working --> Rejected: below 1 unit
+    Working --> Canceled: cancel_all()
+    Incoming --> Canceled: cancel_all()
+    Working --> Expired: DAY, session end
+    Filled --> [*]: on_fill()
+    classDef gap ${gap}
+    class Rejected,Canceled,Expired gap`,
+  position: `stateDiagram-v2
+    [*] --> Flat
+    Flat --> Long: buy
+    Flat --> Short: sell
+    Long --> Flat: sell all
+    Short --> Flat: buy all
+    Long --> Short: flip
+    Short --> Long: flip
+    Long --> Liquidated: equity <= 0
+    Short --> Liquidated: equity <= 0
+    classDef gap ${gap}
+    class Liquidated gap`,
+  sequence: `sequenceDiagram
+    participant L as Engine loop
+    participant C as Context
+    participant M as MatchingEngine
+    participant P as Portfolio
+    participant S as Strategy
+    L->>C: promote incoming to working
+    L->>M: process(working, bar, adverse_bias)
+    loop each point: open, x, y, close
+      M-->>L: Fill
+      L->>P: apply(fill)
+      alt parent has stop_loss
+        L->>C: protect(): stop sees only later points
+      end
+      L->>S: on_fill(fill)
+    end
+    opt decision bar ends
+      L->>S: on_bar(bar)
+      S->>C: submit(): works from next bar
+    end
+    opt session ends
+      L->>C: expire_day_orders()
+      L->>L: mark equity at close
+    end`,
+  classes: `classDiagram
+    class BacktestEngine { run() Run }
+    class Context { orders; incoming; working; submit(); protect(); cancel_all() }
+    class MatchingEngine { process(); path() }
+    class Portfolio { quantity; open; closed; apply(); equity() }
+    class Account { <<Protocol>> cash; settle(); equity() }
+    class Strategy { <<abstract>> on_start(); on_bar(); on_fill(); on_stop() }
+    class Order { status; type; tif; stop_loss; origin }
+    class Trade
+    class Fill
+    BacktestEngine *-- Context
+    BacktestEngine *-- MatchingEngine
+    BacktestEngine o-- Strategy
+    Context *-- Portfolio
+    Context *-- Order
+    Portfolio *-- Account
+    Portfolio *-- Trade
+    Account <|.. CashAccount
+    Account <|.. MarginAccount
+    MatchingEngine ..> Fill
+    Strategy ..> Context`
+};
+for (const [id, src] of Object.entries(diagrams)) {
+  document.getElementById(id).innerHTML = (await mermaid.render('m-' + id, src)).svg;
+}
+</script>
+</body>
+</html>

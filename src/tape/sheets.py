@@ -9,7 +9,7 @@ import pandas as pd
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
 
-from tape.book import combine, parameters, stats
+from tape.book import combine, parameters, stats, token
 from tape.core.hashing import Digest
 from tape.core.instruments import Conversion, Valuation
 from tape.core.types import Ticker, Timeframe
@@ -44,12 +44,24 @@ FORMATS: Final = {
     "price": "#,##0.00000",
     "date": "dd mmm yyyy",
     "text": "@",
+    "param": "General",
 }
 WIDE: Final = frozenset({"Strategy Name", "Link"})
 
 
 class SheetError(ValueError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class Sheet:
+    title: str
+    table: str
+    link: str
+
+
+PORTFOLIO: Final = Sheet("Portfolio Data", "PortfolioData", "View simulation")
+INDIVIDUAL: Final = Sheet("Individual Data", "IndividualData", "View run")
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,10 +93,13 @@ class Book:
     stop: float | None
     sweep: Digest
     periods: int
+    pins: dict[str, str] = field(default_factory=dict)
     pairs: list[Pair] = field(default_factory=list)
     max_used: float = math.nan
     max_capital_loss: float = math.nan
     peak_to_trough: float = math.nan
+    cagr: float = math.nan
+    volatility: float = math.nan
 
     @property
     def name(self) -> str:
@@ -198,6 +213,7 @@ def _book(catalogs: Catalogs, results: ResultStore, sweep: Digest) -> list[Book]
             stop=getattr(config, "stop_loss_pct", None),
             sweep=sweep,
             periods=store.venue.periods,
+            pins={c: token(first[c]) for c in names},
         )
         used = {}
         for key in rows["key"]:
@@ -211,6 +227,7 @@ def _book(catalogs: Catalogs, results: ResultStore, sweep: Digest) -> list[Book]
         b = stats(combine(sleeves, cash), book.periods)
         book.max_used = float(pd.DataFrame(used).sort_index().ffill().fillna(0.0).sum(axis=1).max())
         book.max_capital_loss, book.peak_to_trough = b.max_capital_loss_pct, b.max_drawdown_pct
+        book.cagr, book.volatility = b.cagr_pct, b.volatility_pct
         summed = sum(p.final for p in book.pairs)
         if not math.isclose(summed, b.final_equity, rel_tol=TOLERANCE, abs_tol=1e-6):
             raise SheetError(
@@ -234,9 +251,9 @@ class Column:
 
 
 def _write(
-    workbook: xlsxwriter.Workbook, title: str, columns: Sequence[Column], rows: Sequence[Any], label: str
+    workbook: xlsxwriter.Workbook, sheet: Sheet, columns: Sequence[Column], rows: Sequence[Any]
 ) -> None:
-    ws = workbook.add_worksheet(title)
+    ws = workbook.add_worksheet(sheet.title)
     base = {"font_name": "JetBrains Mono", "font_size": 9}
     head = {**base, "bold": True, "text_wrap": True, "valign": "top"}
     plain, derived = (workbook.add_format({**head, "bg_color": c}) for c in ("#D9D9D9", "#CDEFD7"))
@@ -258,14 +275,28 @@ def _write(
             elif col.kind == "date":
                 ws.write_datetime(r, c, pd.Timestamp(value).to_pydatetime(), style)
             elif col.header == "Link":
-                ws.write_url(r, c, str(value), hyperlink, string=label, tip=str(value))
-            elif col.kind == "text":
+                ws.write_url(r, c, str(value), hyperlink, string=sheet.link, tip=str(value))
+            elif col.kind == "param" and isinstance(value, int | float):
+                ws.write_number(r, c, float(value), styles["count"])
+            elif col.kind in {"text", "param"}:
                 ws.write_string(r, c, str(value), style)
             else:
                 ws.write_number(r, c, float(value), style)
     ws.freeze_panes(1, 3)
     ws.set_row(0, 42)
-    ws.autofilter(0, 0, len(rows), len(columns) - 1)
+    ws.add_table(
+        0,
+        0,
+        len(rows),
+        len(columns) - 1,
+        {
+            "name": sheet.table,
+            "style": None,
+            "columns": [
+                {"header": col.header, "header_format": derived if col.formula else plain} for col in columns
+            ],
+        },
+    )
 
 
 def serial(day: date) -> int:
@@ -280,12 +311,12 @@ class Cells:
         return f"{self._at[header]}{row}"
 
     def span(self, header: str, rows: int) -> str:
-        return f"Individual!${self._at[header]}$2:${self._at[header]}${rows + 1}"
+        return f"'{INDIVIDUAL.title}'!${self._at[header]}$2:${self._at[header]}${rows + 1}"
 
 
 def individual_columns(site: str, periods: int) -> list[Column]:
     head = [
-        Column("Book No", "Book this run belongs to; joins Portfolio!Book No", lambda r: r[0], "count"),
+        Column("Book No", "Book this run belongs to; joins Portfolio Data, Book No", lambda r: r[0], "count"),
         Column("Strategy Name", "Strategy, decision timeframe and parameters", lambda r: r[1].name, "text"),
         Column("Ticker", "Instrument", lambda r: r[2].ticker, "text"),
         Column("Start Date", "First session of the run's equity curve", lambda r: r[2].start, "date"),
@@ -413,10 +444,11 @@ def portfolio_columns(
         )
 
     columns = [
-        Column("Book No", "Joins Individual!Book No", lambda b: b[0], "count"),
+        Column("Book No", "Joins Individual Data, Book No", lambda b: b[0], "count"),
+        Column("Strategy", "Strategy family, for slicing", lambda b: STRATEGIES[b[1].strategy].title, "text"),
         Column("Strategy Name", "Strategy, decision timeframe and parameters", lambda b: b[1].name, "text"),
         Column("Timeframe", "Decision timeframe", lambda b: b[1].timeframe.value, "text"),
-        *[Column(p.replace("_", " ").title(), f"Strategy parameter {p}", _param(p), "text") for p in params],
+        *[Column(p.replace("_", " ").title(), f"Strategy parameter {p}", _param(p), "param") for p in params],
         Column(
             "Start Date",
             "= MINIFS of Individual Start Date",
@@ -469,10 +501,26 @@ def portfolio_columns(
                 f"=({own('Portfolio Final Value ($)', n)}/{own('Portfolio Capital ($)', n)}-1)*100"
             ),
         ),
-        averaged("Avg CAGR %", "CAGR %", lambda b: _mean([cagr_pct(p, b[1].periods) for p in b[1].pairs])),
-        averaged("Avg Volatility %", "Volatility %", lambda b: _mean([p.volatility for p in b[1].pairs])),
+        Column(
+            "Portfolio CAGR %",
+            "= ((Portfolio Final Value / Portfolio Capital) ^ (Sessions per Year / Sessions) - 1) * 100, "
+            "Sessions = MAXIFS of Individual Sessions; n/a when the book ends at or below zero",
+            lambda b: b[1].cagr,
+            formula=lambda n: (
+                f'=IF({own("Portfolio Final Value ($)", n)}<=0,"n/a",'
+                f"(({own('Portfolio Final Value ($)', n)}/{own('Portfolio Capital ($)', n)})"
+                f"^(MAXIFS({cells.span('Sessions per Year', rows)},{book},$A{n})"
+                f"/MAXIFS({cells.span('Sessions', rows)},{book},$A{n}))-1)*100)"
+            ),
+        ),
+        Column(
+            "Portfolio Volatility %",
+            ENGINE + "tickers' equity summed per session; stdev of the book's daily returns "
+            "* sqrt(Sessions per Year) * 100",
+            lambda b: b[1].volatility,
+        ),
         averaged(
-            "Avg Buy & Hold Return %",
+            "Portfolio Buy & Hold Return %",
             "Buy & Hold Return %",
             lambda b: _mean([buy_hold_pct(p) for p in b[1].pairs]),
         ),
@@ -497,8 +545,8 @@ def portfolio_columns(
         ),
         Column(
             "Link",
-            "Opens the simulation this book belongs to",
-            lambda b: site.rstrip("/") + link("simulation", sweep=b[1].sweep),
+            "Opens the simulation filtered to this book",
+            lambda b: site.rstrip("/") + link("simulation", sweep=b[1].sweep, **b[1].pins),
             "text",
         ),
     ]
@@ -516,13 +564,7 @@ def workbook(catalogs: Catalogs, results: ResultStore, sweeps: Sequence[Digest],
     params = list(dict.fromkeys(k for b in found for k in b.params))
     individual = individual_columns(site, periods.pop())
     file = xlsxwriter.Workbook(str(out), {"use_future_functions": True})
-    _write(
-        file,
-        "Portfolio",
-        portfolio_columns(site, individual, len(pairs), params),
-        numbered,
-        "View simulation",
-    )
-    _write(file, "Individual", individual, pairs, "View run")
+    _write(file, PORTFOLIO, portfolio_columns(site, individual, len(pairs), params), numbered)
+    _write(file, INDIVIDUAL, individual, pairs)
     file.close()
     return len(found)

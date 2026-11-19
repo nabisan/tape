@@ -198,6 +198,7 @@ BOOK_STATS: Final[tuple[tuple[str, Callable[[BookStats], float], str], ...]] = (
     ("Final value", lambda b: b.final_equity, "${:,.2f}"),
     ("Return", lambda b: b.total_return_pct, "{:.2f}%"),
     ("CAGR", lambda b: b.cagr_pct, "{:.2f}%"),
+    ("Volatility", lambda b: b.volatility_pct, "{:.2f}%"),
     ("Sharpe", lambda b: b.sharpe, "{:.2f}"),
     ("Max DD", lambda b: b.max_drawdown_pct, "{:.2f}%"),
     ("Longest DD, sessions", lambda b: float(b.max_drawdown_sessions), "{:,.0f}"),

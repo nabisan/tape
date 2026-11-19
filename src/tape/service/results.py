@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from tape.core.hashing import Digest
 from tape.engine import tables
+from tape.engine.backtest import ENGINE_VERSION
 from tape.engine.orders import OrderOrigin
 from tape.engine.reports import Metrics, capital_loss_pct, time_in_market_pct
 from tape.runner import RunSpec
@@ -57,6 +58,14 @@ SCHEMAS: Final = {
 CAPITAL_LOSS: Final = "max_capital_loss_pct"
 TIME_IN_MARKET: Final = "time_in_market_pct"
 LEGACY_ORIGIN: Final = {"stop": OrderOrigin.STOP_LOSS, "squareoff": OrderOrigin.SQUARE_OFF}
+ENGINE_KEY: Final = b"tape.engine_version"
+
+
+def stamped(summary: pa.Table, version: int | None) -> pa.Table:
+    meta = {k: v for k, v in (summary.schema.metadata or {}).items() if k != ENGINE_KEY}
+    if version is not None:
+        meta[ENGINE_KEY] = str(version).encode()
+    return summary.replace_schema_metadata(meta)
 
 
 def upgrade(table: Table, found: pa.Table) -> pa.Table:
@@ -207,18 +216,27 @@ class ResultStore:
         pq.write_table(arrow, tmp, compression="zstd")
         tmp.replace(path)
 
+    def sweep_engine(self, key: Digest) -> int | None:
+        path = self.sweep_summary(key)
+        if not path.is_file():
+            return None
+        found = (pq.read_schema(path).metadata or {}).get(ENGINE_KEY)
+        return int(found) if found is not None else None
+
     def replace_summary(self, key: Digest, summary: pa.Table) -> None:
         path = self.sweep_summary(key)
+        version = self.sweep_engine(key)
         tmp = scratch(path)
-        pq.write_table(summary, tmp, compression="zstd")
+        pq.write_table(stamped(summary, version), tmp, compression="zstd")
         tmp.replace(path)
 
     def save_sweep(self, key: Digest, spec: BaseModel, summary: pa.Table) -> None:
         path = self.sweep_summary(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = scratch(path)
-        pq.write_table(summary, tmp, compression="zstd")
+        pq.write_table(stamped(summary, ENGINE_VERSION), tmp, compression="zstd")
         path.with_suffix(".json").write_text(spec.model_dump_json(indent=2))
+        self.sweep_paths(key).unlink(missing_ok=True)
         tmp.replace(path)
 
     def frame(

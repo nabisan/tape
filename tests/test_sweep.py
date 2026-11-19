@@ -19,12 +19,13 @@ from tape.catalog.store import Store
 from tape.config import Settings
 from tape.core.hashing import Digest
 from tape.core.types import Ticker, Timeframe
+from tape.engine.backtest import ENGINE_VERSION
 from tape.features.build import build
 from tape.features.grid import FeatureGrid
 from tape.features.kinds import ChannelHigh, ChannelLow, Sma
 from tape.runner import FeaturePolicy
 from tape.service.api import create_app
-from tape.service.results import ResultStore
+from tape.service.results import ResultStore, stamped
 from tape.service.sweeps import SweepManager, SweepStatus
 from tape.sweep import SUMMARY, SweepSpec, expand
 from tests.test_engine_runs import make_store
@@ -231,3 +232,20 @@ def test_stored_summaries_gain_newly_declared_columns(client: TestClient, root: 
     )
     assert pd.api.types.is_datetime64_any_dtype(frame["first_signal"])
     assert set(SUMMARY) <= set(pq.read_schema(path).names)
+
+
+def test_a_simulation_from_an_older_engine_is_recomputed_under_the_same_key(
+    root: Path, client: TestClient
+) -> None:
+    spec = sma(tickers=["AAPL"], grid={"fast": [5], "slow": [10]})
+    key = client.post("/sweeps", json=spec.model_dump(mode="json")).json()["key"]
+    assert wait(client, key)["state"] == "done"
+    results = ResultStore(root / "results")
+    assert results.sweep_engine(Digest(key)) == ENGINE_VERSION
+    assert client.post("/sweeps", json=spec.model_dump(mode="json")).json()["state"] == "done"
+    path = results.sweep_summary(Digest(key))
+    pq.write_table(stamped(pq.read_table(path), ENGINE_VERSION - 1), path)
+    again = client.post("/sweeps", json=spec.model_dump(mode="json")).json()
+    assert again["key"] == key and again["state"] == "running"
+    assert wait(client, key)["state"] == "done"
+    assert results.sweep_engine(Digest(key)) == ENGINE_VERSION

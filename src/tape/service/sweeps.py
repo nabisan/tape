@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from tape.benchmarks import REFERENCE, prices
 from tape.book import combine, encode, members
+from tape.engine.backtest import ENGINE_VERSION
 from tape.log import Log
 from tape.service.results import Table
 from tape.sweep import Plan, Skipped, SweepSpec, expand, summary
@@ -97,7 +98,7 @@ class SweepManager:
         plan = expand(spec, store, self._grid)
         progress = _Progress(key=key, total=len(plan.runs), skipped=list(plan.skipped), spec=spec)
         self._sweeps[key] = progress
-        if self._results.sweep_summary(key).is_file():
+        if self._results.sweep_engine(key) == ENGINE_VERSION:
             progress.state, progress.done = "done", progress.total
             return progress.status()
         self._log.info(

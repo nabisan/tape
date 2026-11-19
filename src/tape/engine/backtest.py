@@ -5,10 +5,11 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Annotated
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, model_serializer
 
 from tape.catalog.bars import bar_ends, last_minutes
 from tape.core.types import NS_PER_MINUTE, Minutes, Notional, Timeframe
+from tape.engine.margin import MarginSpec
 from tape.engine.matching import FillModel, MatchingEngine
 from tape.engine.orders import Fill, Order, OrderOrigin, OrderSide, OrderStatus, OrderType, TimeInForce
 from tape.engine.portfolio import Portfolio, Trade
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     from tape.engine.strategy import Strategy, StrategyConfig
     from tape.features.kinds import FeatureSpec
 
-ENGINE_VERSION = 5
+ENGINE_VERSION = 6
 
 type Stored = Callable[[FeatureSpec], F64 | None]
 type Align = Callable[[FeatureSpec, Timeframe], F64]
@@ -52,6 +53,14 @@ class ExecutionSpec(BaseModel):
     intraday: bool = False
     entry_delay_minutes: Minutes = 0
     squareoff_minutes_before_close: Annotated[Minutes, Field(ge=1)] = 5
+    margin: MarginSpec | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_margin(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
+        data: dict[str, object] = handler(self)
+        if self.margin is None:
+            data.pop("margin", None)
+        return data
 
 
 class Context:

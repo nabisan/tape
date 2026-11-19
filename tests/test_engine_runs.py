@@ -236,13 +236,13 @@ def reference_high_breakout(
     stop_pct: float,
 ) -> list[tuple[int, float, int | None, float | None]]:
     trades: list[tuple[int, float, int | None, float | None]] = []
-    e, entry, intrabar, n = 0, float(o[0]), False, len(o)
+    e, entry, n = 0, float(o[0]), len(o)
     while True:
         stop = entry * (1 - stop_pct / 100)
         exit_at: tuple[int, float] | None = None
         for i in range(e, n):
             if i == e:
-                if (c[i] if intrabar else lo[i]) <= stop:
+                if lo[i] <= stop:
                     exit_at = (i, stop)
             elif o[i] <= stop:
                 exit_at = (i, float(o[i]))
@@ -258,10 +258,10 @@ def reference_high_breakout(
         level = max(entry, float(h[e : x + 1].max()))
         for i in range(x + 1, n):
             if o[i] > level:
-                e, entry, intrabar = i, float(o[i]), False
+                e, entry = i, float(o[i])
                 break
             if h[i] > level:
-                e, entry, intrabar = i, level, True
+                e, entry = i, level
                 break
         else:
             return trades
@@ -304,13 +304,13 @@ def reference_low_breakdown(
     stop_pct: float,
 ) -> list[tuple[int, float, int | None, float | None]]:
     trades: list[tuple[int, float, int | None, float | None]] = []
-    e, entry, intrabar, n = 0, float(o[0]), False, len(o)
+    e, entry, n = 0, float(o[0]), len(o)
     while True:
         stop = entry * (1 + stop_pct / 100)
         exit_at: tuple[int, float] | None = None
         for i in range(e, n):
             if i == e:
-                if (c[i] if intrabar else h[i]) >= stop:
+                if h[i] >= stop:
                     exit_at = (i, stop)
             elif o[i] >= stop:
                 exit_at = (i, float(o[i]))
@@ -326,10 +326,10 @@ def reference_low_breakdown(
         level = min(entry, float(lo[e : x + 1].min()))
         for i in range(x + 1, n):
             if o[i] < level:
-                e, entry, intrabar = i, float(o[i]), False
+                e, entry = i, float(o[i])
                 break
             if lo[i] < level:
-                e, entry, intrabar = i, level, True
+                e, entry = i, level
                 break
         else:
             return trades

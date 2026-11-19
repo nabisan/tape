@@ -4,6 +4,7 @@ import pytest
 
 from tape.core.instruments import Valuation, equity
 from tape.core.types import Ticker
+from tape.engine.backtest import adverse_bias
 from tape.engine.matching import BarPath, FillModel, MatchingEngine
 from tape.engine.orders import Fill, Order, OrderOrigin, OrderSide, OrderStatus, OrderType, TimeInForce
 from tape.engine.portfolio import Portfolio, PositionSide
@@ -168,3 +169,38 @@ def test_signal_time_is_the_decision_for_market_and_the_trigger_for_stops() -> N
     rejected = Order(4, OrderSide.BUY, OrderType.MARKET, 10, TimeInForce.GTC, 100, 0)
     rejected.status = OrderStatus.REJECTED
     assert rejected.signal_ns is None
+
+
+def test_flat_book_plays_the_bar_against_the_position_it_would_open() -> None:
+    buy, sell = (
+        order(OrderSide.BUY, OrderType.STOP_MARKET, price=101),
+        order(OrderSide.SELL, OrderType.STOP_MARKET, price=99),
+    )
+    assert adverse_bias(0, [buy]) == -1 and adverse_bias(0, [sell]) == 1 and adverse_bias(0, []) == 0
+    assert adverse_bias(100, [sell]) == 1 and adverse_bias(-100, [buy]) == -1
+
+
+def test_a_breakout_entry_and_its_stop_on_one_bar_both_fill() -> None:
+    entry = order(OrderSide.BUY, OrderType.STOP_MARKET, price=101)
+    working = [entry]
+    matcher = MatchingEngine(FillModel(path=BarPath.ADVERSE_FIRST), STOCK)
+    fills = []
+    for f in matcher.process(working, 1, (100, 102, 99, 101.5), adverse_bias(0, working)):
+        fills.append(f)
+        if f.order_id == entry.id:
+            working.append(
+                Order(
+                    2,
+                    OrderSide.SELL,
+                    OrderType.STOP_MARKET,
+                    f.quantity,
+                    TimeInForce.GTC,
+                    1,
+                    0,
+                    price=f.reference * (1 - 0.0025),
+                )
+            )
+    assert [(f.side, f.price) for f in fills] == [
+        (OrderSide.BUY, 101),
+        (OrderSide.SELL, pytest.approx(100.7475)),
+    ]

@@ -16,7 +16,7 @@ from tape.engine.strategy import Bar
 from tape.features.align import Aligned
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from tape.calendar import Sessions
     from tape.catalog.bars import Bars
@@ -30,6 +30,12 @@ ENGINE_VERSION = 5
 
 type Stored = Callable[[FeatureSpec], F64 | None]
 type Align = Callable[[FeatureSpec, Timeframe], F64]
+
+
+def adverse_bias(held: int, working: Sequence[Order]) -> int:
+    if held:
+        return 1 if held > 0 else -1
+    return -working[0].side.sign if working else 0
 
 
 class FillOn(StrEnum):
@@ -331,10 +337,7 @@ class BacktestEngine:
         return hit
 
     def _bias(self) -> int:
-        held = self.ctx.portfolio.quantity
-        if held:
-            return 1 if held > 0 else -1
-        return self.ctx.working[0].side.sign if self.ctx.working else 0
+        return adverse_bias(self.ctx.portfolio.quantity, self.ctx.working)
 
     def _book(self, f: Fill) -> None:
         self.fills.append(f)

@@ -4,7 +4,7 @@ import math
 from bisect import bisect_right
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, model_serializer
@@ -34,6 +34,18 @@ ENGINE_VERSION = 6
 type Stored = Callable[[FeatureSpec], F64 | None]
 type Align = Callable[[FeatureSpec, Timeframe], F64]
 type Gate = Callable[[Order], str | None]
+
+
+def floats(values: F64) -> Sequence[float]:
+    return cast("Sequence[float]", memoryview(np.ascontiguousarray(values)))
+
+
+def ints(values: I64 | I32) -> Sequence[int]:
+    return cast("Sequence[int]", memoryview(np.ascontiguousarray(values)))
+
+
+def flags(values: np.ndarray[tuple[int], np.dtype[np.bool_]]) -> Sequence[bool]:
+    return cast("Sequence[bool]", memoryview(np.ascontiguousarray(values)))
 
 
 def adverse_bias(held: int, working: Sequence[Order]) -> int:
@@ -273,22 +285,19 @@ class BacktestEngine:
         self.bar_equity: list[float] = []
         self.squared = -1
 
-        self.time = stream.time_ns.tolist()
-        self.sess = stream.session.tolist()
-        self.ohlc = list(
-            zip(
-                stream.open.tolist(),
-                stream.high.tolist(),
-                stream.low.tolist(),
-                stream.close.tolist(),
-                strict=True,
-            )
+        self.time = ints(stream.time_ns)
+        self.sess = ints(stream.session)
+        self.opens, self.highs, self.lows, self.closes = (
+            floats(stream.open),
+            floats(stream.high),
+            floats(stream.low),
+            floats(stream.close),
         )
-        self.bar_end: list[int] = bar_ends(stream, sessions, timeframe if by_bar else Timeframe.M1).tolist()
-        self.session_end = np.r_[stream.session[1:] != stream.session[:-1], True].tolist()
+        self.bar_end = ints(bar_ends(stream, sessions, timeframe if by_bar else Timeframe.M1))
+        self.session_end = flags(np.r_[stream.session[1:] != stream.session[:-1], True])
         decision_end = np.zeros(len(stream), dtype=bool)
         decision_end[ends] = True
-        self.decision_end = decision_end.tolist()
+        self.decision_end = flags(decision_end)
         self.entry_from = (sessions.open_ns + execution.entry_delay_minutes * NS_PER_MINUTE).tolist()
         squareoff_ns = sessions.close_ns - execution.squareoff_minutes_before_close * NS_PER_MINUTE
         self.squareoff = squareoff_ns.tolist()
@@ -305,7 +314,7 @@ class BacktestEngine:
             opening = np.r_[True, stream.session[1:] != stream.session[:-1]]
             boundary |= late & (opening | ~np.r_[False, late[:-1]])
         marks = np.flatnonzero(boundary)
-        self.next_boundary: list[int] = marks[np.searchsorted(marks, np.arange(len(stream)))].tolist()
+        self.next_boundary = ints(marks[np.searchsorted(marks, np.arange(len(stream)))])
 
     def run(self, first_session: int, last_session: int) -> Run:
         self.begin(first_session, last_session)
@@ -320,7 +329,7 @@ class BacktestEngine:
         self.j1, self.k = int(self.ends[self.k1]), self.k0
         self.strategy.attach(self.ctx)
         self.ctx.now_ns, self.ctx.session = self.time[j0], self.sess[j0]
-        self.last_close = self.ohlc[j0][0]
+        self.last_close = self.opens[j0]
         self.strategy.on_start()
 
     def pending(self) -> int | None:
@@ -342,9 +351,10 @@ class BacktestEngine:
         self.session_closed = None
         ctx.session = s
         if self.execution.intraday and self.squared != s and t >= self.squareoff[s]:
-            self._square_off(s, t, self.ohlc[j][0])
+            self._square_off(s, t, self.opens[j])
         if ctx.working:
-            for f in self.matcher.process(ctx.working, t, self.ohlc[j], self._bias()):
+            bar = (self.opens[j], self.highs[j], self.lows[j], self.closes[j])
+            for f in self.matcher.process(ctx.working, t, bar, self._bias()):
                 self._book(f)
             ctx.working = [w for w in ctx.working if w.working]
         if self.decision_end[j]:
@@ -353,12 +363,12 @@ class BacktestEngine:
         if self.session_end[j]:
             self._session_end(j, t, s)
             self.session_closed = s
-        self.last_close = self.ohlc[j][3]
+        self.last_close = self.closes[j]
         self.done = j + 1
 
     def mark_at(self, t: int) -> float:
         i = bisect_right(self.time, t) - 1
-        return float(self.ohlc[i][3]) if i >= 0 else self.last_close
+        return self.closes[i] if i >= 0 else self.last_close
 
     def liquidate(self, t: int) -> None:
         ctx = self.ctx
@@ -445,7 +455,7 @@ class BacktestEngine:
         ctx.index, ctx.now_ns = k, now
         ctx.allow_entries = not self.execution.intraday or self.entry_from[s] <= now < self.squareoff[s]
         self.bar_time.append(int(d.time_ns[k]))
-        self.bar_equity.append(ctx.portfolio.equity(self.ohlc[j][3]))
+        self.bar_equity.append(ctx.portfolio.equity(self.closes[j]))
         bar = Bar(
             k,
             int(d.time_ns[k]),
@@ -461,7 +471,7 @@ class BacktestEngine:
             self.ledger.mark(k, bar.time_ns, bar.close, self.fills, ctx)
 
     def _session_end(self, j: int, t: int, s: int) -> None:
-        close = self.ohlc[j][3]
+        close = self.closes[j]
         self.ctx.now_ns = self.bar_end[j]
         self.ctx.expire_day_orders()
         if self.execution.intraday and self.squared != s:

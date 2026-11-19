@@ -82,6 +82,7 @@ class SweepManager:
         concurrency: int,
         grid: FeatureGrid,
         execute_book: Callable[[str], Digest] | None = None,
+        book_pool: Callable[[], Executor] | None = None,
     ) -> None:
         self._grid = grid
         self._catalogs = catalogs
@@ -89,6 +90,7 @@ class SweepManager:
         self._pool = pool
         self._execute = execute
         self._execute_book = execute_book
+        self._book_pool = book_pool or pool
         self._limit = asyncio.Semaphore(concurrency)
         self._sweeps: dict[Digest, _Progress] = {}
         self._log = Log("Sweeps")
@@ -164,7 +166,7 @@ class SweepManager:
                 try:
                     payload = json.dumps([s.model_dump(mode="json") for s in specs])
                     await asyncio.get_running_loop().run_in_executor(
-                        self._pool(), self._execute_book, payload
+                        self._book_pool(), self._execute_book, payload
                     )
                 except Exception as e:
                     progress.failed += len(specs)

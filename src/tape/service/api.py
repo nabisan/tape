@@ -468,12 +468,16 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         app.state.ledger_pool = ProcessPoolExecutor(
             max_workers=1, initializer=init_ledger_worker, initargs=initargs
         )
+        app.state.book_pool = ProcessPoolExecutor(
+            max_workers=1, max_tasks_per_child=1, initializer=init_worker, initargs=initargs
+        )
         for venue, version in catalogs.versions.items():
             out.info("catalog", venue=venue, data_version=version)
         out.info("ready", tickers=len(catalogs.available), workers=workers)
         yield
         app.state.pool.shutdown(cancel_futures=True)
         app.state.ledger_pool.shutdown(cancel_futures=True)
+        app.state.book_pool.shutdown(cancel_futures=True)
 
     app = FastAPI(title="tape", version=str(ENGINE_VERSION), lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=GZIP_FROM)
@@ -490,12 +494,17 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         executor: Executor = app.state.ledger_pool
         return executor
 
+    def book_pool() -> Executor:
+        executor: Executor = app.state.book_pool
+        return executor
+
     sweeps = SweepManager(
         catalogs,
         results,
         pool=pool,
         execute=execute_run,
         execute_book=execute_book_run,
+        book_pool=book_pool,
         concurrency=max(1, workers) * 2,
         grid=grid,
     )

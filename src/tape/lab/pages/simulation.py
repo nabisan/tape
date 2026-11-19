@@ -283,9 +283,11 @@ def _(best, catalog, key, pins, runs, shortlist, spec):
                 )
             ),
             mo.Html(views.book_stats(book.stats(_curve, _periods), _periods)),
-            mo.Html(views.account_stats(_account, spec.execution.margin))
-            if _account is not None and spec.execution.margin is not None
-            else None,
+            *(
+                [mo.Html(views.account_stats(_account, spec.execution.margin))]
+                if _account is not None and spec.execution.margin is not None
+                else []
+            ),
             mo.ui.plotly(views.zoomable(charts.book(_curve, _liquidated)), config=charts.CONFIG),
         ]
     )

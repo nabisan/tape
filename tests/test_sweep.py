@@ -249,3 +249,21 @@ def test_a_simulation_from_an_older_engine_is_recomputed_under_the_same_key(
     assert again["key"] == key and again["state"] == "running"
     assert wait(client, key)["state"] == "done"
     assert results.sweep_engine(Digest(key)) == ENGINE_VERSION
+
+
+def test_a_simulation_cut_short_is_run_again_rather_than_reported_done(
+    root: Path, client: TestClient
+) -> None:
+    spec = sma(grid={"fast": [10], "slow": [20]})
+    key = client.post("/sweeps", json=spec.model_dump(mode="json")).json()["key"]
+    assert wait(client, key)["state"] == "done"
+    results = ResultStore(root / "results")
+    path = results.sweep_summary(Digest(key))
+    whole = pq.read_table(path)
+    assert whole.num_rows == 2
+    pq.write_table(stamped(whole.slice(0, 1), ENGINE_VERSION), path)
+    again = client.post("/sweeps", json=spec.model_dump(mode="json")).json()
+    assert (again["key"], again["state"]) == (key, "running")
+    assert wait(client, key)["state"] == "done"
+    assert pq.read_table(path).num_rows == 2
+    assert client.post("/sweeps", json=spec.model_dump(mode="json")).json()["state"] == "done"

@@ -104,7 +104,7 @@ class SweepManager:
         plan = expand(spec, store, self._grid)
         progress = _Progress(key=key, total=len(plan.runs), skipped=list(plan.skipped), spec=spec)
         self._sweeps[key] = progress
-        if self._results.sweep_engine(key) == ENGINE_VERSION:
+        if self._results.sweep_engine(key) == ENGINE_VERSION and self._stored_runs(key) == progress.total:
             progress.state, progress.done = "done", progress.total
             return progress.status()
         self._log.info(
@@ -130,11 +130,14 @@ class SweepManager:
     def status(self, key: Digest) -> SweepStatus | None:
         if key in self._sweeps:
             return self._sweeps[key].status()
-        path = self._results.sweep_summary(key)
-        if not path.is_file():
+        if not self._results.sweep_summary(key).is_file():
             return None
-        rows = len(pd.read_parquet(path, columns=["key"]))
+        rows = self._stored_runs(key)
         return SweepStatus(key=key, state="done", total=rows, done=rows, failed=0, skipped=[])
+
+    def _stored_runs(self, key: Digest) -> int:
+        path = self._results.sweep_summary(key)
+        return len(pd.read_parquet(path, columns=["key"])) if path.is_file() else 0
 
     async def _run(self, spec: SweepSpec, plan: Plan, progress: _Progress, version: Digest) -> None:
         try:

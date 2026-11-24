@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from starlette.types import ASGIApp, Receive, Scope, Send
 
 PAGES: Final = Path(__file__).with_name("pages")
-ROUTES: Final = {"run": "", "simulation": "/simulation"}
+ROUTES: Final = {"run": "", "simulation": "/simulation", "portfolios": "/portfolios"}
 SWEEP: Final = b"sweep="
 PLOTLY_JS: Final = Path(plotly.__file__).parent / "package_data" / "plotly.min.js"
 PLOTLY: Final = f"/static/plotly-{get_plotlyjs_version()}.min.js"

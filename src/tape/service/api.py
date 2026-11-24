@@ -47,6 +47,8 @@ from tape.service.models import (
     UniverseInfo,
     VenueInfo,
 )
+from tape.service.portfolios import Indexer
+from tape.service.portfolios import routes as portfolio_routes
 from tape.service.prices import POINTS, PriceWindow, price
 from tape.service.results import BARS_PER_ROW, STALE, ResultStore, StaleResultError, Table, thin
 from tape.service.sweeps import SweepManager, SweepStatus, book, paths
@@ -495,6 +497,10 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         app.state.book_pool = ProcessPoolExecutor(
             max_workers=1, max_tasks_per_child=1, initializer=init_worker, initargs=initargs
         )
+        app.state.index_pool = ProcessPoolExecutor(
+            max_workers=1, max_tasks_per_child=1, initializer=init_worker, initargs=initargs
+        )
+        indexer.kick()
         for venue, version in catalogs.versions.items():
             out.info("catalog", venue=venue, data_version=version)
         out.info("ready", tickers=len(catalogs.available), workers=workers)
@@ -502,6 +508,7 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         app.state.pool.shutdown(cancel_futures=True)
         app.state.ledger_pool.shutdown(cancel_futures=True)
         app.state.book_pool.shutdown(cancel_futures=True)
+        app.state.index_pool.shutdown(cancel_futures=True)
 
     app = FastAPI(title="tape", version=str(ENGINE_VERSION), lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=GZIP_FROM)
@@ -522,6 +529,11 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         executor: Executor = app.state.book_pool
         return executor
 
+    def index_pool() -> Executor:
+        executor: Executor = app.state.index_pool
+        return executor
+
+    indexer = Indexer(results, index_pool)
     sweeps = SweepManager(
         catalogs,
         results,
@@ -531,6 +543,7 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
         book_pool=book_pool,
         concurrency=max(1, workers) * 2,
         grid=grid,
+        on_done=indexer.kick,
     )
     app.include_router(_catalog_routes(catalogs, grid))
     app.include_router(_valuation_routes(results, Fundamentals.open(settings.store_dir)))
@@ -541,6 +554,7 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
     app.include_router(_sweep_routes(results, sweeps))
     app.include_router(_path_routes(catalogs, results))
     app.include_router(_portfolio_routes(catalogs, results))
+    app.include_router(portfolio_routes(results, indexer))
     mount(app)
     return app
 

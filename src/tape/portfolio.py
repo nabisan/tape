@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from tape.core.types import F64
     from tape.service.results import ResultStore
 
-VERSION: Final = 2
+VERSION: Final = 3
 
 type Kind = Literal["book", "hold", "benchmark"]
 
@@ -64,6 +64,10 @@ class Portfolio(BaseModel):
     sweep: str
     run: str
     book: str
+    start: date
+    end: date
+    sessions: int
+    periods: int
     tickers: int
     trades: int
     reference: str
@@ -110,6 +114,10 @@ def portfolio(results: ResultStore, sweep: Digest, run: str, store: Store, marke
         sweep=sweep,
         run=run,
         book=book_id(chosen),
+        start=book.start,
+        end=book.end,
+        sessions=book.sessions,
+        periods=periods,
         tickers=len(chosen),
         trades=int(trades.sum()),
         reference=REFERENCE,
@@ -194,13 +202,15 @@ def benchmark_lines(
                 sharpe=b.sharpe,
                 max_drawdown_pct=b.max_drawdown_pct,
                 exposure=b.exposure,
-                ends=last if last < days[-1].date() else None,
+                ends=last if last is not None and last < days[-1].date() else None,
             )
         )
     return found
 
 
-def _last_session(store: Store, ticker: Ticker) -> date:
+def _last_session(store: Store, ticker: Ticker) -> date | None:
     bars = store.bars(ticker, Timeframe.D1)
+    if not len(bars):
+        return None
     found: date = pd.Timestamp(store.sessions().day[bars.session[-1]]).date()
     return found

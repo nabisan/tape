@@ -9,7 +9,7 @@ from tape.lab.mount import url
 if TYPE_CHECKING:
     from tape.lab.form.model import Form
 
-NAMES: Final = ("run", "simulation")
+NAMES: Final = ("run", "simulation", "portfolios")
 WIDTH: Final = "22rem"
 
 

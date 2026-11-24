@@ -452,7 +452,8 @@
         "page": {
           "enum": [
             "run",
-            "simulation"
+            "simulation",
+            "portfolios"
           ],
           "type": "string"
         },

@@ -46,7 +46,7 @@ class ConfigSchema(BaseModel):
 class FormModel(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    page: Literal["run", "simulation"]
+    page: Literal["run", "simulation", "portfolios"]
     pages: dict[str, str]
     api: str
     seed: Seed | None

@@ -13,6 +13,7 @@ from tape.book import decode
 from tape.fundamentals import Valuation
 from tape.log import Log
 from tape.portfolio import Portfolio
+from tape.portfolio_index import IndexState
 from tape.service.ledgers import LedgerStatus
 from tape.service.models import (
     AccountView,
@@ -153,6 +154,12 @@ class Client:
     def sweep_portfolio(self, key: str, run: str) -> Portfolio:
         found = self._send("GET", f"/sweeps/{key}/portfolio", params={"run": run})
         return Portfolio.model_validate(found.json())
+
+    def portfolio_index(self) -> pd.DataFrame:
+        return pd.read_parquet(io.BytesIO(self._get("/portfolio-index").content))
+
+    def portfolio_index_state(self) -> IndexState:
+        return IndexState.model_validate(self._get("/portfolio-index/status").json())
 
     def account(self, run: str) -> AccountView | None:
         try:

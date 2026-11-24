@@ -83,6 +83,7 @@ class SweepManager:
         grid: FeatureGrid,
         execute_book: Callable[[str], Digest] | None = None,
         book_pool: Callable[[], Executor] | None = None,
+        on_done: Callable[[], None] | None = None,
     ) -> None:
         self._grid = grid
         self._catalogs = catalogs
@@ -91,6 +92,7 @@ class SweepManager:
         self._execute = execute
         self._execute_book = execute_book
         self._book_pool = book_pool or pool
+        self._on_done = on_done
         self._limit = asyncio.Semaphore(concurrency)
         self._sweeps: dict[Digest, _Progress] = {}
         self._log = Log("Sweeps")
@@ -154,6 +156,8 @@ class SweepManager:
             self._results.save_sweep(spec.key, spec, summary(plan, keys, self._results))
             progress.state = "done"
             self._log.info("sweep done", sweep=progress.key[:12], runs=progress.total, failed=progress.failed)
+            if self._on_done is not None:
+                self._on_done()
         except Exception as e:
             progress.state, progress.error = "failed", str(e)
             self._log.error("sweep failed", sweep=progress.key[:12], reason=e)

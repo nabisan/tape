@@ -215,7 +215,7 @@ export interface FormModel {
   api: string;
   busy: boolean;
   message: string;
-  page: "run" | "simulation";
+  page: "run" | "simulation" | "portfolios";
   pages: {
     [k: string]: string;
   };

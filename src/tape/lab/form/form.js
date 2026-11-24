@@ -47,7 +47,7 @@ export const EXECUTION = {
   leverage: 30,
   maintenance: 0.5,
 };
-const PAGES = { run: "Single line", simulation: "Simulation" };
+const PAGES = { run: "Single line", simulation: "Simulation", portfolios: "Portfolios" };
 const SCHEMES = /** @type {const} */ (["GICS", "SIC"]);
 const POLL_MS = 3000;
 
@@ -1189,7 +1189,7 @@ export default {
     const redraw = () => morphChildren(root, [brand, ...view()]);
     /** @type {Context} */
     const ctx = { model, api, catalog, tickers, strategies, names, redraw };
-    view = page === "simulation" ? simulationForm(ctx) : runForm(ctx);
+    view = page === "simulation" ? simulationForm(ctx) : page === "portfolios" ? () => [] : runForm(ctx);
     model.on("change:busy", redraw);
     model.on("change:message", redraw);
     redraw();

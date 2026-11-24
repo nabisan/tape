@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from tape import log
+from tape import log, portfolio_index
 from tape.catalog.catalogs import Catalogs
 from tape.core.hashing import Digest
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
@@ -35,6 +35,11 @@ def init_worker(
     found = {Venue(v): Digest(d) for v, d in json.loads(data_versions).items()}
     catalogs = Catalogs.at(Path(store_dir), found)
     _STATE["state"] = (catalogs, ResultStore(Path(results_dir)), FeatureGrid.model_validate_json(grid))
+
+
+def build_portfolios() -> int:
+    catalogs, results, _ = _STATE["state"]
+    return portfolio_index.build(results, catalogs).rows
 
 
 def execute_run(payload: str) -> Digest:

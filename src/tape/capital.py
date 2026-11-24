@@ -46,26 +46,35 @@ def cost_path(fills: pd.DataFrame, valuation: Valuation, cash: float) -> tuple[I
 
 
 def held_before(times: I64, cost: F64, at: I64) -> F64:
+    if not len(cost):
+        return np.zeros(len(at), dtype=np.float64)
     last = np.searchsorted(times, at, side="left") - 1
-    return np.where(last >= 0, cost[np.maximum(last, 0)], 0.0)
+    held: F64 = np.where(last >= 0, cost[np.maximum(last, 0)], 0.0)
+    return held
 
 
 def usage(results: ResultStore, key: Digest, store: Store, ticker: Ticker, cash: float) -> Usage:
     valuation = Valuation.of(store.instrument(ticker))
     times, cost = cost_path(results.frame(key, Table.FILLS), valuation, cash)
     stamps = results.frame(key, Table.BARS)["time"].to_numpy(dtype="datetime64[ns]").view(np.int64)
-    used = pd.Series(held_before(times, cost, np.r_[stamps[1:], NEVER]), index=pd.to_datetime(stamps))
+    ends = np.r_[stamps[1:], NEVER] if len(stamps) else stamps
+    used = pd.Series(held_before(times, cost, ends), index=pd.to_datetime(stamps), dtype=np.float64)
     days = results.frame(key, Table.EQUITY)["date"].to_numpy(dtype="datetime64[D]")
-    sessions = store.sessions()
-    inside = (sessions.day >= days[0]) & (sessions.day <= days[-1])
-    overnight = held_before(times, cost, sessions.close_ns[inside])
+    overnight = np.zeros(0, dtype=np.float64)
+    if len(days):
+        sessions = store.sessions()
+        inside = (sessions.day >= days[0]) & (sessions.day <= days[-1])
+        overnight = held_before(times, cost, sessions.close_ns[inside])
     return Usage(
-        avg_used=float(used.mean()),
-        max_used=float(used.max()),
+        avg_used=float(used.mean()) if len(used) else 0.0,
+        max_used=float(used.max()) if len(used) else 0.0,
         avg_overnight=float(overnight.mean()) if len(overnight) else 0.0,
         used=used,
     )
 
 
 def combined_max(used: Mapping[Ticker, pd.Series]) -> float:
-    return float(pd.DataFrame(dict(used)).sort_index().ffill().fillna(0.0).sum(axis=1).max())
+    filled = [s for s in used.values() if len(s)]
+    if not filled:
+        return 0.0
+    return float(pd.concat(filled, axis=1).sort_index().ffill().fillna(0.0).sum(axis=1).max())

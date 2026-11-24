@@ -141,15 +141,20 @@ def portfolio_table(folio: Portfolio) -> str:
 
 def capital_line(folio: Portfolio) -> str:
     c = folio.capital
+    money = "${:,.0f}"
     parts = [
-        f"book: {folio.trades:,} trades",
-        f"capital {fmt(c.capital, '${:,.0f}')}",
-        f"final {fmt(c.final_equity, '${:,.0f}')}",
-        f"max DD from capital {fmt(c.max_capital_loss_pct, '{:.2f}%')}",
-        f"capital used avg {fmt(c.avg_used, '${:,.0f}')}, max {fmt(c.max_used, '${:,.0f}')}",
-        f"overnight avg {fmt(c.avg_overnight, '${:,.0f}')}",
+        f"book: no of trades {_bold(f'{folio.trades:,}')}",
+        f"initial capital {_bold(fmt(c.capital, money))}",
+        f"final capital {_bold(fmt(c.final_equity, money))}",
+        f"max DD from capital {_bold(fmt(c.max_capital_loss_pct, '{:.2f}%'))}",
+        f"capital used avg {_bold(fmt(c.avg_used, money))}, max {_bold(fmt(c.max_used, money))}",
+        f"overnight avg {_bold(fmt(c.avg_overnight, money))}",
     ]
     return f'<div class="t-meta">{" &middot; ".join(parts)}</div>'
+
+
+def _bold(text: str) -> str:
+    return f"<b>{text}</b>"
 
 
 def header(

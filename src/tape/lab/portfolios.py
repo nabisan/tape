@@ -11,6 +11,7 @@ import pandas as pd
 from tape.lab.markup import MINUS, fmt
 from tape.lab.nav import link
 from tape.lab.views import Column, cell, table
+from tape.portfolio_index import SCHEMA
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection
@@ -89,6 +90,10 @@ def prepare(index: pd.DataFrame) -> pd.DataFrame:
     frame["sweep_short"] = frame["sweep"].str[:8]
     frame["stop_label"] = frame["stop_loss_pct"].map(stop_label)
     return frame.sort_values("sharpe", ascending=False, na_position="last").reset_index(drop=True)
+
+
+def empty() -> pd.DataFrame:
+    return prepare(SCHEMA.empty_table().to_pandas())
 
 
 def stop_label(value: object) -> str:

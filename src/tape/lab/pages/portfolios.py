@@ -29,8 +29,8 @@ def _():
 @app.cell
 def _():
     get_building, set_building = mo.state(False)
-    sidebar(Form(page="portfolios", pages=PAGES))
-    return get_building, set_building
+    form = Form(page="portfolios", pages=PAGES)
+    return form, get_building, set_building
 
 
 @app.cell
@@ -43,62 +43,60 @@ def _(get_building):
 @app.cell
 def _(get_building, poll, set_building):
     poll.value
+    frame = books.empty()
     try:
         _state = api.portfolio_index_state()
         _index = api.portfolio_index()
     except ApiError as _e:
-        mo.stop(True, mo.Html(markup.notice(str(_e))))
-    if _state.building != get_building():
-        set_building(_state.building)
-    _built = _state.built
-    if _index.empty:
-        _why = "No completed simulations yet"
-        if _state.building:
-            _why = "Building the portfolio table for the first time"
-        mo.stop(True, mo.Html(markup.notice(f"{_why}. This page refreshes on its own.")))
-    frame = books.prepare(_index)
-    _note = " &middot; updating" if _state.building else ""
-    _when = f" &middot; built {_built.built_at:%d %b %Y %H:%M} UTC" if _built is not None else ""
-    _scope = f"every book of the {RECENT} most recent simulations"
-    mo.Html(markup.title("Portfolios", f"{_scope}{_when}{_note}"))
+        _shown = mo.Html(markup.notice(str(_e)))
+    else:
+        if _state.building != get_building():
+            set_building(_state.building)
+        if _index.empty:
+            _why = "No completed simulations yet"
+            if _state.building:
+                _why = "Building the portfolio table for the first time"
+            _shown = mo.Html(markup.notice(f"{_why}. This page refreshes on its own."))
+        else:
+            frame = books.prepare(_index)
+            _built = _state.built
+            _note = " &middot; updating" if _state.building else ""
+            _when = f" &middot; built {_built.built_at:%d %b %Y %H:%M} UTC" if _built is not None else ""
+            _scope = f"every book of the {RECENT} most recent simulations"
+            _shown = mo.Html(markup.title("Portfolios", f"{_scope}{_when}{_note}"))
+    _shown
     return (frame,)
 
 
 @app.cell
-def _(frame):
+def _(form, frame):
     def _pick(label: str, column: str) -> mo.ui.multiselect:
-        return mo.ui.multiselect(books.choices(frame, column), label=label)
+        return mo.ui.multiselect(books.choices(frame, column), label=label, full_width=True)
 
     markets = _pick("Market", "market")
     strategies = _pick("Strategy", "strategy_title")
     timeframes = _pick("Timeframe", "timeframe")
     stops = _pick("Stop loss", "stop_label")
-    fills = _pick("Fills on", "fills_on")
-    margins = _pick("Margin", "margin")
-    search = mo.ui.text(placeholder="fast 5, window 200 …", label="Parameters")
     outdated = mo.ui.switch(label="Show outdated engine")
     groups = mo.ui.multiselect(
-        [g.value for g in books.Group], value=[g.value for g in books.DEFAULT_GROUPS], label="Columns"
+        [g.value for g in books.Group],
+        value=[g.value for g in books.DEFAULT_GROUPS],
+        label="Columns",
+        full_width=True,
     )
-    mo.vstack(
-        [
-            mo.hstack([markets, strategies, timeframes, stops], justify="start", wrap=True),
-            mo.hstack([fills, margins, search, groups, outdated], justify="start", wrap=True),
-        ]
-    )
-    return fills, groups, margins, markets, outdated, search, stops, strategies, timeframes
+    _filters = [markets, strategies, timeframes, stops, groups, outdated]
+    sidebar(form, mo.vstack([mo.Html('<div class="t-side-head">Filters</div>'), *_filters], gap=0.75))
+    return groups, markets, outdated, stops, strategies, timeframes
 
 
 @app.cell
-def _(fills, frame, groups, margins, markets, outdated, search, stops, strategies, timeframes):
+def _(frame, groups, markets, outdated, stops, strategies, timeframes):
+    mo.stop(frame.empty)
     criteria = books.Criteria(
         markets=markets.value,
         strategies=strategies.value,
         timeframes=timeframes.value,
         stops=stops.value,
-        fills=fills.value,
-        margins=margins.value,
-        search=search.value,
         outdated=outdated.value,
         groups=[books.Group(g) for g in groups.value],
     )

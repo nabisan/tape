@@ -9,6 +9,8 @@ body { font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; 
 
 .app-sidebar > div:last-child { padding: var(--t-space-5) var(--t-margin) var(--t-space-6); }
 .app-sidebar[data-expanded="false"] > div:last-child { visibility: hidden; }
+.t-side-head { margin-top: var(--t-space-5); padding-top: var(--t-space-5); border-top: 1px solid var(--t-hairline);
+  font-size: var(--t-text-2); font-weight: 700; color: var(--t-ink); }
 #App[data-config-width="full"] > div:has(.marimo-cell) { padding-left: var(--t-margin); padding-right: var(--t-margin); }
 
 [part="label"] label { font-size: var(--t-text-1); font-weight: 400; color: var(--t-secondary); line-height: 16px; }

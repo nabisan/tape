@@ -21,5 +21,5 @@ def link(page: str, **query: str) -> str:
 PAGES: Final = {name: link(name) for name in NAMES}
 
 
-def sidebar(form: Form) -> object:
-    return mo.sidebar(form, width=WIDTH)
+def sidebar(form: Form, *below: object) -> object:
+    return mo.sidebar([form, *below], width=WIDTH)

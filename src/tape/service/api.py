@@ -30,6 +30,7 @@ from tape.features.catalog import FeatureCatalog
 from tape.features.grid import DEFAULT_GRID, FeatureGrid
 from tape.fundamentals import Fundamentals, Valuation
 from tape.lab.mount import mount
+from tape.portfolio import Portfolio, cached
 from tape.runner import MissingFeaturesError, RunSpec, cold, missing_features, unbuildable, warm
 from tape.service.ledgers import MEDIA, Ledgers, LedgerStatus, filename
 from tape.service.models import (
@@ -415,6 +416,29 @@ def _sweep_routes(results: ResultStore, sweeps: SweepManager) -> APIRouter:
     return router
 
 
+def _portfolio_routes(catalogs: Catalogs, results: ResultStore) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/sweeps/{key}/portfolio")
+    def sweep_portfolio(key: str, run: str) -> Portfolio:
+        k = Digest(key)
+        summary = results.sweep_summary(k)
+        if not summary.is_file():
+            raise HTTPException(404, f"sweep {key} has no summary yet")
+        try:
+            spec = SweepSpec.model_validate_json(summary.with_suffix(".json").read_text())
+            store = catalogs.common(spec.tickers)
+            return cached(results, k, run, store, catalogs.of(Venue.XNYS))
+        except BookError as e:
+            raise HTTPException(422, str(e)) from e
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValidationError as e:
+            raise HTTPException(410, f"sweep {key[:8]} was {STALE}") from e
+
+    return router
+
+
 def _path_routes(catalogs: Catalogs, results: ResultStore) -> APIRouter:
     router = APIRouter()
 
@@ -516,6 +540,7 @@ def create_app(settings: Settings, workers: int, grid: FeatureGrid = DEFAULT_GRI
     app.include_router(_run_routes(catalogs, results, pool, grid))
     app.include_router(_sweep_routes(results, sweeps))
     app.include_router(_path_routes(catalogs, results))
+    app.include_router(_portfolio_routes(catalogs, results))
     mount(app)
     return app
 

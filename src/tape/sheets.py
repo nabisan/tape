@@ -10,11 +10,10 @@ import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
 
 from tape.book import combine, parameters, stats, token
+from tape.capital import combined_max, usage
 from tape.core.hashing import Digest
 from tape.core.instruments import Conversion, Valuation
 from tape.core.types import Ticker, Timeframe
-from tape.engine.orders import Fill, OrderSide
-from tape.engine.portfolio import Portfolio
 from tape.lab.nav import link
 from tape.service.results import Table
 from tape.strategies.registry import STRATEGIES
@@ -27,10 +26,8 @@ if TYPE_CHECKING:
 
     from tape.catalog.catalogs import Catalogs
     from tape.catalog.store import Store
-    from tape.core.types import F64, I64
     from tape.service.results import ResultStore
 
-NEVER: Final = np.iinfo(np.int64).max
 GENERIC: Final = frozenset({"timeframe", "direction", "sizing", "notional", "shares", "stop_loss_pct"})
 ORDER: Final = {tf: i for i, tf in enumerate(Timeframe)}
 TOLERANCE: Final = 1e-9
@@ -127,40 +124,15 @@ def buy_hold_pct(p: Pair) -> float:
     return 100 * p.conversion.growth(p.first_open, p.last_close)
 
 
-def cost_path(fills: pd.DataFrame, valuation: Valuation, cash: float) -> tuple[I64, F64]:
-    portfolio = Portfolio(cash, valuation)
-    times = fills["time"].to_numpy(dtype="datetime64[ns]").view(np.int64)
-    cost = np.zeros(len(fills), dtype=np.float64)
-    sides = [OrderSide(v) for v in fills["side"].astype(str)]
-    quantities = fills["quantity"].to_numpy(dtype=np.int64).tolist()
-    prices = fills["price"].to_numpy(dtype=np.float64).tolist()
-    fees = fills["commission"].to_numpy(dtype=np.float64).tolist()
-    for i, (side, quantity, p, fee) in enumerate(zip(sides, quantities, prices, fees, strict=True)):
-        portfolio.apply(Fill(i + 1, int(times[i]), side, quantity, p, fee, "", p))
-        if portfolio.open is not None:
-            cost[i] = valuation.notional(abs(portfolio.quantity), portfolio.open.entry_price)
-    return times, cost
-
-
-def held_before(times: I64, cost: F64, at: I64) -> F64:
-    last = np.searchsorted(times, at, side="left") - 1
-    return np.where(last >= 0, cost[np.maximum(last, 0)], 0.0)
-
-
 def pair(results: ResultStore, key: Digest, store: Store, periods: int) -> tuple[Pair, pd.Series]:
     ticker = Ticker(results.spec(key).ticker)
     m = results.metrics(key)
     if m.start is None or m.end is None:
         raise SheetError(f"run {key[:8]} for {ticker} has no sessions")
     valuation = Valuation.of(store.instrument(ticker))
-    times, cost = cost_path(results.frame(key, Table.FILLS), valuation, m.initial_cash)
+    use = usage(results, key, store, ticker, m.initial_cash)
     bars = results.frame(key, Table.BARS)
-    stamps = bars["time"].to_numpy(dtype="datetime64[ns]").view(np.int64)
-    used = pd.Series(held_before(times, cost, np.r_[stamps[1:], NEVER]), index=pd.to_datetime(stamps))
     equity = results.frame(key, Table.EQUITY)
-    days = equity["date"].to_numpy(dtype="datetime64[D]")
-    s = store.sessions()
-    inside = (s.day >= days[0]) & (s.day <= days[-1])
     found = Pair(
         ticker=ticker,
         key=key,
@@ -174,9 +146,9 @@ def pair(results: ResultStore, key: Digest, store: Store, periods: int) -> tuple
         first_open=float(bars["open"].iloc[0]),
         last_close=float(equity["close"].iloc[-1]),
         conversion=valuation.conversion,
-        avg_used=float(used.mean()),
-        max_used=float(used.max()),
-        avg_overnight=float(held_before(times, cost, s.close_ns[inside]).mean()),
+        avg_used=use.avg_used,
+        max_used=use.max_used,
+        avg_overnight=use.avg_overnight,
         max_capital_loss=m.max_capital_loss_pct,
         peak_to_trough=m.max_drawdown_pct,
     )
@@ -189,7 +161,7 @@ def pair(results: ResultStore, key: Digest, store: Store, periods: int) -> tuple
         both_missing = math.isnan(engine) and math.isnan(formula)
         if not both_missing and not math.isclose(engine, formula, rel_tol=TOLERANCE, abs_tol=TOLERANCE):
             raise SheetError(f"{ticker} run {key[:8]}: {name} formula gives {formula}, engine {engine}")
-    return found, used
+    return found, use.used
 
 
 def _book(catalogs: Catalogs, results: ResultStore, sweep: Digest) -> list[Book]:
@@ -215,17 +187,17 @@ def _book(catalogs: Catalogs, results: ResultStore, sweep: Digest) -> list[Book]
             periods=store.venue.periods,
             pins={c: token(first[c]) for c in names},
         )
-        used = {}
+        used: dict[Ticker, pd.Series] = {}
         for key in rows["key"]:
             p, series = pair(results, Digest(str(key)), store, book.periods)
             book.pairs.append(p)
-            used[p.ticker] = series
+            used[Ticker(p.ticker)] = series
         sleeves = {
             Ticker(p.ticker): results.frame(p.key, Table.EQUITY).set_index("date")["equity"]
             for p in book.pairs
         }
         b = stats(combine(sleeves, cash), book.periods)
-        book.max_used = float(pd.DataFrame(used).sort_index().ffill().fillna(0.0).sum(axis=1).max())
+        book.max_used = combined_max(used)
         book.max_capital_loss, book.peak_to_trough = b.max_capital_loss_pct, b.max_drawdown_pct
         book.cagr, book.volatility = b.cagr_pct, b.volatility_pct
         summed = sum(p.final for p in book.pairs)

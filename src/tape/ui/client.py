@@ -12,6 +12,7 @@ from tape.benchmarks import Comparison
 from tape.book import decode
 from tape.fundamentals import Valuation
 from tape.log import Log
+from tape.portfolio import Portfolio
 from tape.service.ledgers import LedgerStatus
 from tape.service.models import (
     AccountView,
@@ -148,6 +149,10 @@ class Client:
 
     def sweep_book(self, key: str, run: str) -> pd.DataFrame:
         return decode(self._send("GET", f"/sweeps/{key}/book", params={"run": run}).content)
+
+    def sweep_portfolio(self, key: str, run: str) -> Portfolio:
+        found = self._send("GET", f"/sweeps/{key}/portfolio", params={"run": run})
+        return Portfolio.model_validate(found.json())
 
     def account(self, run: str) -> AccountView | None:
         try:

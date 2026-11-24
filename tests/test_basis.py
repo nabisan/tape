@@ -96,7 +96,8 @@ def test_a_default_stop_loss_is_shown_in_risk_and_the_simulation_header() -> Non
             "max_drawdown_pct": [-1.0],
         }
     )
-    assert "stop loss 0.25%" in views.header("k" * 16, breakout, frame, "High-Breakout")
+    head = views.header("k" * 16, breakout, frame, "High-Breakout", folio=None, source="")
+    assert "stop loss 0.25%" in head
 
 
 def test_the_book_shows_its_period_years_and_final_value() -> None:

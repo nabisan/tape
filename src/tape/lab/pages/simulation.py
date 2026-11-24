@@ -164,7 +164,7 @@ def _(get_current, get_running, poll, set_finished, set_running):
 
 
 @app.cell
-def _(done, strategies):
+def _(done, get_pinned, strategies):
     key = done
     try:
         spec = api.sweep_spec(key)
@@ -174,7 +174,17 @@ def _(done, strategies):
     mo.stop(frame.empty, mo.Html(markup.notice("The simulation produced no runs.")))
     info = strategies[spec.strategy]
     best = frame.sort_values("sharpe", ascending=False, na_position="last").reset_index(drop=True)
-    mo.Html(views.header(key, spec, frame, info.title))
+    _pins = book.pins(best, get_pinned())
+    _linked = book.narrow(best, _pins)
+    _anchor = _linked if _pins and not _linked.empty else best
+    _named = views.book_parameters(_anchor.iloc[0], best)
+    _source = "parameters of the link" if _anchor is _linked else "parameters of the top run by Sharpe"
+    _source = f"{_named} ({_source})" if _named else "all runs"
+    try:
+        _folio = api.sweep_portfolio(key, str(_anchor["key"].iloc[0]))
+    except ApiError:
+        _folio = None
+    mo.Html(views.header(key, spec, frame, info.title, folio=_folio, source=_source))
     return best, info, key, spec
 
 
@@ -236,7 +246,8 @@ def _(best, catalog, info, pins, returns, shortlist, spec, unpin):
     mo.vstack(
         [
             mo.Html(markup.title("Runs", f"{caption} &middot; by Sharpe &middot; click a row to open it")),
-            unpinner,
+            mo.Html(views.stats(best)),
+            *([unpinner] if unpinner is not None else []),
             _none if shortlist.empty else runs,
         ]
     )

@@ -247,6 +247,15 @@ class ResultStore:
     def sweep_paths(self, key: Digest) -> Path:
         return self.root / "sweeps" / f"{key}.paths.parquet"
 
+    def sweep_portfolio(self, key: Digest, book: Digest) -> Path:
+        return self.root / "sweeps" / f"{key}.portfolio" / f"{book}.json"
+
+    def save_text(self, path: Path, text: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = scratch(path)
+        tmp.write_text(text)
+        tmp.replace(path)
+
     def save_paths(self, key: Digest, frame: pd.DataFrame) -> None:
         path = self.sweep_paths(key)
         tmp = scratch(path)

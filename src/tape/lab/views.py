@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from tape.book import BookStats
     from tape.engine.exits import Exit
     from tape.engine.margin import MarginSpec
+    from tape.portfolio import Line, Portfolio
     from tape.service.models import AccountView, Catalog, StoredSweep, TickerInfo, VenueInfo
     from tape.service.sweeps import SweepStatus
     from tape.sweep import SweepSpec
@@ -109,21 +110,68 @@ def stats(frame: pd.DataFrame) -> str:
     return table(head, cells)
 
 
-def header(key: str, spec: SweepSpec, frame: pd.DataFrame, strategy: str) -> str:
-    count = len(spec.tickers)
+LINE_COLUMNS: Final[tuple[tuple[str, Callable[[Line], float], str], ...]] = (
+    ("Net P&L", lambda line: line.net_pnl, "${:,.0f}"),
+    ("Total return", lambda line: line.total_return_pct, "{:.2f}%"),
+    ("CAGR", lambda line: line.cagr_pct, "{:.2f}%"),
+    ("Ann. vol", lambda line: line.volatility_pct, "{:.2f}%"),
+    ("Ann. Sharpe", lambda line: line.sharpe, "{:.2f}"),
+    ("Max DD", lambda line: line.max_drawdown_pct, "{:.2f}%"),
+)
+
+
+def portfolio_table(folio: Portfolio) -> str:
+    ref = html.escape(folio.reference)
+    head = "".join(f"<th>{h}</th>" for h, _, _ in LINE_COLUMNS)
+    head += f"<th>&beta; {ref}</th><th>&rho; {ref}</th>"
+    rows = []
+    for line in folio.lines:
+        cells = "".join(f"<td>{fmt(get(line), pattern)}</td>" for _, get, pattern in LINE_COLUMNS)
+        e = line.exposure
+        cells += f"<td>{fmt(e.beta, '{:.2f}')}</td><td>{fmt(e.correlation, '{:.2f}')}</td>"
+        style = ' class="run"' if line.kind == "book" else ""
+        name = html.escape(line.label)
+        if line.ends is not None:
+            name += f' <span class="t-ids">to {day(line.ends)}</span>'
+        rows.append(f"<tr{style}><td>{name}</td>{cells}</tr>")
+    body = "".join(rows)
+    table = f'<table class="t-cmp"><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table>'
+    return f"<div>{table}{capital_line(folio)}</div>"
+
+
+def capital_line(folio: Portfolio) -> str:
+    c = folio.capital
+    parts = [
+        f"book: {folio.trades:,} trades",
+        f"capital {fmt(c.capital, '${:,.0f}')}",
+        f"final {fmt(c.final_equity, '${:,.0f}')}",
+        f"max DD from capital {fmt(c.max_capital_loss_pct, '{:.2f}%')}",
+        f"capital used avg {fmt(c.avg_used, '${:,.0f}')}, max {fmt(c.max_used, '${:,.0f}')}",
+        f"overnight avg {fmt(c.avg_overnight, '${:,.0f}')}",
+    ]
+    return f'<div class="t-meta">{" &middot; ".join(parts)}</div>'
+
+
+def header(
+    key: str, spec: SweepSpec, frame: pd.DataFrame, strategy: str, *, folio: Portfolio | None, source: str
+) -> str:
     held = " · ".join(f"{label(c)} {label(frame[c].iloc[0])}" for c in fixed(frame, spec))
-    runs = f"{count} ticker{'s' if count != 1 else ''} &middot; {len(frame):,} runs"
+    tickers = folio.tickers if folio is not None else len(spec.tickers)
+    cash = spec.execution.initial_cash
+    runs = f"{tickers} ticker{'s' if tickers != 1 else ''} &times; ${cash:,.0f} &middot; {len(frame):,} runs"
     stop = None if "stop_loss_pct" in spec.grid else stop_loss_pct(spec.strategy, spec.params)
     if stop is not None:
         runs += f" &middot; stop loss {stop:g}%"
     held_line = f'<div class="t-meta">held fixed &middot; {html.escape(held.lower())}</div>' if held else ""
+    right = portfolio_table(folio) if folio is not None else stats(frame)
+    book = f" &middot; book: {html.escape(source)}" if folio is not None else ""
     return (
         '<div class="t-head"><div>'
         f'<div class="t-ticker">{html.escape(strategy)} simulation</div>'
         f'<div class="t-meta">{day(spec.start)} {DASH} {day(spec.end)} &middot; '
         f"{spec.timeframe} &middot; {runs}</div>"
         f"{held_line}"
-        f'<div class="t-ids">simulation {key[:8]}</div></div>{stats(frame)}</div>'
+        f'<div class="t-ids">simulation {key[:8]}{book}</div></div>{right}</div>'
     )
 
 
